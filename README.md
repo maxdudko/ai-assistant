@@ -11,11 +11,11 @@ It is about **augmenting individual autonomy, clarity, and control**.
 
 PMA is a **stateful personal AI agent** that:
 
-* understands user context
-* remembers preferences and patterns
-* helps plan days and manage tasks
-* provides rational, calm support
-* grows with the user over time
+- understands user context
+- remembers preferences and patterns
+- helps plan days and manage tasks
+- provides rational, calm support
+- grows with the user over time
 
 Unlike generic chatbots, PMA maintains a **long-term personal context**, making interactions increasingly relevant and personalized.
 
@@ -23,11 +23,11 @@ Unlike generic chatbots, PMA maintains a **long-term personal context**, making 
 
 ## 🎯 Core Principles
 
-* **Individual-first** — one user, one personal AI context
-* **Clarity over noise** — reduce information overload
-* **No manipulation** — no ideology, no hidden incentives
-* **Transparency** — explainable behavior and traceable context
-* **User autonomy** — AI assists, user decides
+- **Individual-first** — one user, one personal AI context
+- **Clarity over noise** — reduce information overload
+- **No manipulation** — no ideology, no hidden incentives
+- **Transparency** — explainable behavior and traceable context
+- **User autonomy** — AI assists, user decides
 
 ---
 
@@ -35,20 +35,20 @@ Unlike generic chatbots, PMA maintains a **long-term personal context**, making 
 
 ### Included
 
-* User onboarding and personalization
-* Chat-based interaction (core UI)
-* Task and goal management
-* Daily planning assistance
-* Long-term memory (RAG)
-* Neutral information digests (TruthLens Lite)
+- User onboarding and personalization
+- Chat-based interaction (core UI)
+- Task and goal management
+- Daily planning assistance
+- Long-term memory (RAG)
+- Neutral information digests (TruthLens Lite)
 
 ### Not included
 
-* Autonomous actions without confirmation
-* Voice or video
-* Medical or psychological diagnosis
-* Social features
-* Plugins and third-party integrations
+- Autonomous actions without confirmation
+- Voice or video
+- Medical or psychological diagnosis
+- Social features
+- Plugins and third-party integrations
 
 ---
 
@@ -58,10 +58,10 @@ Unlike generic chatbots, PMA maintains a **long-term personal context**, making 
 
 The primary interface is a chat where the user interacts with PMA in different modes:
 
-* Manager (planning & tasks)
-* Reflection (end-of-day summaries)
-* Companion (supportive dialogue)
-* Info (concise knowledge digests)
+- Manager (planning & tasks)
+- Reflection (end-of-day summaries)
+- Companion (supportive dialogue)
+- Info (concise knowledge digests)
 
 ---
 
@@ -69,10 +69,10 @@ The primary interface is a chat where the user interacts with PMA in different m
 
 PMA stores relevant user context in vector memory:
 
-* preferences
-* habits
-* recurring patterns
-* reflections
+- preferences
+- habits
+- recurring patterns
+- reflections
 
 Memory is used implicitly to personalize responses.
 
@@ -80,9 +80,9 @@ Memory is used implicitly to personalize responses.
 
 ### 📅 Daily Flow
 
-* Morning briefing
-* Day planning assistance
-* Evening reflection
+- Morning briefing
+- Day planning assistance
+- Evening reflection
 
 ---
 
@@ -90,22 +90,22 @@ Memory is used implicitly to personalize responses.
 
 **Frontend**
 
-* Next.js (App Router)
-* TypeScript
-* Tailwind CSS
+- Next.js (App Router)
+- TypeScript
+- Tailwind CSS
 
 **Backend**
 
-* NestJS
-* PostgreSQL
-* Prisma ORM
-* JWT Authentication
+- NestJS
+- PostgreSQL
+- Prisma ORM
+- JWT Authentication
 
 **AI Core**
 
-* Prompt Builder
-* LLM abstraction layer
-* Vector memory (pgvector)
+- Prompt Builder
+- LLM abstraction layer
+- Vector memory (pgvector)
 
 ---
 
@@ -178,15 +178,20 @@ personal-manager-assistant/
 ├── package.json
 └── tsconfig.base.json
 ```
+
 ---
+
 ## 🐳 Development Setup with Docker
 
 1️⃣ **Clone the repository**
+
 ```shell
 git clone git@github.com:maxdudko/ai-assistant.git
 cd ai-assistant
 ```
+
 2️⃣ **Build Docker images**
+
 ```shell
 # API
 docker build -f infra/docker/api.dev.Dockerfile -t ai-assistant-api .
@@ -194,15 +199,21 @@ docker build -f infra/docker/api.dev.Dockerfile -t ai-assistant-api .
 # Client
 docker build -f infra/docker/client.dev.Dockerfile -t ai-assistant-client .
 ```
+
 3️⃣ **Launch all services**
+
 ```shell
 docker compose -f compose.dev.yaml up --build
 ```
-* The API (NestJS) will be available at http://localhost:4000
-* The client (Next.js) will be available at http://localhost:3000
-* The db (PostgreSQL) will be automatically started with data from Docker-compose
+
+- The API (NestJS) will be available at http://localhost:4000
+- The client (Next.js) will be available at http://localhost:3000
+- The db (PostgreSQL) will be automatically started with data from Docker-compose
+
 ---
+
 4️⃣ **Building and installing dependencies**
+
 ```shell
 # For the API
 docker compose -f compose.dev.yaml run --rm api sh
@@ -212,7 +223,9 @@ pnpm install
 docker compose -f compose.dev.yaml run --rm client sh
 pnpm install
 ```
+
 5️⃣ **Useful Docker Commands**
+
 ```shell
 # Stop all services
 docker compose -f compose.dev.yaml down -v
@@ -224,25 +237,33 @@ docker compose -f compose.dev.yaml build --no-cache
 docker compose -f compose.dev.yaml up api
 docker compose -f compose.dev.yaml up client
 ```
+
 ---
+
 ## 🌱 Long-Term Vision
 
 PMA is envisioned as:
 
-* a personal AI interface layer
-* a personal digital twin
-* a foundation for advanced personal intelligence systems
+- a personal AI interface layer
+- a personal digital twin
+- a foundation for advanced personal intelligence systems
 
 ---
+
 ## 📘 Project Idea
+
 See [idea.md](docs/idea.md) for the original project idea.
 
 ---
+
 ## 📐 Technical Specification
+
 See [specification.md](docs/specification.md) for the full technical specification.
 
 ---
+
 ## 📅 Roadmap
+
 See [roadmap.md](docs/roadmap.md) for detailed plans.
 
 ---

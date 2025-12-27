@@ -25,9 +25,9 @@ Principle:
 **Goal:**
 To create a minimum viable personal AI assistant that:
 
-* understands one user
-* helps you get through the day more consciously
-* creates a long-lasting personal context
+- understands one user
+- helps you get through the day more consciously
+- creates a long-lasting personal context
 
 **Focus:** Daily Flow + Tasks + Memory
 
@@ -35,60 +35,57 @@ To create a minimum viable personal AI assistant that:
 
 #### Onboarding & Profile
 
-* Dialog onboarding (5-7 questions)
-* User Profile creation
-* Settings:
-
-  * Communication style
-  * Response brevity
-  * Tone
+- Dialog onboarding (5-7 questions)
+- User Profile creation
+- Settings:
+  - Communication style
+  - Response brevity
+  - Tone
 
 #### Chat (Core UI)
 
-* One main screen — chat
-* Dialog history
-* Modes:
-
-  * Manager
-  * Reflection
-  * Companion
-  * Info (Lite)
+- One main screen — chat
+- Dialog history
+- Modes:
+  - Manager
+  - Reflection
+  - Companion
+  - Info (Lite)
 
 #### Tasks & Goals
 
-* Task creation via chat
-* Statuses (todo / done)
-* Priority (low / medium / high)
-* Deadlines
-* Basic goals (without complex hierarchy)
+- Task creation via chat
+- Statuses (todo / done)
+- Priority (low / medium / high)
+- Deadlines
+- Basic goals (without complex hierarchy)
 
 #### Daily Flow (MVP)
 
-* Morning briefing:
+- Morning briefing:
+  - Daily tasks
+  - 1-2 Priority
 
-  * Daily tasks
-  * 1-2 Priority
-* Help with daily planning (upon request)
-* Evening reflection:
-
-  * What has been done
-  * 1 question to ponder
+- Help with daily planning (upon request)
+- Evening reflection:
+  - What has been done
+  - 1 question to ponder
 
 #### Memory (RAG v0)
 
-* Storage:
+- Storage:
+  - Preferences
+  - User facts
+  - Reflection conclusions
 
-  * Preferences
-  * User facts
-  * Reflection conclusions
-* Vector storage (pgvector)
-* Retrieval: Top 3 relevant memories
+- Vector storage (pgvector)
+- Retrieval: Top 3 relevant memories
 
 #### Info Digest (Lite)
 
-* Select 1–2 topics
-* Brief, neutral summary
-* No feed or endless news
+- Select 1–2 topics
+- Brief, neutral summary
+- No feed or endless news
 
 ---
 
@@ -96,23 +93,23 @@ To create a minimum viable personal AI assistant that:
 
 **Frontend**
 
-* Next.js (App Router)
-* Chat UI
-* Onboarding flow
+- Next.js (App Router)
+- Chat UI
+- Onboarding flow
 
 **Backend**
 
-* Auth (JWT)
-* Users / Profile
-* Tasks / Goals
-* Conversations
-* Memory
+- Auth (JWT)
+- Users / Profile
+- Tasks / Goals
+- Conversations
+- Memory
 
 **AI Core**
 
-* Prompt Builder (system + modes)
-* One LLM provider
-* Simple RAG logic
+- Prompt Builder (system + modes)
+- One LLM provider
+- Simple RAG logic
 
 ---
 
@@ -125,33 +122,32 @@ Deepen personalization and the feeling of "he knows me."
 
 #### Enhanced Memory
 
-* Memory Separation:
+- Memory Separation:
+  - Factual
+  - Behavioral Patterns
+  - Reflections
 
-  * Factual
-  * Behavioral Patterns
-  * Reflections
-* Improved Retrieval (Context-Aware)
+- Improved Retrieval (Context-Aware)
 
 #### Smarter Daily Flow
 
-* Adapt the morning briefing to previous days
-* Tracking:
-
-  * Completed/Uncompleted Tasks
-  * User Rhythm
+- Adapt the morning briefing to previous days
+- Tracking:
+  - Completed/Uncompleted Tasks
+  - User Rhythm
 
 #### Task Intelligence (Lite)
 
-* Suggestions:
+- Suggestions:
+  - Simplify the Day
+  - Reduce Tasks
 
-  * Simplify the Day
-  * Reduce Tasks
-* Only Upon User Request
+- Only Upon User Request
 
 #### UX
 
-* Gentle Reminders
-* Minimal Notifications (Opt-in)
+- Gentle Reminders
+- Minimal Notifications (Opt-in)
 
 ---
 
@@ -164,25 +160,23 @@ To help users **better understand themselves**, not just complete tasks.
 
 #### Reflection Engine
 
-* Automatic weekly summaries
-* Recurring patterns:
-
-  * Procrastination
-  * Overload
-  * Productivity peaks
+- Automatic weekly summaries
+- Recurring patterns:
+  - Procrastination
+  - Overload
+  - Productivity peaks
 
 #### Goals Deepening
 
-* Connect daily tasks to goals
-* Questions:
-
-  * "Does this bring you closer to X?"
+- Connect daily tasks to goals
+- Questions:
+  - "Does this bring you closer to X?"
 
 #### TruthLens Lite → v2
 
-* Comparison of perspectives
-* Stricter rationality
-* Minimizing emotions
+- Comparison of perspectives
+- Stricter rationality
+- Minimizing emotions
 
 ---
 
@@ -193,14 +187,14 @@ Create a sustainable personal AI agent.
 
 ### Capabilities
 
-* Long-term user model
-* Predictability of PMA behavior
-* Context across days and weeks
+- Long-term user model
+- Predictability of PMA behavior
+- Context across days and weeks
 
 ⚠️ Still:
 
-* No autonomous actions
-* No decision-making for the user
+- No autonomous actions
+- No decision-making for the user
 
 ---
 
@@ -211,9 +205,9 @@ PMA as a personal interface between humans and the digital world.
 
 ### Possible Directions
 
-* Plugins (opt-in)
-* Multi-agent thinking (planner / analyst / reflector)
-* Advanced memory visualization
-* Personal context export
+- Plugins (opt-in)
+- Multi-agent thinking (planner / analyst / reflector)
+- Advanced memory visualization
+- Personal context export
 
 ---

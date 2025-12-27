@@ -4,13 +4,13 @@ services:
     working_dir: /app
     command: pnpm turbo dev --filter=@ai/api
     volumes:
-#      - .:/app
+      #      - .:/app
       - /app/node_modules
     build:
       context: .
       dockerfile: infra/docker/api.dev.Dockerfile
     ports:
-      - "4000:4000"
+      - '4000:4000'
     depends_on:
       - db
 
@@ -19,13 +19,13 @@ services:
     working_dir: /app
     command: pnpm turbo dev --filter=@ai/client
     volumes:
-#      - .:/app
+      #      - .:/app
       - /app/node_modules
     build:
       context: .
       dockerfile: infra/docker/client.dev.Dockerfile
     ports:
-      - "3000:3000"
+      - '3000:3000'
     depends_on:
       - api
 
@@ -38,7 +38,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - '5432:5432'
 
 volumes:
   pgdata:
