@@ -1,47 +1,41 @@
-import js from "@eslint/js";
-import tsParser from "@typescript-eslint/parser";
-import tsPlugin from "@typescript-eslint/eslint-plugin";
-import importPlugin from "eslint-plugin-import";
-import unusedImportsPlugin from "eslint-plugin-unused-imports";
-import prettierPlugin from "eslint-plugin-prettier";
+import js from '@eslint/js';
+import tsParser from '@typescript-eslint/parser';
+import tsPlugin from '@typescript-eslint/eslint-plugin';
+import importPlugin from 'eslint-plugin-import';
+import unusedImportsPlugin from 'eslint-plugin-unused-imports';
+import prettierPlugin from 'eslint-plugin-prettier';
 
-import reactPlugin from "eslint-plugin-react";
-import reactHooksPlugin from "eslint-plugin-react-hooks";
-import jsxA11yPlugin from "eslint-plugin-jsx-a11y";
+import reactPlugin from 'eslint-plugin-react';
+import reactHooksPlugin from 'eslint-plugin-react-hooks';
+import jsxA11yPlugin from 'eslint-plugin-jsx-a11y';
 
 // ──────────────
 // Global ignores
 // ──────────────
-const ignores = [
-  "node_modules/**",
-  "dist/**",
-  ".next/**",
-  "build/**",
-  "coverage/**",
-];
+const ignores = ['node_modules/**', 'dist/**', '.next/**', 'build/**', 'coverage/**'];
 
 // ──────────────
 // Base TS + JS rules
 // ──────────────
 const baseTSRules = {
-  "prettier/prettier": "error",
+  'prettier/prettier': 'error',
 
   // imports
-  "import/order": [
-    "error",
+  'import/order': [
+    'error',
     {
-      groups: ["builtin", "external", "internal", "parent", "sibling", "index"],
-      "newlines-between": "always",
+      groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
+      'newlines-between': 'always',
     },
   ],
 
   // unused
-  "unused-imports/no-unused-imports": "error",
-  "@typescript-eslint/no-unused-vars": "off",
+  'unused-imports/no-unused-imports': 'error',
+  '@typescript-eslint/no-unused-vars': 'off',
 
   // TypeScript
-  "@typescript-eslint/no-explicit-any": "warn",
-  "@typescript-eslint/consistent-type-imports": "error",
+  '@typescript-eslint/no-explicit-any': 'warn',
+  '@typescript-eslint/consistent-type-imports': 'error',
 };
 
 // ──────────────
@@ -56,18 +50,18 @@ export default [
 
   // TypeScript rules (applies to all TS/TSX)
   {
-    files: ["**/*.ts", "**/*.tsx"],
+    files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
         project: true,
-        sourceType: "module",
+        sourceType: 'module',
       },
     },
     plugins: {
-      "@typescript-eslint": tsPlugin,
+      '@typescript-eslint': tsPlugin,
       import: importPlugin,
-      "unused-imports": unusedImportsPlugin,
+      'unused-imports': unusedImportsPlugin,
       prettier: prettierPlugin,
     },
     rules: baseTSRules,
@@ -77,13 +71,13 @@ export default [
   // API-specific rules (NestJS)
   // ──────────────
   {
-    files: ["apps/api/**/*.ts"],
+    files: ['apps/api/**/*.ts'],
     rules: {
-      "@typescript-eslint/explicit-function-return-type": [
-        "warn",
+      '@typescript-eslint/explicit-function-return-type': [
+        'warn',
         { allowExpressions: true, allowTypedFunctionExpressions: true },
       ],
-      "@typescript-eslint/require-await": "warn",
+      '@typescript-eslint/require-await': 'warn',
     },
   },
 
@@ -91,20 +85,20 @@ export default [
   // Client-specific rules (Next.js / React)
   // ──────────────
   {
-    files: ["apps/client/**/*.{ts,tsx}"],
+    files: ['apps/client/**/*.{ts,tsx}'],
     plugins: {
       react: reactPlugin,
-      "react-hooks": reactHooksPlugin,
-      "jsx-a11y": jsxA11yPlugin,
+      'react-hooks': reactHooksPlugin,
+      'jsx-a11y': jsxA11yPlugin,
     },
     rules: {
-      "react/react-in-jsx-scope": "off",
+      'react/react-in-jsx-scope': 'off',
       ...reactPlugin.configs.recommended.rules,
       ...reactHooksPlugin.configs.recommended.rules,
       ...jsxA11yPlugin.configs.recommended.rules,
     },
     settings: {
-      react: { version: "detect" },
+      react: { version: 'detect' },
     },
   },
 ];
