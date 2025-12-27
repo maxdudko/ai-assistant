@@ -114,21 +114,117 @@ Memory is used implicitly to personalize responses.
 ```
 personal-manager-assistant/
 ├── apps/
-│   ├── web/        # Next.js frontend
-│   └── api/        # NestJS backend
+│   ├── client/                 # Next.js
+│   │   ├── src/
+│   │   ├── next.config.js
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   │
+│   └── api/                    # NestJS
+│       ├── src/
+│       ├── prisma/
+│       │   └── schema.prisma
+│       ├── package.json
+│       └── tsconfig.json
+│
 ├── packages/
-│   ├── shared-types
-│   └── prompt-builder
-├── docker-compose.yml
-│── docs/
-│   |── idea.md
-│   ├── specification.md
-│   └── roadmap.md
-└── README.md
+│   ├── shared-types/
+│   │   ├── src/
+│   │   │   ├── dto/
+│   │   │   ├── enums/
+│   │   │   └── index.ts
+│   │   └── package.json
+│   │
+│   ├── ai-core/
+│   │   ├── prompts/
+│   │   │   ├── system.ts
+│   │   │   ├── planner.ts
+│   │   │   └── memory.ts
+│   │   │
+│   │   ├── providers/
+│   │   │   ├── openai.provider.ts
+│   │   │   ├── gemini.provider.ts
+│   │   │   └── types.ts
+│   │   │
+│   │   ├── rag/
+│   │   │   ├── retriever.ts
+│   │   │   ├── embeddings.ts
+│   │   │   └── vector-store.ts
+│   │   │
+│   │   ├── memory/
+│   │   │   ├── short-term.ts
+│   │   │   ├── long-term.ts
+│   │   │   └── summary.ts
+│   │   └── package.json
+│   ├── utils/
+│   │   ├── src/
+│   │   └── package.json
+│   │
+│   └── config/
+│       ├── eslint/
+│       ├── tsconfig/
+│       ├── env/
+│       └── package.json
+│
+├── infra/
+│   ├── docker/
+│   │   ├── api.Dockerfile
+│   │   ├── client.Dockerfile
+│   │   └── db.Dockerfile
+│   └── compose.yml
+│
+├── turbo.json
+├── pnpm-workspace.yaml
+├── package.json
+└── tsconfig.base.json
 ```
-
 ---
+## 🐳 Development Setup with Docker
 
+1️⃣ **Clone the repository**
+```shell
+git clone git@github.com:maxdudko/ai-assistant.git
+cd ai-assistant
+```
+2️⃣ **Build Docker images**
+```shell
+# API
+docker build -f infra/docker/api.dev.Dockerfile -t ai-assistant-api .
+
+# Client
+docker build -f infra/docker/client.dev.Dockerfile -t ai-assistant-client .
+```
+3️⃣ **Launch all services**
+```shell
+docker compose -f compose.dev.yaml up --build
+```
+* The API (NestJS) will be available at http://localhost:4000
+* The client (Next.js) will be available at http://localhost:3000
+* The db (PostgreSQL) will be automatically started with data from Docker-compose
+---
+4️⃣ **Building and installing dependencies**
+```shell
+# For the API
+docker compose -f compose.dev.yaml run --rm api sh
+pnpm install
+
+# For the Client
+docker compose -f compose.dev.yaml run --rm client sh
+pnpm install
+```
+5️⃣ **Useful Docker Commands**
+```shell
+# Stop all services
+docker compose -f compose.dev.yaml down -v
+
+# Rebuild all services without cache
+docker compose -f compose.dev.yaml build --no-cache
+
+# Start only API or Client
+docker compose -f compose.dev.yaml up api
+docker compose -f compose.dev.yaml up client
+```
+---
 ## 🌱 Long-Term Vision
 
 PMA is envisioned as:

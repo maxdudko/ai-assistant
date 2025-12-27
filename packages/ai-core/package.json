@@ -1,0 +1,8 @@
+{
+  "name": "@ai/ai-core",
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@ai/shared-types": "workspace:*"
+  }
+}
