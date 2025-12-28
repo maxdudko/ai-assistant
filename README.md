@@ -114,7 +114,7 @@ Memory is used implicitly to personalize responses.
 ```
 personal-manager-assistant/
 ├── apps/
-│   ├── client/                 # Next.js
+│   ├── web/                    # Next.js
 │   │   ├── src/
 │   │   ├── next.config.js
 │   │   ├── package.json
@@ -169,7 +169,7 @@ personal-manager-assistant/
 ├── infra/
 │   ├── docker/
 │   │   ├── api.Dockerfile
-│   │   ├── client.Dockerfile
+│   │   ├── web.Dockerfile
 │   │   └── db.Dockerfile
 │   └── compose.yml
 │
@@ -196,8 +196,8 @@ cd ai-assistant
 # API
 docker build -f infra/docker/api.dev.Dockerfile -t ai-assistant-api .
 
-# Client
-docker build -f infra/docker/client.dev.Dockerfile -t ai-assistant-client .
+# WEB
+docker build -f infra/docker/web.dev.Dockerfile -t ai-assistant-web .
 ```
 
 3️⃣ **Launch all services**
@@ -207,8 +207,8 @@ docker compose -f compose.dev.yaml up --build
 ```
 
 - The API (NestJS) will be available at http://localhost:4000
-- The client (Next.js) will be available at http://localhost:3000
-- The db (PostgreSQL) will be automatically started with data from Docker-compose
+- The WEB (Next.js) will be available at http://localhost:3000
+- The DB (PostgreSQL) will be automatically started with data from Docker-compose
 
 ---
 
@@ -219,8 +219,8 @@ docker compose -f compose.dev.yaml up --build
 docker compose -f compose.dev.yaml run --rm api sh
 pnpm install
 
-# For the Client
-docker compose -f compose.dev.yaml run --rm client sh
+# For the WEB
+docker compose -f compose.dev.yaml run --rm web sh
 pnpm install
 ```
 
@@ -233,9 +233,9 @@ docker compose -f compose.dev.yaml down -v
 # Rebuild all services without cache
 docker compose -f compose.dev.yaml build --no-cache
 
-# Start only API or Client
+# Start only API or WEB
 docker compose -f compose.dev.yaml up api
-docker compose -f compose.dev.yaml up client
+docker compose -f compose.dev.yaml up web
 ```
 
 ---

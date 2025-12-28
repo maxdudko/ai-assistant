@@ -19,4 +19,4 @@ RUN pnpm install
 EXPOSE 3000
 
 # Launching a server application
-CMD ["pnpm", "--filter", "client", "dev"]
+CMD ["pnpm", "--filter", "web", "dev"]

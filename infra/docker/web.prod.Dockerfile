@@ -9,8 +9,8 @@ COPY . .
 
 RUN pnpm install --frozen-lockfile
 
-RUN pnpm --filter @ai/client build
-RUN pnpm --filter @ai/client deploy --prod /out/client
+RUN pnpm --filter @ai/web build
+RUN pnpm --filter @ai/web deploy --prod /out/web
 
 # ---------- RUNTIME ----------
 FROM node:20-bullseye
@@ -19,7 +19,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-COPY --from=builder /out/client .
+COPY --from=builder /out/web .
 
 EXPOSE 3000
 

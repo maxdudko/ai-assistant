@@ -106,10 +106,10 @@ export default [
   },
 
   // ──────────────
-  // Client-specific rules (Next.js / React)
+  // WEB-specific rules (Next.js / React)
   // ──────────────
   {
-    files: ['apps/client/**/*.{ts,tsx}'],
+    files: ['apps/web/**/*.{ts,tsx}'],
     ignores: ['**/.next/**'],
     plugins: {
       react: reactPlugin,
