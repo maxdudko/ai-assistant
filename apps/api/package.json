@@ -18,10 +18,12 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@ai/shared-types": "workspace:*",
     "@ai/ai-core": "workspace:*",
+    "@ai/shared-types": "workspace:*",
     "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
+    "@nestjs/jwt": "^11.0.2",
     "@nestjs/platform-express": "^11.0.1",
     "@prisma/client": "^5.9.0",
     "reflect-metadata": "^0.2.2",
