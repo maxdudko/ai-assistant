@@ -59,6 +59,9 @@ importers:
       prettier:
         specifier: ^3.7.4
         version: 3.7.4
+      prisma:
+        specifier: 7.2.0
+        version: 7.2.0(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
       turbo:
         specifier: ^2.0.0
         version: 2.7.2

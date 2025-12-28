@@ -15,6 +15,7 @@ dist/
 .next/
 coverage/
 .vscode/
+.turbo/
 
 # ----------------------
 # OS
@@ -66,3 +67,5 @@ pnpm-debug.log*
 .idea/
 .vscode/
 *.iml
+
+/generated/prisma

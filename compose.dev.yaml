@@ -3,6 +3,8 @@ services:
     image: ai-assistant-api
     working_dir: /app
     command: pnpm turbo dev --filter=@ai/api
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/pma
     volumes:
       #      - .:/app
       - /app/node_modules

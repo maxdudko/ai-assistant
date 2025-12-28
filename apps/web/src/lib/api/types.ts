@@ -3,10 +3,22 @@ export interface AuthTokens {
   refreshToken: string;
 }
 
+export interface UserProfileDto {
+  displayName?: string
+  tone: 'neutral' | 'friendly' | 'strict'
+  verbosity: 'low' | 'medium' | 'high'
+  useEmoji: boolean
+}
+
 export interface UserDto {
-  id: string;
-  email: string;
-  name: string;
+  id: string
+  email: string
+  profile?: UserProfileDto
+}
+
+export interface UpdateMeRequest {
+  email?: string
+  profile?: Partial<UserProfileDto>
 }
 
 export interface LoginRequest {
