@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 
@@ -8,7 +9,6 @@ export class ConversationsService {
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
   ) {}
-
 
   async handleMessage(userId: string, message: string) {
     const conversation = await this.prisma.conversation.create({
@@ -23,9 +23,7 @@ export class ConversationsService {
       },
     });
 
-
     const aiResponse = await this.ai.generateStubResponse(message);
-
 
     await this.prisma.message.create({
       data: {
@@ -34,7 +32,6 @@ export class ConversationsService {
         content: aiResponse,
       },
     });
-
 
     return {
       conversationId: conversation.id,

@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
+
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
-
 
   findByEmail(email: string) {
     return this.prisma.user.findUnique({
@@ -12,7 +12,6 @@ export class UsersService {
       include: { profile: true },
     });
   }
-
 
   createUser(email: string) {
     return this.prisma.user.create({
