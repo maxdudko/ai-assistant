@@ -1,8 +1,7 @@
 'use client'
 
 
-import { useState } from 'react'
-import { authApi } from '@/lib/api/auth'
+import {useCallback, useState} from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/api/AuthContext'
 
@@ -14,12 +13,26 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
 
 
-  async function onSubmit(e: React.FormEvent) {
+  const onSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
-    await authApi.login({ email, password })
-    await refresh()
-    router.push('/app/chat')
-  }
+    try {
+      const response = await fetch(`http://localhost:4000/api/auth/login`, {
+        method: 'POST',
+        mode: 'cors',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      })
+      if (response.ok) {
+        await refresh()
+        router.push('/dashboard')
+      }
+    } catch (error) {
+      console.error('Registration failed:', error)
+    }
+  }, [email, password])
 
 
   return (

@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { authApi } from '@/lib/api/auth'
+import {useCallback, useState} from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/api/AuthContext'
 
@@ -13,13 +12,26 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
-  async function onSubmit(e: React.FormEvent) {
+  const onSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
-    await authApi.register({ name, email, password })
-    await refresh()
-    router.push('/app/chat')
-  }
-
+    try {
+      const response = await fetch(`http://localhost:4000/api/auth/register`, {
+        method: 'POST',
+        mode: 'cors',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, email, password }),
+      })
+      if (response.ok) {
+        await refresh()
+        router.push('/dashboard')
+      }
+    } catch (error) {
+      console.error('Registration failed:', error)
+    }
+  }, [name, email, password])
   return (
     <main className="flex min-h-screen items-center justify-center">
       <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4 rounded-xl bg-neutral-900 p-6">
