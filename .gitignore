@@ -52,7 +52,7 @@ docker/*.tmp
 *.sqlite
 pgdata/
 *.dump
-
+generated/
 # ----------------------
 # Logs
 # ----------------------
