@@ -1,5 +1,5 @@
 # ---------- BUILDER ----------
-FROM node:20-bullseye AS builder
+FROM node:22.12-bullseye AS builder
 
 WORKDIR /repo
 
