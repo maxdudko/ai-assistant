@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      globals:
+        specifier: ^16.0.0
+        version: 16.5.0
     devDependencies:
       '@eslint/js':
         specifier: ^9.39.2
@@ -205,8 +209,6 @@ importers:
       '@ai/shared-types':
         specifier: workspace:*
         version: link:../shared-types
-
-  packages/config: {}
 
   packages/shared-types: {}
 
