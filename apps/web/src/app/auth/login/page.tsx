@@ -4,36 +4,29 @@ import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { useAuth } from '@/lib/api/AuthContext';
+import { authApi } from '@/lib/api/auth';
 
 export default function LoginPage() {
   const router = useRouter();
   const { refresh } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const onSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
+      setError(null);
       try {
-        const response = await fetch(`http://localhost:4000/api/auth/login`, {
-          method: 'POST',
-          mode: 'cors',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ email, password }),
-        });
-        console.log(response);
-        if (response.ok) {
-          await refresh();
-          router.push('/dashboard');
-        }
+        await authApi.login({ email, password });
+        await refresh();
+        router.push('/me');
       } catch (error) {
-        console.error('Registration failed:', error);
+        console.error('Login failed:', error);
+        setError('Invalid email or password');
       }
     },
-    [email, password],
+    [email, password, refresh, router],
   );
 
   return (
@@ -53,7 +46,10 @@ export default function LoginPage() {
           type="password"
           placeholder="Password"
         />
-        <button className="w-full rounded bg-indigo-600 py-2">Sign in</button>
+        {error && <p className="text-red-500 text-sm">{error}</p>}
+        <button type="submit" className="w-full rounded bg-indigo-600 py-2">
+          Sign in
+        </button>
       </form>
     </main>
   );

@@ -14,7 +14,7 @@ export const authApi = {
       body: JSON.stringify(dto),
     }),
 
-  me: () => apiFetch<UserDto>('/auth/me'),
+  me: () => apiFetch<UserDto>('/api/users/me'),
 
-  logout: () => apiFetch<void>('/auth/logout', { method: 'POST' }),
+  logout: () => apiFetch<void>('/api/auth/logout', { method: 'POST' }),
 };
