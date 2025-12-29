@@ -13,10 +13,11 @@ export class UsersService {
     });
   }
 
-  createUser(email: string) {
+  createUser(email: string, passwordHash: string) {
     return this.prisma.user.create({
       data: {
         email,
+        passwordHash,
         profile: { create: {} },
       },
     });

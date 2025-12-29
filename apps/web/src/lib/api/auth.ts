@@ -8,7 +8,6 @@ export const authApi = {
       body: JSON.stringify(dto),
     }),
 
-
   register: (dto: RegisterRequest) =>
     apiFetch<{ user: UserDto }>('/api/auth/register', {
       method: 'POST',

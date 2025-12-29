@@ -4,21 +4,21 @@ export interface AuthTokens {
 }
 
 export interface UserProfileDto {
-  displayName?: string
-  tone: 'neutral' | 'friendly' | 'strict'
-  verbosity: 'low' | 'medium' | 'high'
-  useEmoji: boolean
+  displayName?: string;
+  tone: 'neutral' | 'friendly' | 'strict';
+  verbosity: 'low' | 'medium' | 'high';
+  useEmoji: boolean;
 }
 
 export interface UserDto {
-  id: string
-  email: string
-  profile?: UserProfileDto
+  id: string;
+  email: string;
+  profile?: UserProfileDto;
 }
 
 export interface UpdateMeRequest {
-  email?: string
-  profile?: Partial<UserProfileDto>
+  email?: string;
+  profile?: Partial<UserProfileDto>;
 }
 
 export interface LoginRequest {
