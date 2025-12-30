@@ -1,7 +1,8 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
-import { UserDto } from '../api/types';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+
+import type { UserDto } from '../api/types';
 import { userApi } from '../api/user';
 
 interface AuthState {

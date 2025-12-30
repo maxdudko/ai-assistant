@@ -5,7 +5,7 @@ import cookieParser from 'cookie-parser';
 import request, { type SuperTest, type Test as SuperTestTest } from 'supertest';
 import type { App } from 'supertest/types';
 
-import { AppModule } from './../src/app.module';
+import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('Auth (e2e)', () => {
@@ -47,7 +47,12 @@ describe('Auth (e2e)', () => {
       await prisma.user.deleteMany({
         where: {
           email: {
-            in: [testUser.email, 'register@example.com', 'duplicate@example.com', 'logout@example.com'],
+            in: [
+              testUser.email,
+              'register@example.com',
+              'duplicate@example.com',
+              'logout@example.com',
+            ],
           },
         },
       });
@@ -190,10 +195,7 @@ describe('Auth (e2e)', () => {
       // Use agent to maintain cookies across requests
       agent = request.agent(app.getHttpServer());
 
-      const registerResponse = await agent
-        .post('/api/auth/register')
-        .send(testUser)
-        .expect(201); // Ensure registration succeeded
+      const registerResponse = await agent.post('/api/auth/register').send(testUser).expect(201); // Ensure registration succeeded
 
       userId = registerResponse.body.user.id;
 
@@ -228,10 +230,10 @@ describe('Auth (e2e)', () => {
       // Extract accessToken from cookies
       const setCookieHeaders = registerResponse.headers['set-cookie'] as string[] | undefined;
       expect(setCookieHeaders).toBeDefined();
-      
+
       const accessTokenCookie = setCookieHeaders?.find((c: string) => c.startsWith('accessToken='));
       expect(accessTokenCookie).toBeDefined();
-      
+
       // Extract just the token value (format: "accessToken=value; ...")
       const tokenValue = accessTokenCookie?.split(';')[0].split('=')[1];
       expect(tokenValue).toBeDefined();
@@ -283,6 +285,7 @@ describe('Auth (e2e)', () => {
       // Check that cookies are cleared
       const cookies = response.headers['set-cookie'];
       if (cookies) {
+        console.log({ cookies });
         const accessTokenCookie = cookies.find((cookie: string) => cookie.includes('accessToken'));
         const refreshTokenCookie = cookies.find((cookie: string) =>
           cookie.includes('refreshToken'),

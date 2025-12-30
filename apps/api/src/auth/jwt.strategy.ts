@@ -11,7 +11,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         (req: Request) => {
           // Extract from cookies
           if (req?.cookies?.accessToken) {
-            console.log(req?.cookies?.accessToken);
             return req.cookies.accessToken;
           }
           return null;
@@ -22,7 +21,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: { sub: string }) {
-    console.log(payload.sub);
     return { id: payload.sub };
   }
 }

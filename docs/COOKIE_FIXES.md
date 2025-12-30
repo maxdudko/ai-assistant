@@ -21,6 +21,7 @@ import { PassportModule } from '@nestjs/passport';
 ## Other Improvements
 
 ### 1. Cookie Path Configuration
+
 Added `path: '/'` to cookie settings to ensure cookies are available for all API paths:
 
 ```typescript
@@ -34,11 +35,13 @@ res.cookie('accessToken', tokens.accessToken, {
 ```
 
 ### 2. Enhanced Test Coverage
+
 - Added test to verify cookies are set correctly
 - Added test that manually extracts and sets cookies to verify the full flow
 - Improved error handling in test setup
 
 ### 3. Test Improvements
+
 - Ensure registration succeeds (`.expect(201)`) before using cookies
 - Verify both `accessToken` and `refreshToken` cookies are set
 - Added manual cookie extraction test to verify the complete flow
@@ -53,14 +56,16 @@ res.cookie('accessToken', tokens.accessToken, {
 ## Testing
 
 Run the tests:
+
 ```bash
 cd apps/api
 pnpm run test:e2e
 ```
 
 The tests should now:
+
 - ✅ Register users and verify cookies are set
-- ✅ Login users and verify cookies are set  
+- ✅ Login users and verify cookies are set
 - ✅ Get user data using cookies from previous requests (via agent)
 - ✅ Get user data using manually extracted cookies
 - ✅ Reject requests without cookies
@@ -77,8 +82,3 @@ The tests should now:
 When using `PassportStrategy` in NestJS, you must import `PassportModule` in the module that uses the strategy. Without it, Passport cannot register the strategy properly, causing authentication to fail silently.
 
 The JWT guard (`JwtAuthGuard`) extends `AuthGuard('jwt')`, which requires the 'jwt' strategy to be registered via PassportModule.
-
-
-
-
-

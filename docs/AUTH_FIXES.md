@@ -5,11 +5,13 @@
 ### 1. E2E Test Failures
 
 **Problem**: Tests were failing due to:
+
 - Missing Jest dependencies (workspace issue)
 - Cookie extraction not working correctly in tests
 - Cookies not being sent properly in subsequent requests
 
 **Solution**:
+
 - Updated test to use `request.agent()` from supertest, which automatically maintains cookies across requests
 - Improved cookie extraction and validation in tests
 - Added better error handling and assertions
@@ -19,11 +21,13 @@
 **Problem**: Even with access and refresh tokens in cookies, the endpoint was returning 401.
 
 **Root Causes**:
+
 1. JWT strategy cookie extraction needed better type safety
 2. Test cookies weren't being properly maintained across requests
 3. Cookie format in tests needed to match what the server expects
 
 **Solutions**:
+
 1. **Improved JWT Strategy** (`apps/api/src/auth/jwt.strategy.ts`):
    - Added proper TypeScript types for Request
    - Improved cookie extraction logic with explicit null handling
@@ -40,9 +44,10 @@
 ## Key Changes
 
 ### JWT Strategy
+
 ```typescript
 // Before: Simple extraction
-jwtFromRequest: ExtractJwt.fromExtractors([req => req?.cookies?.accessToken])
+jwtFromRequest: ExtractJwt.fromExtractors([req => req?.cookies?.accessToken]);
 
 // After: Explicit handling with types
 jwtFromRequest: ExtractJwt.fromExtractors([
@@ -52,10 +57,11 @@ jwtFromRequest: ExtractJwt.fromExtractors([
     }
     return null;
   },
-])
+]);
 ```
 
 ### Test Approach
+
 ```typescript
 // Before: Manual cookie extraction and header setting
 const cookies = extractCookies(response);
@@ -77,6 +83,7 @@ pnpm run test:e2e
 ```
 
 The tests should now:
+
 - ✅ Register users and verify cookies are set
 - ✅ Login users and verify cookies are set
 - ✅ Get user data using cookies from previous requests
@@ -88,12 +95,14 @@ The tests should now:
 To test the actual API:
 
 1. Start the API server:
+
    ```bash
    cd apps/api
    pnpm dev
    ```
 
 2. Test with curl:
+
    ```bash
    # Register
    curl -i -X POST http://localhost:4000/api/auth/register \
@@ -117,5 +126,3 @@ To test the actual API:
 - The `request.agent()` approach is the recommended way to test cookie-based authentication with supertest
 - Cookie-parser middleware must be configured in both the main app and test setup
 - JWT_SECRET should be set in environment or will default to 'dev-secret'
-
-
