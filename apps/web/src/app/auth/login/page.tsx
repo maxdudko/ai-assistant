@@ -47,7 +47,7 @@ export default function LoginPage() {
           placeholder="Password"
         />
         {error && <p className="text-red-500 text-sm">{error}</p>}
-        <button type="submit" className="w-full rounded bg-indigo-600 py-2">
+        <button type="submit" className="w-full rounded bg-indigo-600 py-2 cursor-pointer">
           Sign in
         </button>
       </form>

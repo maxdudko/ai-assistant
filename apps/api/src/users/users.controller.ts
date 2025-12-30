@@ -10,6 +10,7 @@ export class UsersController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   me(@Req() req) {
+    console.log('Authenticated user ID:', req.user.id);
     return this.prisma.user.findUnique({
       where: { id: req.user.id },
       include: { profile: true },
@@ -26,6 +27,7 @@ export class UsersController {
       profile?: Partial<any>;
     },
   ) {
+    console.log(dto);
     return this.prisma.user.update({
       where: { id: req.user.id },
       data: {

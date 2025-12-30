@@ -43,8 +43,9 @@ model User {
 }
 
 model UserProfile {
-  id     String @id @default(uuid())
-  userId String @unique
+  id          String @id @default(uuid())
+  userId      String @unique
+  displayName String @default("User")
 
   tone      String  @default("neutral")
   verbosity String  @default("medium")
