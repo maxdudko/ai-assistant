@@ -48,8 +48,8 @@ docker/*.tmp
 # ----------------------
 # PostgreSQL / DB
 # ----------------------
-*.sql
-*.sqlite
+#*.sql
+#*.sqlite
 pgdata/
 *.dump
 generated/
