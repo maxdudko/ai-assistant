@@ -53,6 +53,12 @@ export default function RegisterPage() {
         <button type="submit" className="w-full rounded bg-indigo-600 py-2 cursor-pointer">
           Create account
         </button>
+        <div className="text-right">
+          Already have an account?{' '}
+          <a href="/auth/login" className="underline">
+            Login
+          </a>
+        </div>
       </form>
     </main>
   );

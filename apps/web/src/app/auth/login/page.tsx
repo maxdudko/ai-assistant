@@ -50,6 +50,12 @@ export default function LoginPage() {
         <button type="submit" className="w-full rounded bg-indigo-600 py-2 cursor-pointer">
           Sign in
         </button>
+        <div className="text-right">
+          Don't have an account?{' '}
+          <a href="/auth/register" className="underline">
+            Register
+          </a>
+        </div>
       </form>
     </main>
   );
