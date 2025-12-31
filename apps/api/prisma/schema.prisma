@@ -1,0 +1,84 @@
+// ================================
+// Generator & Datasource
+// ================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ================================
+// Enums
+// ================================
+
+enum ConversationMode {
+  MANAGER
+  REFLECTION
+  COMPANION
+  INFO
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+// ================================
+// Models
+// ================================
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  profile       UserProfile?
+  conversations Conversation[]
+}
+
+model UserProfile {
+  id          String @id @default(uuid())
+  userId      String @unique
+  displayName String @default("User")
+
+  tone      String  @default("neutral")
+  verbosity String  @default("medium")
+  useEmoji  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Conversation {
+  id     String           @id @default(uuid())
+  userId String
+  mode   ConversationMode @default(MANAGER)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
+}
+
+model Message {
+  id             String @id @default(uuid())
+  conversationId String
+
+  role    MessageRole
+  content String
+
+  createdAt DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}

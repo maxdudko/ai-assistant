@@ -9,10 +9,22 @@ import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import jsxA11yPlugin from 'eslint-plugin-jsx-a11y';
 
+import globals from 'globals';
+
 // ──────────────
 // Global ignores
 // ──────────────
-const ignores = ['node_modules/**', 'dist/**', '.next/**', 'build/**', 'coverage/**'];
+const ignores = [
+  '**/node_modules/**',
+  '**/dist/**',
+  '**/.next/**',
+  '**/build/**',
+  '**/coverage/**',
+  // Test files
+  '**/*.spec.ts',
+  '**/*.test.ts',
+  '**/*.e2e-spec.ts',
+];
 
 // ──────────────
 // Base TS + JS rules
@@ -45,6 +57,15 @@ export default [
   // Global ignores
   { ignores },
 
+  // Node.js global variables
+  {
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+
   // Base JS recommended
   js.configs.recommended,
 
@@ -64,7 +85,10 @@ export default [
       'unused-imports': unusedImportsPlugin,
       prettier: prettierPlugin,
     },
-    rules: baseTSRules,
+    rules: {
+      ...baseTSRules,
+      'no-unused-vars': 'off',
+    },
   },
 
   // ──────────────
@@ -82,10 +106,11 @@ export default [
   },
 
   // ──────────────
-  // Client-specific rules (Next.js / React)
+  // WEB-specific rules (Next.js / React)
   // ──────────────
   {
-    files: ['apps/client/**/*.{ts,tsx}'],
+    files: ['apps/web/**/*.{ts,tsx}'],
+    ignores: ['**/.next/**'],
     plugins: {
       react: reactPlugin,
       'react-hooks': reactHooksPlugin,

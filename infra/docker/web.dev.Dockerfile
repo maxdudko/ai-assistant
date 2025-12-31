@@ -1,4 +1,4 @@
-FROM node:20-bullseye
+FROM node:22.12-bullseye
 
 WORKDIR /app
 
@@ -19,4 +19,4 @@ RUN pnpm install
 EXPOSE 3000
 
 # Launching a server application
-CMD ["pnpm", "--filter", "client", "dev"]
+CMD ["pnpm", "--filter", "web", "dev"]

@@ -1,33 +1,35 @@
 services:
-  api:
-    image: ai-assistant-api
-    working_dir: /app
-    command: pnpm turbo dev --filter=@ai/api
-    volumes:
-      #      - .:/app
-      - /app/node_modules
-    build:
-      context: .
-      dockerfile: infra/docker/api.dev.Dockerfile
-    ports:
-      - '4000:4000'
-    depends_on:
-      - db
-
-  client:
-    image: ai-assistant-client
-    working_dir: /app
-    command: pnpm turbo dev --filter=@ai/client
-    volumes:
-      #      - .:/app
-      - /app/node_modules
-    build:
-      context: .
-      dockerfile: infra/docker/client.dev.Dockerfile
-    ports:
-      - '3000:3000'
-    depends_on:
-      - api
+  #  api:
+  #    image: ai-assistant-api
+  #    working_dir: /app
+  #    command: pnpm turbo dev --filter=@ai/api
+  #    environment:
+  #      DATABASE_URL: postgresql://postgres:postgres@db:5432/pma
+  #    volumes:
+  #      #      - .:/app
+  #      - /app/node_modules
+  #    build:
+  #      context: .
+  #      dockerfile: infra/docker/api.dev.Dockerfile
+  #    ports:
+  #      - '4000:4000'
+  #    depends_on:
+  #      - db
+  #
+  #  web:
+  #    image: ai-assistant-web
+  #    working_dir: /app
+  #    command: pnpm turbo dev --filter=@ai/web
+  #    volumes:
+  #      #      - .:/app
+  #      - /app/node_modules
+  #    build:
+  #      context: .
+  #      dockerfile: infra/docker/web.dev.Dockerfile
+  #    ports:
+  #      - '3000:3000'
+  #    depends_on:
+  #      - api
 
   db:
     image: postgres:16
