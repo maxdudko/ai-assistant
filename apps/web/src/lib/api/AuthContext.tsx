@@ -23,11 +23,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(me);
     } catch {
       setUser(null);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    refresh().finally(() => setLoading(false));
+    refresh();
   }, []);
 
   return <AuthContext.Provider value={{ user, loading, refresh }}>{children}</AuthContext.Provider>;
