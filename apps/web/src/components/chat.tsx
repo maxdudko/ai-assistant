@@ -3,6 +3,8 @@
 import type { FC } from 'react';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
+import Editor from '@uiw/react-md-editor';
 
 import type { ConversationDto, MessageDto, ConversationMode } from '@/lib/api/types';
 import {
@@ -131,10 +133,10 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full max-w-full flex-col 2xl:max-w-2/3">
       {/* Header */}
       {conversation && (
-        <div className="mb-4 flex items-center justify-between rounded bg-neutral-800 p-3">
+        <div className="mb-4 flex items-center justify-between rounded bg-[#0D1117] p-3">
           <div className="flex items-center gap-3">
             <Link
               href="/me/conversations"
@@ -161,7 +163,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
 
       {/* Mode selector */}
       {conversation && (
-        <div className="mb-4 flex gap-2 rounded bg-neutral-800 p-2">
+        <div className="mb-4 flex gap-2 rounded bg-[#0D1117] p-2">
           <span className="text-sm text-neutral-400">Mode:</span>
           {(['MANAGER', 'REFLECTION', 'COMPANION', 'INFO'] as ConversationMode[]).map(mode => (
             <button
@@ -180,11 +182,11 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
       )}
 
       {/* Messages */}
-      <div className="flex-1 space-y-2 overflow-y-auto rounded bg-neutral-900 p-4">
+      <div className="flex-1 space-y-2 overflow-y-auto rounded bg-[#0D1117] p-4">
         {messages.length === 0 ? (
-          <div className="text-sm text-neutral-400">
+          <ReactMarkdown>
             PMA: How can I help you today? Start by planning your day or asking a question.
-          </div>
+          </ReactMarkdown>
         ) : (
           messages.map(message => (
             <div
@@ -194,18 +196,18 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
               <div
                 className={`max-w-[80%] min-w-[20%] rounded-lg px-3 py-2 text-sm ${
                   message.role === 'USER'
-                    ? 'bg-indigo-600 text-white'
+                    ? 'bg-[#212121] border border-indigo-400 text-white'
                     : message.role === 'SYSTEM'
                       ? 'bg-neutral-800 text-neutral-400'
-                      : 'bg-neutral-800 text-neutral-200'
+                      : 'bg-[#212121] border border-indigo-800 text-neutral-200'
                 }`}
               >
-                <div className="font-medium mb-1">
+                <div className="font-medium mb-1 underline">
                   {message.role === 'USER' && 'You'}
                   {message.role === 'ASSISTANT' && 'AI Assistant'}
                   {message.role === 'SYSTEM' && 'System'}
                 </div>
-                <div>{message.content}</div>
+                <ReactMarkdown>{message.content}</ReactMarkdown>
                 <p className="text-xs text-right mt-2">
                   {new Date(message.createdAt).toLocaleTimeString()}
                 </p>
@@ -221,13 +223,15 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
 
       {/* Input form */}
       <form onSubmit={handleSendMessage} className="mt-4 flex gap-2">
-        <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          className="flex-1 rounded bg-neutral-800 p-2 text-neutral-200 placeholder:text-neutral-500"
-          placeholder="Type your message..."
-          disabled={loading}
-        />
+        {/*<textarea*/}
+        {/*  rows={5}*/}
+        {/*  value={input}*/}
+        {/*  onChange={e => setInput(e.target.value)}*/}
+        {/*  className="flex-1 rounded bg-neutral-800 p-2 text-neutral-200 placeholder:text-neutral-500"*/}
+        {/*  placeholder="Type your message..."*/}
+        {/*  disabled={loading}*/}
+        {/*/>*/}
+        <Editor className="w-full bg-neutral-900" value={input} onChange={setInput} />
         <button
           type="submit"
           disabled={loading || !input.trim()}

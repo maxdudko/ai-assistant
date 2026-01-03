@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ConversationMode, MessageRole } from '@prisma/client';
 
 interface Message {
@@ -37,35 +38,133 @@ interface AiResponse {
 
 @Injectable()
 export class AiService {
+  private readonly logger = new Logger(AiService.name);
+  private readonly ollamaUrl: string;
+  private readonly ollamaModel: string;
+
+  constructor(private readonly configService: ConfigService) {
+    this.ollamaUrl = this.configService.get<string>('OLLAMA_URL', 'http://localhost:11434');
+    this.ollamaModel = this.configService.get<string>('OLLAMA_MODEL', 'gemma3:1b');
+  }
+
   /**
    * Generate AI response based on message and context
    */
   async generateResponse(message: string, context: Context): Promise<AiResponse> {
-    // Build mode-specific prompt
-    const modePrompt = this.getModePrompt(context.mode);
+    try {
+      // Build mode-specific prompt
+      const modePrompt = this.getModePrompt(context.mode);
 
-    // Build system prompt with context
-    const systemPrompt = this.buildSystemPrompt(modePrompt, context);
+      // Build system prompt with context
+      const systemPrompt = this.buildSystemPrompt(modePrompt, context);
 
-    // Format conversation history
-    const conversationHistory = this.formatMessages(context.messages);
+      // Format conversation history
+      const conversationHistory = this.formatMessages(context.messages);
 
-    // For now, return a structured stub response
-    // TODO: Integrate with actual LLM API
-    const response = this.generateStubResponse(message, context.mode, context.userProfile);
+      // Build full prompt for Ollama
+      const fullPrompt = this.buildOllamaPrompt(systemPrompt, conversationHistory, message);
 
-    // Extract memory candidates based on mode
-    const memoryCandidates = this.extractMemoryCandidates(
-      message,
-      response,
-      context.mode,
-      context.memories,
-    );
+      // Call Ollama API
+      const response = await this.callOllama(fullPrompt);
 
-    return {
-      content: response,
-      memoryCandidates: memoryCandidates.length > 0 ? memoryCandidates : undefined,
-    };
+      // Extract memory candidates based on mode
+      const memoryCandidates = this.extractMemoryCandidates(
+        message,
+        response,
+        context.mode,
+        context.memories,
+      );
+
+      return {
+        content: response,
+        memoryCandidates: memoryCandidates.length > 0 ? memoryCandidates : undefined,
+      };
+    } catch (error) {
+      this.logger.error('Failed to generate AI response:', error);
+      // Fallback to stub response on error
+      const fallbackResponse = this.generateStubResponse(
+        message,
+        context.mode,
+        context.userProfile,
+      );
+      return {
+        content: fallbackResponse,
+      };
+    }
+  }
+
+  /**
+   * Build prompt for Ollama API
+   */
+  private buildOllamaPrompt(
+    systemPrompt: string,
+    conversationHistory: string,
+    currentMessage: string,
+  ): string {
+    // Build a clear, structured prompt for Ollama
+    let prompt = `System Instructions:\n${systemPrompt}\n\n`;
+
+    if (conversationHistory) {
+      prompt += `Previous conversation:\n${conversationHistory}\n\n`;
+    }
+
+    prompt += `Current user message: ${currentMessage}\n\nPlease provide a helpful response based on the system instructions and conversation context.`;
+
+    return prompt;
+  }
+
+  /**
+   * Call Ollama API to generate response
+   */
+  private async callOllama(prompt: string): Promise<string> {
+    const url = `${this.ollamaUrl}/api/generate`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: this.ollamaModel,
+          prompt,
+          stream: false,
+          options: {
+            temperature: 0.7,
+            top_p: 0.9,
+            top_k: 40,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.response) {
+        throw new Error('Ollama API returned no response');
+      }
+
+      // Clean up the response (remove any extra whitespace)
+      return data.response.trim();
+    } catch (error) {
+      if (error instanceof Error) {
+        // Check if it's a connection error
+        if (error.message.includes('fetch failed') || error.message.includes('ECONNREFUSED')) {
+          this.logger.warn(
+            `Cannot connect to Ollama at ${this.ollamaUrl}. Make sure Ollama is running.`,
+          );
+          throw new Error(
+            `Ollama is not available at ${this.ollamaUrl}. Please ensure Ollama is running and the model ${this.ollamaModel} is installed.`,
+          );
+        }
+        throw error;
+      }
+      throw new Error('Unknown error calling Ollama API');
+    }
   }
 
   /**
