@@ -3,14 +3,20 @@
 import type { FC } from 'react';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 
+import Link from 'next/link';
 import type { ConversationDto, MessageDto, ConversationMode } from '@/lib/api/types';
 import {
   getDailyConversation,
+  getConversation,
   sendMessage as sendMessageApi,
   switchMode as switchModeApi,
 } from '@/lib/api/conversations';
 
-const Chat: FC = () => {
+interface ChatProps {
+  conversationId?: string;
+}
+
+const Chat: FC<ChatProps> = ({ conversationId }) => {
   const [conversation, setConversation] = useState<ConversationDto | null>(null);
   const [messages, setMessages] = useState<MessageDto[]>([]);
   const [input, setInput] = useState('');
@@ -18,10 +24,10 @@ const Chat: FC = () => {
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load daily conversation on mount
+  // Load conversation on mount or when conversationId changes
   useEffect(() => {
     loadConversation();
-  }, []);
+  }, [conversationId]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -31,7 +37,10 @@ const Chat: FC = () => {
   const loadConversation = async () => {
     try {
       setLoading(true);
-      const conv = await getDailyConversation();
+      setError(null);
+      const conv = conversationId
+        ? await getConversation(conversationId)
+        : await getDailyConversation();
       setConversation(conv);
       setMessages(conv.messages || []);
     } catch (err) {
@@ -117,8 +126,39 @@ const Chat: FC = () => {
     );
   }
 
+  const getTypeLabel = (type: string): string => {
+    return type === 'DAILY' ? 'Daily' : 'Ad-hoc';
+  };
+
   return (
     <div className="flex h-full flex-col">
+      {/* Header */}
+      {conversation && (
+        <div className="mb-4 flex items-center justify-between rounded bg-neutral-800 p-3">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/me/conversations"
+              className="text-sm text-neutral-400 hover:text-neutral-200 underline"
+            >
+              ← Conversations
+            </Link>
+            <span className="text-neutral-500">|</span>
+            <span className="text-sm font-medium text-neutral-300">
+              {getTypeLabel(conversation.type)} Conversation
+            </span>
+            <span
+              className={`rounded border px-2 py-0.5 text-xs ${
+                conversation.type === 'DAILY'
+                  ? 'bg-blue-600/20 text-blue-400 border-blue-600/50'
+                  : 'bg-purple-600/20 text-purple-400 border-purple-600/50'
+              }`}
+            >
+              {conversation.state}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Mode selector */}
       {conversation && (
         <div className="mb-4 flex gap-2 rounded bg-neutral-800 p-2">

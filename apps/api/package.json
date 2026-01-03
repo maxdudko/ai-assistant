@@ -85,5 +85,10 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "pnpm": {
+    "overrides": {
+      "zeptomatch": "1.2.0"
+    }
   }
 }
