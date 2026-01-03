@@ -21,6 +21,17 @@ enum ConversationMode {
   INFO
 }
 
+enum ConversationState {
+  CREATED
+  ACTIVE
+  ARCHIVED
+}
+
+enum ConversationType {
+  DAILY
+  AD_HOC
+}
+
 enum MessageRole {
   USER
   ASSISTANT
@@ -58,15 +69,22 @@ model UserProfile {
 }
 
 model Conversation {
-  id     String           @id @default(uuid())
+  id     String            @id @default(uuid())
   userId String
-  mode   ConversationMode @default(MANAGER)
+  mode   ConversationMode  @default(MANAGER)
+  state  ConversationState @default(CREATED)
+  type   ConversationType  @default(DAILY)
+  date   DateTime          @default(now()) // Date for daily conversations (start of day)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages Message[]
+  memories Memory[]
+
+  @@unique([userId, type, date]) // One daily conversation per user per day
+  @@index([userId, state, type])
 }
 
 model Message {
@@ -81,4 +99,22 @@ model Message {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, createdAt])
+}
+
+model Memory {
+  id             String  @id @default(uuid())
+  conversationId String
+  userId         String
+
+  content     String
+  importance  Int      @default(5) // 1-10 scale
+  tags        String[] // For categorization
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([conversationId])
 }
