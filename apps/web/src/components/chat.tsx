@@ -58,7 +58,7 @@ const Chat: FC = () => {
         content: userMessage,
         createdAt: new Date().toISOString(),
       };
-      setMessages((prev) => [...prev, tempUserMessage]);
+      setMessages(prev => [...prev, tempUserMessage]);
 
       try {
         const response = await sendMessageApi({
@@ -72,13 +72,13 @@ const Chat: FC = () => {
           await loadConversation();
         } else {
           // Add assistant response
-          setMessages((prev) => [...prev, response.message]);
+          setMessages(prev => [...prev, response.message]);
         }
       } catch (err) {
         console.error('Failed to send message:', err);
         setError('Failed to send message');
         // Remove optimistic message on error
-        setMessages((prev) => prev.filter((msg) => msg.id !== tempUserMessage.id));
+        setMessages(prev => prev.filter(msg => msg.id !== tempUserMessage.id));
       }
     },
     [input, loading, conversation],
@@ -123,7 +123,7 @@ const Chat: FC = () => {
       {conversation && (
         <div className="mb-4 flex gap-2 rounded bg-neutral-800 p-2">
           <span className="text-sm text-neutral-400">Mode:</span>
-          {(['MANAGER', 'REFLECTION', 'COMPANION', 'INFO'] as ConversationMode[]).map((mode) => (
+          {(['MANAGER', 'REFLECTION', 'COMPANION', 'INFO'] as ConversationMode[]).map(mode => (
             <button
               key={mode}
               onClick={() => handleModeSwitch(mode)}
@@ -146,12 +146,10 @@ const Chat: FC = () => {
             PMA: How can I help you today? Start by planning your day or asking a question.
           </div>
         ) : (
-          messages.map((message) => (
+          messages.map(message => (
             <div
               key={message.id}
-              className={`flex ${
-                message.role === 'user' ? 'justify-end' : 'justify-start'
-              }`}
+              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
                 className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
@@ -163,11 +161,7 @@ const Chat: FC = () => {
                 }`}
               >
                 <div className="font-medium mb-1">
-                  {message.role === 'user'
-                    ? 'You'
-                    : message.role === 'system'
-                      ? 'System'
-                      : 'PMA'}
+                  {message.role === 'user' ? 'You' : message.role === 'system' ? 'System' : 'PMA'}
                 </div>
                 <div>{message.content}</div>
               </div>
@@ -178,15 +172,13 @@ const Chat: FC = () => {
       </div>
 
       {/* Error message */}
-      {error && (
-        <div className="mt-2 rounded bg-red-900/50 p-2 text-sm text-red-300">{error}</div>
-      )}
+      {error && <div className="mt-2 rounded bg-red-900/50 p-2 text-sm text-red-300">{error}</div>}
 
       {/* Input form */}
       <form onSubmit={handleSendMessage} className="mt-4 flex gap-2">
         <input
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={e => setInput(e.target.value)}
           className="flex-1 rounded bg-neutral-800 p-2 text-neutral-200 placeholder:text-neutral-500"
           placeholder="Type your message..."
           disabled={loading}

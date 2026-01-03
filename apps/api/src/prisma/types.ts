@@ -11,4 +11,3 @@ export enum ConversationType {
   DAILY = 'DAILY',
   AD_HOC = 'AD_HOC',
 }
-

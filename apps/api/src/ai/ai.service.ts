@@ -43,7 +43,7 @@ export class AiService {
   async generateResponse(message: string, context: Context): Promise<AiResponse> {
     // Build mode-specific prompt
     const modePrompt = this.getModePrompt(context.mode);
-    
+
     // Build system prompt with context
     const systemPrompt = this.buildSystemPrompt(modePrompt, context);
 
@@ -80,7 +80,7 @@ export class AiService {
 - Focus on actionable items
 - Avoid philosophical discussions
 - Be direct and efficient`,
-      
+
       [ConversationMode.REFLECTION]: `You are a reflection companion. Your role is to:
 - Help summarize the day
 - Ask soft, thoughtful questions
@@ -88,7 +88,7 @@ export class AiService {
 - Identify patterns and growth
 - Create memory-worthy moments
 - Be gentle and supportive`,
-      
+
       [ConversationMode.COMPANION]: `You are a supportive companion. Your role is to:
 - Provide empathetic support
 - Engage in free dialogue
@@ -96,7 +96,7 @@ export class AiService {
 - Avoid giving unsolicited advice
 - Be warm and understanding
 - Not everything needs to be saved to memory`,
-      
+
       [ConversationMode.INFO]: `You are an information assistant. Your role is to:
 - Provide rational, factual summaries
 - Be neutral and objective
@@ -145,8 +145,13 @@ export class AiService {
    */
   private formatMessages(messages: Message[]): string {
     return messages
-      .map((msg) => {
-        const role = msg.role === MessageRole.USER ? 'User' : msg.role === MessageRole.ASSISTANT ? 'Assistant' : 'System';
+      .map(msg => {
+        const role =
+          msg.role === MessageRole.USER
+            ? 'User'
+            : msg.role === MessageRole.ASSISTANT
+              ? 'Assistant'
+              : 'System';
         return `${role}: ${msg.content}`;
       })
       .join('\n');
@@ -155,7 +160,11 @@ export class AiService {
   /**
    * Generate stub response (to be replaced with actual LLM)
    */
-  private generateStubResponse(message: string, mode: ConversationMode, profile?: UserProfile): string {
+  private generateStubResponse(
+    message: string,
+    mode: ConversationMode,
+    profile?: UserProfile,
+  ): string {
     const modeResponses = {
       [ConversationMode.MANAGER]: `I understand you want to: "${message}". Let me help you break this down and plan it effectively. What's the most important aspect to focus on first?`,
       [ConversationMode.REFLECTION]: `Thank you for sharing: "${message}". This seems meaningful. What insights or patterns do you notice from this experience?`,
@@ -189,8 +198,16 @@ export class AiService {
     // In REFLECTION mode, most insights are memory-worthy
     if (mode === ConversationMode.REFLECTION) {
       // Simple heuristic: if user message contains reflection keywords
-      const reflectionKeywords = ['learned', 'realized', 'insight', 'pattern', 'growth', 'understand', 'important'];
-      const hasReflection = reflectionKeywords.some((keyword) =>
+      const reflectionKeywords = [
+        'learned',
+        'realized',
+        'insight',
+        'pattern',
+        'growth',
+        'understand',
+        'important',
+      ];
+      const hasReflection = reflectionKeywords.some(keyword =>
         userMessage.toLowerCase().includes(keyword),
       );
 
@@ -206,7 +223,7 @@ export class AiService {
     // In MANAGER mode, only high-priority items
     if (mode === ConversationMode.MANAGER) {
       const priorityKeywords = ['important', 'priority', 'goal', 'objective', 'critical'];
-      const hasPriority = priorityKeywords.some((keyword) =>
+      const hasPriority = priorityKeywords.some(keyword =>
         userMessage.toLowerCase().includes(keyword),
       );
 

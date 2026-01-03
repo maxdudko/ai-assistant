@@ -1,8 +1,9 @@
 import { Controller, Post, Body, Get, Patch, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { ConversationMode } from '@prisma/client';
+
+import { JwtAuthGuard } from '../auth/jwt.guard';
 
 import { ConversationsService } from './conversations.service';
-import { JwtAuthGuard } from '../auth/jwt.guard';
-import { ConversationMode } from '@prisma/client';
 
 @Controller('conversations')
 @UseGuards(JwtAuthGuard)
@@ -33,10 +34,7 @@ export class ConversationsController {
    * Create a new ad-hoc conversation
    */
   @Post('ad-hoc')
-  async createAdHocConversation(
-    @Req() req,
-    @Body() body: { mode?: ConversationMode },
-  ) {
+  async createAdHocConversation(@Req() req, @Body() body: { mode?: ConversationMode }) {
     const conversationId = await this.service.createAdHocConversation(
       req.user.id,
       body.mode || ConversationMode.COMPANION,
@@ -64,11 +62,7 @@ export class ConversationsController {
    * Switch conversation mode
    */
   @Patch(':id/mode')
-  async switchMode(
-    @Req() req,
-    @Param('id') id: string,
-    @Body() body: { mode: ConversationMode },
-  ) {
+  async switchMode(@Req() req, @Param('id') id: string, @Body() body: { mode: ConversationMode }) {
     return this.service.switchMode(req.user.id, id, body.mode);
   }
 
