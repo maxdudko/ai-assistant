@@ -196,10 +196,10 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
               <div
                 className={`max-w-[80%] min-w-[20%] rounded-lg px-3 py-2 text-sm ${
                   message.role === 'USER'
-                    ? 'bg-neutral-500 text-white'
+                    ? 'bg-[#212121] border border-indigo-400 text-white'
                     : message.role === 'SYSTEM'
                       ? 'bg-neutral-800 text-neutral-400'
-                      : 'bg-neutral-800 text-neutral-200'
+                      : 'bg-[#212121] border border-indigo-800 text-neutral-200'
                 }`}
               >
                 <div className="font-medium mb-1 underline">
