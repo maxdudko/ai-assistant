@@ -12,6 +12,7 @@ const Navbar: FC = () => {
     <aside className="w-64 border-r border-neutral-800 p-4 flex flex-col justify-between">
       <nav className="flex flex-col gap-2">
         <Link href="/me/">Home</Link>
+        <Link href="/me/conversations">Conversations</Link>
         <Link href="/me/chat">Chat</Link>
         <Link href="/me/profile">Profile</Link>
       </nav>

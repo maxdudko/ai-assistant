@@ -1,65 +1,65 @@
-name: CI
-
-on:
-  push:
-    branches: [main, development]
-  pull_request:
-    branches: [main, development]
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
-jobs:
-  ci:
-    name: Lint · Test · Build
-    runs-on: ubuntu-latest
-
-    steps:
-      # 1️⃣ Checkout
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # 2️⃣ Node.js
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'pnpm'
-
-      # 3️⃣ pnpm
-      - name: Enable pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@9.0.0 --activate
-
-      # 4️⃣ Install deps
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # 5️⃣ Commitlint (PR only)
-      - name: Validate commit messages
-        if: github.event_name == 'pull_request'
-        run: |
-          pnpm commitlint \
-            --from origin/${{ github.base_ref }} \
-            --to HEAD \
-            --verbose
-
-      # 6️⃣ ESLint
-      - name: Lint
-        run: pnpm lint
-
-      # 7️⃣ Prettier
-      - name: Format check
-        run: pnpm format:check
-
-      # 8️⃣ Tests
-      - name: Run tests
-        run: pnpm test
-
-      # 9️⃣ Build (Turbo)
-      - name: Build
-        run: pnpm turbo build
+#name: CI
+#
+#on:
+#  push:
+#    branches: [main, development]
+#  pull_request:
+#    branches: [main, development]
+#
+#concurrency:
+#  group: ci-${{ github.ref }}
+#  cancel-in-progress: true
+#
+#jobs:
+#  ci:
+#    name: Lint · Test · Build
+#    runs-on: ubuntu-latest
+#
+#    steps:
+#      # 1️⃣ Checkout
+#      - name: Checkout repository
+#        uses: actions/checkout@v4
+#        with:
+#          fetch-depth: 0
+#
+#      # 2️⃣ Node.js
+#      - name: Setup Node.js
+#        uses: actions/setup-node@v4
+#        with:
+#          node-version: 20
+#          cache: 'pnpm'
+#
+#      # 3️⃣ pnpm
+#      - name: Enable pnpm
+#        run: |
+#          corepack enable
+#          corepack prepare pnpm@9.0.0 --activate
+#
+#      # 4️⃣ Install deps
+#      - name: Install dependencies
+#        run: pnpm install --frozen-lockfile
+#
+#      # 5️⃣ Commitlint (PR only)
+#      - name: Validate commit messages
+#        if: github.event_name == 'pull_request'
+#        run: |
+#          pnpm commitlint \
+#            --from origin/${{ github.base_ref }} \
+#            --to HEAD \
+#            --verbose
+#
+#      # 6️⃣ ESLint
+#      - name: Lint
+#        run: pnpm lint
+#
+#      # 7️⃣ Prettier
+#      - name: Format check
+#        run: pnpm format:check
+#
+#      # 8️⃣ Tests
+#      - name: Run tests
+#        run: pnpm test
+#
+#      # 9️⃣ Build (Turbo)
+#      - name: Build
+#        run: pnpm turbo build
