@@ -137,7 +137,7 @@ describe('Auth (e2e)', () => {
       const response = await request(app.getHttpServer())
         .post('/api/auth/login')
         .send(testUser)
-        .expect(201);
+        .expect(200);
 
       expect(response.body).toHaveProperty('user');
       expect(response.body.user).toHaveProperty('id');
@@ -278,7 +278,7 @@ describe('Auth (e2e)', () => {
         })
         .expect(201);
 
-      const response = await request(app.getHttpServer()).post('/api/auth/logout').expect(201);
+      const response = await request(app.getHttpServer()).post('/api/auth/logout').expect(200);
 
       expect(response.body).toHaveProperty('message', 'Logged out successfully');
 

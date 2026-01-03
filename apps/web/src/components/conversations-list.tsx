@@ -6,7 +6,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import type { ConversationDto, ConversationMode, ConversationType } from '@/lib/api/types';
-import { getConversations, archiveConversation, createAdHocConversation } from '@/lib/api/conversations';
+import {
+  getConversations,
+  archiveConversation,
+  createAdHocConversation,
+} from '@/lib/api/conversations';
 
 const ConversationsList: FC = () => {
   const router = useRouter();
@@ -165,7 +169,7 @@ const ConversationsList: FC = () => {
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Conversations</h1>
         <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 text-sm text-neutral-400">
+          <label className="flex items-center gap-2 text-sm text-neutral-400 cursor-pointer">
             <input
               type="checkbox"
               checked={includeArchived}
@@ -177,7 +181,7 @@ const ConversationsList: FC = () => {
           <button
             onClick={handleCreateNew}
             disabled={creating}
-            className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {creating ? 'Creating...' : '+ New Conversation'}
           </button>
@@ -188,10 +192,7 @@ const ConversationsList: FC = () => {
         <div className="flex h-full items-center justify-center">
           <div className="text-center text-neutral-400">
             <p className="mb-2">No conversations yet</p>
-            <Link
-              href="/me/chat"
-              className="text-indigo-400 hover:text-indigo-300 underline"
-            >
+            <Link href="/me/chat" className="text-indigo-400 hover:text-indigo-300 underline">
               Start a conversation
             </Link>
           </div>
@@ -209,11 +210,11 @@ const ConversationsList: FC = () => {
                   <div className="flex-1 min-w-0">
                     <div className="mb-2 flex items-center gap-2">
                       <span
-                        className={`rounded border px-2 py-0.5 text-xs font-medium ${getTypeLabel(
-                          conversation.type,
-                        ) === 'Daily'
-                          ? 'bg-blue-600/20 text-blue-400 border-blue-600/50'
-                          : 'bg-purple-600/20 text-purple-400 border-purple-600/50'}`}
+                        className={`rounded border px-2 py-0.5 text-xs font-medium ${
+                          getTypeLabel(conversation.type) === 'Daily'
+                            ? 'bg-blue-600/20 text-blue-400 border-blue-600/50'
+                            : 'bg-purple-600/20 text-purple-400 border-purple-600/50'
+                        }`}
                       >
                         {getTypeLabel(conversation.type)}
                       </span>
@@ -246,7 +247,7 @@ const ConversationsList: FC = () => {
                     <button
                       onClick={e => handleArchive(e, conversation.id)}
                       disabled={archivingId === conversation.id}
-                      className="ml-4 rounded px-3 py-1 text-xs text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200 disabled:opacity-50"
+                      className="ml-4 rounded px-3 py-1 text-xs text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200 disabled:opacity-50 cursor-pointer"
                       title="Archive conversation"
                     >
                       {archivingId === conversation.id ? 'Archiving...' : 'Archive'}
@@ -263,4 +264,3 @@ const ConversationsList: FC = () => {
 };
 
 export default ConversationsList;
-

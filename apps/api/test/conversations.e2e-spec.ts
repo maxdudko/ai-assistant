@@ -58,7 +58,7 @@ describe('Conversations (e2e)', () => {
       .expect(200);
 
     // Store cookies for authenticated requests
-    authCookies = loginResponse.headers['set-cookie'] as string[];
+    authCookies = loginResponse.headers['set-cookie'] as unknown as string[];
   });
 
   afterAll(async () => {
@@ -405,9 +405,7 @@ describe('Conversations (e2e)', () => {
     });
 
     it('should return 401 without authentication', async () => {
-      await request(app.getHttpServer())
-        .patch('/api/conversations/some-id/archive')
-        .expect(401);
+      await request(app.getHttpServer()).patch('/api/conversations/some-id/archive').expect(401);
     });
   });
 
@@ -462,4 +460,3 @@ describe('Conversations (e2e)', () => {
     });
   });
 });
-

@@ -2,8 +2,8 @@
 
 import type { FC } from 'react';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-
 import Link from 'next/link';
+
 import type { ConversationDto, MessageDto, ConversationMode } from '@/lib/api/types';
 import {
   getDailyConversation,
@@ -170,7 +170,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
               className={`rounded px-3 py-1 text-sm ${
                 conversation.mode === mode
                   ? 'bg-indigo-600 text-white'
-                  : 'bg-neutral-700 text-neutral-300 hover:bg-neutral-600'
+                  : 'bg-neutral-700 text-neutral-300 hover:bg-neutral-600 cursor-pointer'
               }`}
             >
               {getModeLabel(mode)}
@@ -226,7 +226,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         <button
           type="submit"
           disabled={loading || !input.trim()}
-          className="rounded bg-indigo-600 px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="rounded bg-indigo-600 px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
           {loading ? 'Sending...' : 'Send'}
         </button>

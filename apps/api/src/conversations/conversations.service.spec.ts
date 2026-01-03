@@ -122,7 +122,8 @@ describe('ConversationsService', () => {
           messages: {
             create: {
               role: 'SYSTEM',
-              content: 'Daily conversation started. Ready to help with planning, execution, and reflection.',
+              content:
+                'Daily conversation started. Ready to help with planning, execution, and reflection.',
             },
           },
         },
@@ -227,9 +228,9 @@ describe('ConversationsService', () => {
     it('should throw NotFoundException if conversation not found', async () => {
       prisma.conversation.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.getActiveConversation(mockUserId, mockConversationId),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.getActiveConversation(mockUserId, mockConversationId)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should get daily conversation if no id provided', async () => {
@@ -347,7 +348,12 @@ describe('ConversationsService', () => {
         .mockResolvedValueOnce(assistantMessage);
       ai.generateResponse.mockResolvedValue(mockAiResponse);
 
-      await service.handleMessage(mockUserId, 'Hello', mockConversationId, ConversationMode.REFLECTION);
+      await service.handleMessage(
+        mockUserId,
+        'Hello',
+        mockConversationId,
+        ConversationMode.REFLECTION,
+      );
 
       expect(prisma.conversation.update).toHaveBeenCalledWith({
         where: { id: mockConversationId },
@@ -402,9 +408,7 @@ describe('ConversationsService', () => {
       };
       const aiResponseWithMemories = {
         content: 'AI response',
-        memoryCandidates: [
-          { content: 'Important insight', importance: 8, tags: ['insight'] },
-        ],
+        memoryCandidates: [{ content: 'Important insight', importance: 8, tags: ['insight'] }],
       };
 
       prisma.conversation.findUnique
@@ -435,7 +439,11 @@ describe('ConversationsService', () => {
       prisma.conversation.findFirst.mockResolvedValue(mockConversation);
       prisma.conversation.update.mockResolvedValue(updatedConversation);
 
-      const result = await service.switchMode(mockUserId, mockConversationId, ConversationMode.REFLECTION);
+      const result = await service.switchMode(
+        mockUserId,
+        mockConversationId,
+        ConversationMode.REFLECTION,
+      );
 
       expect(result.mode).toBe(ConversationMode.REFLECTION);
       expect(prisma.conversation.update).toHaveBeenCalledWith({
@@ -475,9 +483,9 @@ describe('ConversationsService', () => {
     it('should throw NotFoundException if conversation not found', async () => {
       prisma.conversation.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.archiveConversation(mockUserId, mockConversationId),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.archiveConversation(mockUserId, mockConversationId)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -524,4 +532,3 @@ describe('ConversationsService', () => {
     });
   });
 });
-

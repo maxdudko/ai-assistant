@@ -109,7 +109,7 @@ Memory is used implicitly to personalize responses.
 
 ---
 
-## 🛠️ Repository Structure (Planned)
+## 🛠️ Repository Structure (Monorepo)
 
 ```
 personal-manager-assistant/

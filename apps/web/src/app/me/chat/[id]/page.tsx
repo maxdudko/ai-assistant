@@ -1,6 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
+
 import Chat from '@/components/chat';
 
 export default function ChatWithIdPage() {
@@ -13,4 +14,3 @@ export default function ChatWithIdPage() {
     </div>
   );
 }
-
