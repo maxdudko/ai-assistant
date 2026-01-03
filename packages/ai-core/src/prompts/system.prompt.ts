@@ -5,7 +5,8 @@
  * mode instructions, and relevant memories
  */
 
-import { ConversationContext, ConversationMode } from '../types/index.js';
+import type { ConversationContext } from '../types/index.js';
+
 import { getModePrompt } from './mode.prompts.js';
 
 /**

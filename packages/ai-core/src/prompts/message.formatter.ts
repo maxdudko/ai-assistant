@@ -4,7 +4,8 @@
  * Formats conversation messages for LLM consumption
  */
 
-import { Message, MessageRole } from '../types/index.js';
+import type { Message } from '../types/index.js';
+import { MessageRole } from '../types/index.js';
 
 /**
  * Format messages for prompt inclusion

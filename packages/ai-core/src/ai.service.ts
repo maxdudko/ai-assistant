@@ -5,19 +5,12 @@
  * Handles prompt building, LLM calls, and memory extraction
  */
 
-import {
-  ConversationContext,
-  AiResponse,
-  Message,
-  ConversationMode,
-  UserProfile,
-  LlmRequest,
-} from './types/index.js';
-import { LlmProvider } from './providers/index.js';
+import type { ConversationContext, AiResponse, UserProfile, LlmRequest } from './types/index.js';
+import { ConversationMode } from './types/index.js';
+import type { LlmProvider } from './providers/index.js';
 import { buildSystemPrompt } from './prompts/index.js';
 import { messagesToLlmFormat } from './prompts/message.formatter.js';
 import { extractMemoryCandidates } from './memory/index.js';
-import { getModePrompt } from './prompts/mode.prompts.js';
 
 export interface AiServiceConfig {
   provider: LlmProvider;

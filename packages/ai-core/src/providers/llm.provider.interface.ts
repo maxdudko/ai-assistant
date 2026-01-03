@@ -5,7 +5,7 @@
  * consistent behavior across different AI services.
  */
 
-import { LlmRequest, LlmResponse } from '../types/index.js';
+import type { LlmRequest, LlmResponse } from '../types/index.js';
 
 export interface LlmProvider {
   /**

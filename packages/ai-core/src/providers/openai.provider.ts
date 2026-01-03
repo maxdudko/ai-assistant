@@ -5,8 +5,9 @@
  * Ready for future implementation
  */
 
-import { LlmRequest, LlmResponse } from '../types/index.js';
-import { LlmProvider } from './llm.provider.interface.js';
+import type { LlmRequest, LlmResponse } from '../types/index.js';
+
+import type { LlmProvider } from './llm.provider.interface.js';
 
 export interface OpenAIConfig {
   apiKey: string;

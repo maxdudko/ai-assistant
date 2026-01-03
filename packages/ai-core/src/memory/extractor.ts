@@ -5,7 +5,8 @@
  * This is a simple implementation - can be enhanced with AI-powered extraction
  */
 
-import { ConversationMode, Memory, MemoryCandidate } from '../types/index.js';
+import type { Memory, MemoryCandidate } from '../types/index.js';
+import { ConversationMode } from '../types/index.js';
 
 /**
  * Extract memory candidates from conversation

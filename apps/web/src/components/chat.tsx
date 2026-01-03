@@ -133,7 +133,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full max-w-full flex-col 2xl:max-w-2/3">
       {/* Header */}
       {conversation && (
         <div className="mb-4 flex items-center justify-between rounded bg-[#0D1117] p-3">
