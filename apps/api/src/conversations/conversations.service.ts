@@ -236,7 +236,7 @@ export class ConversationsService {
       conversationId: conversation.id,
       message: {
         id: assistantMessage.id,
-        role: 'assistant' as const,
+        role: 'ASSISTANT' as const,
         content: assistantMessage.content,
         createdAt: assistantMessage.createdAt.toISOString(),
       },

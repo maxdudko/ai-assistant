@@ -63,7 +63,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
       // Optimistically add user message
       const tempUserMessage: MessageDto = {
         id: `temp-${Date.now()}`,
-        role: 'user',
+        role: 'USER',
         content: userMessage,
         createdAt: new Date().toISOString(),
       };
@@ -189,21 +189,26 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
           messages.map(message => (
             <div
               key={message.id}
-              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${message.role === 'USER' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-                  message.role === 'user'
+                className={`max-w-[80%] min-w-[20%] rounded-lg px-3 py-2 text-sm ${
+                  message.role === 'USER'
                     ? 'bg-indigo-600 text-white'
-                    : message.role === 'system'
+                    : message.role === 'SYSTEM'
                       ? 'bg-neutral-800 text-neutral-400'
                       : 'bg-neutral-800 text-neutral-200'
                 }`}
               >
                 <div className="font-medium mb-1">
-                  {message.role === 'user' ? 'You' : message.role === 'system' ? 'System' : 'PMA'}
+                  {message.role === 'USER' && 'You'}
+                  {message.role === 'ASSISTANT' && 'AI Assistant'}
+                  {message.role === 'SYSTEM' && 'System'}
                 </div>
                 <div>{message.content}</div>
+                <p className="text-xs text-right mt-2">
+                  {new Date(message.createdAt).toLocaleTimeString()}
+                </p>
               </div>
             </div>
           ))

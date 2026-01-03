@@ -38,7 +38,7 @@ export type MessageRole = 'USER' | 'ASSISTANT' | 'SYSTEM';
 
 export interface MessageDto {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: MessageRole;
   content: string;
   createdAt: string;
 }
