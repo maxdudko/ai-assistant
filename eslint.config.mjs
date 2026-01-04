@@ -117,10 +117,10 @@ export default [
       'jsx-a11y': jsxA11yPlugin,
     },
     rules: {
-      'react/react-in-jsx-scope': 'off',
       ...reactPlugin.configs.recommended.rules,
       ...reactHooksPlugin.configs.recommended.rules,
       ...jsxA11yPlugin.configs.recommended.rules,
+      'react/react-in-jsx-scope': 'off',
     },
     settings: {
       react: { version: 'detect' },

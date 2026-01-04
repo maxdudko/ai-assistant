@@ -17,6 +17,7 @@ const Profile: FC = () => {
 
   useEffect(() => {
     if (!user) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setEmail(user.email);
     setDisplayName(user.profile?.displayName ?? '');
     setTone((user.profile?.tone as any) ?? 'neutral');
@@ -64,8 +65,11 @@ const Profile: FC = () => {
         />
 
         <div className="flex flex-col gap-1">
-          <label className="text-sm text-neutral-400">Tone</label>
+          <label className="text-sm text-neutral-400" htmlFor="tone">
+            Tone
+          </label>
           <select
+            name="tone"
             value={tone}
             onChange={e => setTone(e.target.value as any)}
             className="rounded bg-neutral-800 p-2"
@@ -77,8 +81,11 @@ const Profile: FC = () => {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-sm text-neutral-400">Verbosity</label>
+          <label className="text-sm text-neutral-400" htmlFor="verbosity">
+            Verbosity
+          </label>
           <select
+            name="verbosity"
             value={verbosity}
             onChange={e => setVerbosity(e.target.value as any)}
             className="rounded bg-neutral-800 p-2"

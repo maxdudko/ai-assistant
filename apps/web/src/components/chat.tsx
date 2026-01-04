@@ -36,6 +36,10 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const handleInputChange = (value: string | undefined) => {
+    setInput(value || '');
+  };
+
   const loadConversation = async () => {
     try {
       setLoading(true);
@@ -231,7 +235,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         {/*  placeholder="Type your message..."*/}
         {/*  disabled={loading}*/}
         {/*/>*/}
-        <Editor className="w-full bg-neutral-900" value={input} onChange={setInput} />
+        <Editor className="w-full bg-neutral-900" value={input} onChange={handleInputChange} />
         <button
           type="submit"
           disabled={loading || !input.trim()}
