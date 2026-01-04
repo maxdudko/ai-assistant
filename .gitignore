@@ -1,0 +1,71 @@
+# ----------------------
+# Node.js / PNPM
+# ----------------------
+node_modules/
+.pnp.*
+.pnpm-store/
+
+# ----------------------
+# Turborepo
+# ----------------------
+.terminal/
+.cache/
+dist/
+.out/
+.next/
+coverage/
+.vscode/
+.turbo/
+
+# ----------------------
+# OS
+# ----------------------
+.DS_Store
+Thumbs.db
+*.swp
+
+# ----------------------
+# Environment
+# ----------------------
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# ----------------------
+# Docker
+# ----------------------
+docker-compose.override.yml
+docker-compose.dev.override.yml
+docker-compose.prod.override.yml
+*.log
+*.tmp
+*.pid
+docker/*.log
+docker/*.tmp
+
+# ----------------------
+# PostgreSQL / DB
+# ----------------------
+#*.sql
+#*.sqlite
+pgdata/
+*.dump
+generated/
+# ----------------------
+# Logs
+# ----------------------
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ----------------------
+# Misc
+# ----------------------
+.idea/
+.vscode/
+*.iml
+
+/generated/prisma

@@ -1,12 +1,17 @@
 # Personal Manager Assistant
+
 ## Your digital life manager 🧠
-___
+
+---
+
 ### 🔹 Project idea:
+
 **PMA is a personal AI assistant that helps people manage their lives:
 it plans their day, tracks tasks and goals, filters information, reminds them of important things, maintains memory, and maintains a 24/7 dialogue—like a personal manager, assistant, and companion.
 It does not replace humans. It removes routine, reduces chaos, and restores control.**
 
-___
+---
+
 ### 🔹 Target audience:
 
 - digital native
@@ -15,9 +20,12 @@ ___
 - not looking for a psychologist, but wants "someone to be there"
 - values ​​privacy and autonomy
 
-___
+---
+
 ### 🔹 PMA functionality (core)
+
 #### 🧩 1. Personal initialization
+
 - short onboarding dialogue
 - goals, values, priorities
 - communication style
@@ -26,6 +34,7 @@ ___
 👉 creates a personal context
 
 #### 🧩 2. Daily Manager (product core)
+
 - morning briefing:
 - daily tasks
 - events
@@ -36,6 +45,7 @@ ___
 👉 this Must-have
 
 #### 🧩 3. Task & Goal Memory
+
 - tasks
 - goals
 - deadlines
@@ -45,6 +55,7 @@ ___
 👉 simple but reliable memory
 
 #### 🧩 4. Continuous Memory (RAG)
+
 - PMA remembers:
   - what you said
   - what's important to you
@@ -55,6 +66,7 @@ ___
 👉 this creates the feeling of "it knows me"
 
 #### 🧩 5. Smart Notifications
+
 - reminders
 - suggestions
 - alerts
@@ -63,6 +75,7 @@ ___
 👉 PMA is non-irritating
 
 #### 🧩 6. Personal Info Digest (Lite TruthLens)
+
 - the user selects topics:
   - finances
   - technology
@@ -74,6 +87,7 @@ ___
 👉 The first step to TruthLens (Personal information analyst with critical thinking)
 
 #### 🧩 7. Dialog Mode (24/7)
+
 - you can just talk
 - you can think out loud
 - you can ask for advice
@@ -81,8 +95,10 @@ ___
 
 👉 Emotional value
 
-___
+---
+
 ### 🔹 UX: One day with PMA
+
 - Morning:
   - "Good morning. Today I have 3 key tasks. Would you like to start with the most difficult one?"
 - Afternoon:
@@ -92,5 +108,6 @@ ___
 - Night:
   - "If you want, we can just talk."
 
-___
+---
+
 ###### THIS IS A LIFE RHYTHM, NOT AN APP
