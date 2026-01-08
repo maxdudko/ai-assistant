@@ -103,7 +103,6 @@ const TaskModal: FC<TaskModalProps> = ({ task, onClose, onDelete, onUpdate }) =>
     return date.toLocaleDateString('en-US', {
       month: 'long',
       day: 'numeric',
-      year: date.getFullYear(),
     });
   };
 
@@ -143,8 +142,11 @@ const TaskModal: FC<TaskModalProps> = ({ task, onClose, onDelete, onUpdate }) =>
           {isEditing ? (
             <>
               <div>
-                <label className="block text-sm font-medium text-neutral-300 mb-1">Name</label>
+                <label className="block text-sm font-medium text-neutral-300 mb-1" htmlFor="name">
+                  Name
+                </label>
                 <input
+                  name="name"
                   type="text"
                   value={formData.name}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
@@ -153,10 +155,14 @@ const TaskModal: FC<TaskModalProps> = ({ task, onClose, onDelete, onUpdate }) =>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-neutral-300 mb-1">
+                <label
+                  className="block text-sm font-medium text-neutral-300 mb-1"
+                  htmlFor="description"
+                >
                   Description
                 </label>
                 <textarea
+                  name="description"
                   value={formData.description}
                   onChange={e => setFormData({ ...formData, description: e.target.value })}
                   rows={4}
@@ -166,10 +172,18 @@ const TaskModal: FC<TaskModalProps> = ({ task, onClose, onDelete, onUpdate }) =>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-300 mb-1">Status</label>
+                  <label
+                    className="block text-sm font-medium text-neutral-300 mb-1"
+                    htmlFor="status"
+                  >
+                    Status
+                  </label>
                   <select
+                    name="status"
                     value={formData.status}
-                    onChange={e => setFormData({ ...formData, status: e.target.value as TaskStatus })}
+                    onChange={e =>
+                      setFormData({ ...formData, status: e.target.value as TaskStatus })
+                    }
                     className="w-full rounded border border-neutral-700 bg-neutral-800 px-3 py-2 text-neutral-200 focus:border-indigo-500 focus:outline-none"
                   >
                     <option value="TODO">Todo</option>
@@ -179,10 +193,14 @@ const TaskModal: FC<TaskModalProps> = ({ task, onClose, onDelete, onUpdate }) =>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-300 mb-1">
+                  <label
+                    className="block text-sm font-medium text-neutral-300 mb-1"
+                    htmlFor="priority"
+                  >
                     Priority
                   </label>
                   <select
+                    name="priority"
                     value={formData.priority}
                     onChange={e =>
                       setFormData({ ...formData, priority: e.target.value as TaskPriority })
@@ -197,8 +215,14 @@ const TaskModal: FC<TaskModalProps> = ({ task, onClose, onDelete, onUpdate }) =>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-neutral-300 mb-1">Deadline</label>
+                <label
+                  className="block text-sm font-medium text-neutral-300 mb-1"
+                  htmlFor="deadline"
+                >
+                  Deadline
+                </label>
                 <input
+                  name="deadline"
                   type="date"
                   value={formData.deadline}
                   onChange={e => setFormData({ ...formData, deadline: e.target.value })}

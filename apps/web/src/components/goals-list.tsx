@@ -3,9 +3,10 @@
 import type { FC } from 'react';
 import React, { useState, useEffect } from 'react';
 
+import GoalModal from './goal-modal';
+
 import type { GoalDto, GoalType, GoalPriority } from '@/lib/api/types';
 import { getGoals, createGoal, deleteGoal } from '@/lib/api/goals';
-import GoalModal from './goal-modal';
 
 const GoalsList: FC = () => {
   const [goals, setGoals] = useState<GoalDto[]>([]);
@@ -115,7 +116,6 @@ const GoalsList: FC = () => {
     return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: date.getFullYear(),
     });
   };
 

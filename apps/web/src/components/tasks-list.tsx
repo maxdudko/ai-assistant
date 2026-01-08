@@ -3,9 +3,10 @@
 import type { FC } from 'react';
 import React, { useState, useEffect } from 'react';
 
+import TaskModal from './task-modal';
+
 import type { TaskDto, TaskStatus, TaskPriority } from '@/lib/api/types';
 import { getTasks, createTask, deleteTask } from '@/lib/api/tasks';
-import TaskModal from './task-modal';
 
 const TasksList: FC = () => {
   const [tasks, setTasks] = useState<TaskDto[]>([]);
@@ -114,7 +115,6 @@ const TasksList: FC = () => {
     return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: date.getFullYear(),
     });
   };
 
