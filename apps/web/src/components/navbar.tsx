@@ -14,6 +14,8 @@ const Navbar: FC = () => {
         <Link href="/me/">Home</Link>
         <Link href="/me/conversations">Conversations</Link>
         <Link href="/me/chat">Chat</Link>
+        <Link href="/me/goals">Goals</Link>
+        <Link href="/me/tasks">Tasks</Link>
         <Link href="/me/profile">Profile</Link>
       </nav>
       <div className="flex justify-end">

@@ -1,7 +1,15 @@
 {
   "name": "@ai/ai-core",
   "version": "0.1.0",
-  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "import": "./dist/index.js"
+    }
+  },
   "dependencies": {
     "@ai/shared-types": "workspace:*"
   }

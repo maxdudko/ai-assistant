@@ -215,7 +215,6 @@ export class ConversationsService {
 
     // Build context and generate AI response
     const context = await this.buildContext(conversation.id, userId);
-    // @ts-ignore
     const aiResponse = await this.ai.generateResponse(message, context);
 
     // Save AI response
