@@ -13,6 +13,35 @@ export class ConversationsService {
   ) {}
 
   /**
+   * Get or create today's day for a user
+   */
+  private async getOrCreateTodayDay(userId: string): Promise<string> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let day = await this.prisma.day.findUnique({
+      where: {
+        userId_date: {
+          userId,
+          date: today,
+        },
+      },
+    });
+
+    if (!day) {
+      day = await this.prisma.day.create({
+        data: {
+          userId,
+          date: today,
+          state: 'START',
+        },
+      });
+    }
+
+    return day.id;
+  }
+
+  /**
    * Get or create the active daily conversation for a user
    */
   async getOrCreateDailyConversation(userId: string): Promise<string> {
@@ -35,10 +64,14 @@ export class ConversationsService {
     });
 
     if (!conversation) {
+      // Get or create today's day
+      const dayId = await this.getOrCreateTodayDay(userId);
+
       // Create new daily conversation
       conversation = await this.prisma.conversation.create({
         data: {
           userId,
+          dayId,
           type: ConversationType.DAILY,
           mode: ConversationMode.MANAGER,
           state: ConversationState.CREATED,
@@ -80,9 +113,13 @@ export class ConversationsService {
     userId: string,
     mode: ConversationMode = ConversationMode.COMPANION,
   ): Promise<string> {
+    // Get or create today's day
+    const dayId = await this.getOrCreateTodayDay(userId);
+
     const conversation = await this.prisma.conversation.create({
       data: {
         userId,
+        dayId,
         type: ConversationType.AD_HOC,
         mode,
         state: ConversationState.CREATED,
@@ -113,6 +150,7 @@ export class ConversationsService {
           },
         },
         include: {
+          day: true,
           messages: {
             orderBy: { createdAt: 'asc' },
           },
@@ -166,6 +204,7 @@ export class ConversationsService {
       conversation = await this.prisma.conversation.findUnique({
         where: { id },
         include: {
+          day: true,
           messages: {
             orderBy: { createdAt: 'asc' },
           },
@@ -184,6 +223,7 @@ export class ConversationsService {
         where: { id: conversation.id },
         data: { mode },
         include: {
+          day: true,
           messages: {
             orderBy: { createdAt: 'asc' },
           },
@@ -365,6 +405,7 @@ export class ConversationsService {
         state: includeArchived ? undefined : { not: ConversationState.ARCHIVED },
       },
       include: {
+        day: true,
         messages: {
           orderBy: { createdAt: 'desc' },
           take: 1, // Get last message for preview

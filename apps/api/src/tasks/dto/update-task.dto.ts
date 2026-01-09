@@ -29,4 +29,8 @@ export class UpdateTaskDto {
   @IsOptional()
   @IsUUID()
   goalId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  dayId?: string;
 }
