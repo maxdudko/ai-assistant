@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ConversationMode, MessageRole } from '@prisma/client';
+
 import {
   AiService as CoreAiService,
   OllamaProvider,
@@ -11,7 +12,7 @@ import {
   type Memory as CoreMemory,
   ConversationMode as CoreConversationMode,
   MessageRole as CoreMessageRole,
-} from '@ai/ai-core';
+} from '../../../../packages/ai-core/src/index';
 
 interface Message {
   role: MessageRole;
