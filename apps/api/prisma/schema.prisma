@@ -72,6 +72,12 @@ enum GoalSource {
   MANUAL
 }
 
+enum DayState {
+  START
+  ACTIVE
+  END
+}
+
 // ================================
 // Models
 // ================================
@@ -87,6 +93,7 @@ model User {
   conversations Conversation[]
   tasks         Task[]
   goals         Goal[]
+  days          Day[]
 }
 
 model UserProfile {
@@ -107,6 +114,7 @@ model UserProfile {
 model Conversation {
   id     String            @id @default(uuid())
   userId String
+  dayId  String?
   mode   ConversationMode  @default(MANAGER)
   state  ConversationState @default(CREATED)
   type   ConversationType  @default(DAILY)
@@ -116,6 +124,7 @@ model Conversation {
   updatedAt DateTime @updatedAt
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day      Day?      @relation(fields: [dayId], references: [id], onDelete: SetNull)
   messages Message[]
   memories Memory[]
   tasks    Task[]    @relation("ConversationTasks")
@@ -123,6 +132,7 @@ model Conversation {
 
   @@unique([userId, type, date]) // One daily conversation per user per day
   @@index([userId, state, type])
+  @@index([dayId])
 }
 
 model Message {
@@ -160,6 +170,7 @@ model Memory {
 model Task {
   id             String      @id @default(uuid())
   userId         String
+  dayId          String?
   name           String
   description    String?
   status         TaskStatus  @default(TODO)
@@ -173,6 +184,7 @@ model Task {
   updatedAt      DateTime    @updatedAt
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day          Day?          @relation(fields: [dayId], references: [id], onDelete: SetNull)
   conversation Conversation? @relation("ConversationTasks", fields: [conversationId], references: [id], onDelete: SetNull)
   parent       Task?         @relation("TaskHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   subtasks     Task[]        @relation("TaskHierarchy")
@@ -180,6 +192,7 @@ model Task {
 
   @@index([userId, status])
   @@index([userId, createdAt])
+  @@index([dayId])
   @@index([conversationId])
   @@index([parentId])
   @@index([goalId])
@@ -209,4 +222,22 @@ model Goal {
   @@index([userId, createdAt])
   @@index([conversationId])
   @@index([parentId])
+}
+
+model Day {
+  id        String   @id @default(uuid())
+  userId    String
+  date      DateTime
+  state     DayState @default(START)
+  startedAt DateTime?
+  endedAt   DateTime?
+  createdAt DateTime @default(now())
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks         Task[]
+  conversations Conversation[]
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@index([userId, state])
 }

@@ -36,4 +36,8 @@ export class CreateTaskDto {
   @IsOptional()
   @IsUUID()
   goalId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  dayId?: string;
 }

@@ -9,6 +9,35 @@ import { UpdateTaskDto } from './dto/update-task.dto';
 export class TasksService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Get or create today's day for a user
+   */
+  private async getOrCreateTodayDay(userId: string): Promise<string> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let day = await this.prisma.day.findUnique({
+      where: {
+        userId_date: {
+          userId,
+          date: today,
+        },
+      },
+    });
+
+    if (!day) {
+      day = await this.prisma.day.create({
+        data: {
+          userId,
+          date: today,
+          state: 'START',
+        },
+      });
+    }
+
+    return day.id;
+  }
+
   async create(userId: string, createTaskDto: CreateTaskDto) {
     const data: any = {
       userId,
@@ -49,6 +78,21 @@ export class TasksService {
       data.goalId = createTaskDto.goalId;
     }
 
+    // Automatically link to today's day if dayId is not provided
+    if (createTaskDto.dayId) {
+      // Verify day exists and belongs to user
+      const day = await this.prisma.day.findFirst({
+        where: { id: createTaskDto.dayId, userId },
+      });
+      if (!day) {
+        throw new NotFoundException('Day not found');
+      }
+      data.dayId = createTaskDto.dayId;
+    } else {
+      // Auto-link to today's day
+      data.dayId = await this.getOrCreateTodayDay(userId);
+    }
+
     return this.prisma.task.create({
       data,
       include: {
@@ -56,6 +100,7 @@ export class TasksService {
         parent: true,
         subtasks: true,
         goal: true,
+        day: true,
       },
     });
   }
@@ -68,6 +113,7 @@ export class TasksService {
         parent: true,
         subtasks: true,
         goal: true,
+        day: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -81,6 +127,7 @@ export class TasksService {
         parent: true,
         subtasks: true,
         goal: true,
+        day: true,
       },
     });
 
@@ -145,6 +192,18 @@ export class TasksService {
       }
       data.goalId = updateTaskDto.goalId || null;
     }
+    if (updateTaskDto.dayId !== undefined) {
+      if (updateTaskDto.dayId) {
+        // Verify day exists and belongs to user
+        const day = await this.prisma.day.findFirst({
+          where: { id: updateTaskDto.dayId, userId },
+        });
+        if (!day) {
+          throw new NotFoundException('Day not found');
+        }
+      }
+      data.dayId = updateTaskDto.dayId || null;
+    }
 
     return this.prisma.task.update({
       where: { id },
@@ -154,6 +213,7 @@ export class TasksService {
         parent: true,
         subtasks: true,
         goal: true,
+        day: true,
       },
     });
   }

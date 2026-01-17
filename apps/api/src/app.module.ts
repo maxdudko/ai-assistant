@@ -8,6 +8,7 @@ import { ConversationsModule } from './conversations/conversations.module';
 import { AiModule } from './ai/ai.module';
 import { TasksModule } from './tasks/tasks.module';
 import { GoalsModule } from './goals/goals.module';
+import { DaysModule } from './days/days.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { GoalsModule } from './goals/goals.module';
     AiModule,
     TasksModule,
     GoalsModule,
+    DaysModule,
   ],
 })
 export class AppModule {}
