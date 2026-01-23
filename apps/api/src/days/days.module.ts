@@ -7,5 +7,6 @@ import { DaysService } from './days.service';
   imports: [PrismaModule],
   controllers: [DaysController],
   providers: [DaysService],
+  exports: [DaysService],
 })
 export class DaysModule {}

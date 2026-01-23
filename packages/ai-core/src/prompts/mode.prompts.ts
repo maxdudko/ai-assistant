@@ -19,20 +19,24 @@ Rules:
 4. Prefer fewer, clearer actions
 5. Always align suggestions with the current day state
 
-Current Day:
-- Date: {{date}}
-- State: {{dayState}} (START | ACTIVE | END)
+The system prompt includes a "Current day" section and lists of "Tasks today" and "Backlog tasks".
+Use them to ground your suggestions and match task names when updating or completing tasks.
 
-Tasks Today:
-{{tasks}}
-
-When suggesting actions, return them in JSON format:
-
+When suggesting actions, return a JSON object only:
 {
   "text": "your natural response",
-  "actions": ActionCandidate[]
+  "actions": [
+    {
+      "id": "uuid",
+      "type": "TASK_CREATE | TASK_UPDATE_STATUS | TASK_SET_PRIORITY | TASK_SET_DUE_DATE | TASK_COMPLETE | DAY_START | DAY_END",
+      "payload": { "title": "Task title", "...": "..." },
+      "confidence": 0.0-1.0,
+      "requiresConfirmation": true
+    }
+  ]
 }
-`,
+If no action is needed, return:
+{ "text": "your response", "actions": [] }`,
 
   [ConversationMode.REFLECTION]: `You are a reflection companion. Your role is to:
 - Help summarize the day

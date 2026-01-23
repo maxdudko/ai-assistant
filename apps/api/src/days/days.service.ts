@@ -81,8 +81,8 @@ export class DaysService {
   /**
    * Start the day - change to ACTIVE state and set startedAt
    */
-  async start(userId: string) {
-    const today = this.normalizeDate(new Date());
+  async start(userId: string, date?: Date) {
+    const today = this.normalizeDate(date ?? new Date());
 
     const day = await this.prisma.day.findUnique({
       where: {
@@ -151,8 +151,8 @@ export class DaysService {
   /**
    * End the day - change to END state and set endedAt
    */
-  async end(userId: string) {
-    const today = this.normalizeDate(new Date());
+  async end(userId: string, date?: Date) {
+    const today = this.normalizeDate(date ?? new Date());
 
     const day = await this.prisma.day.findUnique({
       where: {
@@ -314,5 +314,15 @@ export class DaysService {
         updatedAt: task.updatedAt,
       })),
     };
+  }
+
+  async startDay(userId: string, date?: string) {
+    const parsed = date ? new Date(date) : undefined;
+    return this.start(userId, parsed);
+  }
+
+  async endDay(userId: string, date?: string) {
+    const parsed = date ? new Date(date) : undefined;
+    return this.end(userId, parsed);
   }
 }

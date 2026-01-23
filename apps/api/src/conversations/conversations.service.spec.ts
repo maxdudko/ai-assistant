@@ -6,11 +6,15 @@ import { ConversationsService } from './conversations.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { ConversationState, ConversationType } from '../prisma/types';
+import { ActionsService } from '../actions/actions.service';
+import { IntentDetectorService } from '../intents/intent-detector.service';
 
 describe('ConversationsService', () => {
   let service: ConversationsService;
   let prisma: jest.Mocked<PrismaService>;
   let ai: jest.Mocked<AiService>;
+  let actions: jest.Mocked<ActionsService>;
+  let intentDetector: jest.Mocked<IntentDetectorService>;
 
   const mockUserId = 'user-123';
   const mockConversationId = 'conv-123';
@@ -52,10 +56,21 @@ describe('ConversationsService', () => {
       memory: {
         createMany: jest.fn(),
       },
+      task: {
+        findMany: jest.fn(),
+      },
     };
 
     const mockAi = {
       generateResponse: jest.fn(),
+    };
+
+    const mockActions = {
+      createCandidates: jest.fn(),
+    };
+
+    const mockIntentDetector = {
+      detect: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -69,12 +84,22 @@ describe('ConversationsService', () => {
           provide: AiService,
           useValue: mockAi,
         },
+        {
+          provide: ActionsService,
+          useValue: mockActions,
+        },
+        {
+          provide: IntentDetectorService,
+          useValue: mockIntentDetector,
+        },
       ],
     }).compile();
 
     service = module.get<ConversationsService>(ConversationsService);
     prisma = module.get(PrismaService);
     ai = module.get(AiService);
+    actions = module.get(ActionsService);
+    intentDetector = module.get(IntentDetectorService);
   });
 
   afterEach(() => {
@@ -283,6 +308,9 @@ describe('ConversationsService', () => {
         ...conversationWithUser,
         state: ConversationState.ACTIVE,
       });
+      prisma.task.findMany.mockResolvedValue([]);
+      actions.createCandidates.mockResolvedValue([]);
+      intentDetector.detect.mockReturnValue([]);
       ai.generateResponse.mockResolvedValue(mockAiResponse);
 
       const result = await service.handleMessage(mockUserId, 'Hello', mockConversationId);
@@ -312,6 +340,9 @@ describe('ConversationsService', () => {
       prisma.message.create
         .mockResolvedValueOnce(mockMessage)
         .mockResolvedValueOnce(assistantMessage);
+      prisma.task.findMany.mockResolvedValue([]);
+      actions.createCandidates.mockResolvedValue([]);
+      intentDetector.detect.mockReturnValue([]);
       ai.generateResponse.mockResolvedValue(mockAiResponse);
 
       const result = await service.handleMessage(mockUserId, 'Hello');
@@ -346,6 +377,9 @@ describe('ConversationsService', () => {
       prisma.message.create
         .mockResolvedValueOnce(mockMessage)
         .mockResolvedValueOnce(assistantMessage);
+      prisma.task.findMany.mockResolvedValue([]);
+      actions.createCandidates.mockResolvedValue([]);
+      intentDetector.detect.mockReturnValue([]);
       ai.generateResponse.mockResolvedValue(mockAiResponse);
 
       await service.handleMessage(
@@ -384,6 +418,9 @@ describe('ConversationsService', () => {
         ...conversationWithUser,
         state: ConversationState.ACTIVE,
       });
+      prisma.task.findMany.mockResolvedValue([]);
+      actions.createCandidates.mockResolvedValue([]);
+      intentDetector.detect.mockReturnValue([]);
       ai.generateResponse.mockResolvedValue(mockAiResponse);
 
       await service.handleMessage(mockUserId, 'Hello', mockConversationId);
@@ -421,6 +458,9 @@ describe('ConversationsService', () => {
         ...conversationWithUser,
         state: ConversationState.ACTIVE,
       });
+      prisma.task.findMany.mockResolvedValue([]);
+      actions.createCandidates.mockResolvedValue([]);
+      intentDetector.detect.mockReturnValue([]);
       ai.generateResponse.mockResolvedValue(aiResponseWithMemories);
 
       await service.handleMessage(mockUserId, 'Hello', mockConversationId);

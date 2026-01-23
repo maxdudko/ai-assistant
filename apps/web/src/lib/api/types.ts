@@ -1,3 +1,5 @@
+import type { ActionCandidate } from '@ai/shared-types';
+
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
@@ -69,6 +71,7 @@ export interface SendMessageRequest {
 export interface SendMessageResponse {
   conversationId: string;
   message: MessageDto;
+  actions?: ActionCandidate[];
 }
 
 export interface SwitchModeRequest {

@@ -9,6 +9,8 @@ import { AiModule } from './ai/ai.module';
 import { TasksModule } from './tasks/tasks.module';
 import { GoalsModule } from './goals/goals.module';
 import { DaysModule } from './days/days.module';
+import { ActionsModule } from './actions/actions.module';
+import { IntentsModule } from './intents/intents.module';
 
 @Module({
   imports: [
@@ -21,6 +23,8 @@ import { DaysModule } from './days/days.module';
     TasksModule,
     GoalsModule,
     DaysModule,
+    ActionsModule,
+    IntentsModule,
   ],
 })
 export class AppModule {}

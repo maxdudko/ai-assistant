@@ -6,6 +6,8 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import Editor from '@uiw/react-md-editor';
 
+import type { ActionCandidate } from '@ai/shared-types';
+
 import type { ConversationDto, MessageDto, ConversationMode } from '@/lib/api/types';
 import {
   getDailyConversation,
@@ -13,17 +15,22 @@ import {
   sendMessage as sendMessageApi,
   switchMode as switchModeApi,
 } from '@/lib/api/conversations';
+import { confirmAction as confirmActionApi } from '@/lib/api/actions';
 
 interface ChatProps {
   conversationId?: string;
 }
 
+type ChatMessage = MessageDto & { actions?: ActionCandidate[] };
+
 const Chat: FC<ChatProps> = ({ conversationId }) => {
   const [conversation, setConversation] = useState<ConversationDto | null>(null);
-  const [messages, setMessages] = useState<MessageDto[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingActionId, setConfirmingActionId] = useState<string | null>(null);
+  const [executedActionIds, setExecutedActionIds] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load conversation on mount or when conversationId changes
@@ -48,7 +55,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         ? await getConversation(conversationId)
         : await getDailyConversation();
       setConversation(conv);
-      setMessages(conv.messages || []);
+      setMessages((conv.messages || []) as ChatMessage[]);
     } catch (err) {
       console.error('Failed to load conversation:', err);
       setError('Failed to load conversation');
@@ -87,7 +94,13 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
           await loadConversation();
         } else {
           // Add assistant response
-          setMessages(prev => [...prev, response.message]);
+          setMessages(prev => [
+            ...prev,
+            {
+              ...response.message,
+              actions: response.actions || [],
+            },
+          ]);
         }
       } catch (err) {
         console.error('Failed to send message:', err);
@@ -98,6 +111,53 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
     },
     [input, loading, conversation],
   );
+
+  const handleConfirmAction = useCallback(async (action: ActionCandidate) => {
+    if (confirmingActionId || executedActionIds.includes(action.id)) return;
+
+    try {
+      setConfirmingActionId(action.id);
+      setError(null);
+      const result = await confirmActionApi({ actionId: action.id });
+      if (result.status === 'EXECUTED') {
+        setExecutedActionIds(prev =>
+          prev.includes(action.id) ? prev : [...prev, action.id],
+        );
+      }
+    } catch (err) {
+      console.error('Failed to confirm action:', err);
+      setError('Failed to confirm action');
+    } finally {
+      setConfirmingActionId(null);
+    }
+  }, [confirmingActionId, executedActionIds]);
+
+  const getActionLabel = (action: ActionCandidate): string => {
+    const payload = action.payload as Record<string, unknown>;
+    const title =
+      (typeof payload.title === 'string' && payload.title) ||
+      (typeof payload.name === 'string' && payload.name) ||
+      (typeof payload.taskName === 'string' && payload.taskName) ||
+      (typeof payload.task === 'string' && payload.task);
+
+    switch (action.type) {
+      case 'TASK_CREATE':
+        return `Create task${title ? `: ${title}` : ''}`;
+      case 'TASK_UPDATE_STATUS':
+      case 'TASK_COMPLETE':
+        return `Mark task as done${title ? `: ${title}` : ''}`;
+      case 'TASK_SET_PRIORITY':
+        return `Set task priority${title ? ` for ${title}` : ''}`;
+      case 'TASK_SET_DUE_DATE':
+        return `Set task due date${title ? ` for ${title}` : ''}`;
+      case 'DAY_START':
+        return 'Start the day';
+      case 'DAY_END':
+        return 'End the day';
+      default:
+        return 'Confirm action';
+    }
+  };
 
   const handleModeSwitch = useCallback(
     async (mode: ConversationMode) => {
@@ -212,6 +272,29 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
                   {message.role === 'SYSTEM' && 'System'}
                 </div>
                 <ReactMarkdown>{message.content}</ReactMarkdown>
+                {message.role === 'ASSISTANT' && message.actions && message.actions.length > 0 && (
+                  <div className="mt-3 flex flex-col gap-2">
+                    {message.actions.map(action => {
+                      const executed = executedActionIds.includes(action.id);
+                      const confirming = confirmingActionId === action.id;
+                      return (
+                        <button
+                          key={action.id}
+                          type="button"
+                          onClick={() => handleConfirmAction(action)}
+                          disabled={executed || confirming}
+                          className={`rounded border px-3 py-1 text-xs text-left ${
+                            executed
+                              ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                              : 'border-indigo-600/40 bg-indigo-600/10 text-indigo-200 hover:bg-indigo-600/20'
+                          } disabled:cursor-not-allowed disabled:opacity-60`}
+                        >
+                          {executed ? 'Action completed' : 'Confirm'}: {getActionLabel(action)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 <p className="text-xs text-right mt-2">
                   {new Date(message.createdAt).toLocaleTimeString()}
                 </p>

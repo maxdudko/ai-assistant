@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { TaskStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -230,5 +231,9 @@ export class TasksService {
     return this.prisma.task.delete({
       where: { id },
     });
+  }
+
+  async updateStatus(userId: string, id: string, status: TaskStatus) {
+    return this.update(userId, id, { status });
   }
 }
