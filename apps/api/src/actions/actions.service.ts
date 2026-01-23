@@ -117,8 +117,15 @@ export class ActionsService {
 
   private normalizeCandidate(candidate: ActionCandidate, context: ActionContext): ActionCandidate {
     const payload = { ...candidate.payload } as Record<string, unknown>;
+    
+    // Validate UUID format - if provided ID is not a valid UUID, generate a new one
+    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      candidate.id,
+    );
+    const id = isValidUUID ? candidate.id : randomUUID();
+    
     const normalized: ActionCandidate = {
-      id: candidate.id || randomUUID(),
+      id,
       type: candidate.type,
       payload,
       confidence: candidate.confidence ?? 0.5,

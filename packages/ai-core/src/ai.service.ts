@@ -191,8 +191,15 @@ function normalizeActionCandidate(candidate: unknown): ActionCandidate | null {
   const confidenceRaw = typeof record.confidence === 'number' ? record.confidence : 0.5;
   const confidence = Math.min(1, Math.max(0, confidenceRaw));
 
+  // Validate UUID format - if provided ID is not a valid UUID, generate a new one
+  const providedId = typeof record.id === 'string' ? record.id : '';
+  const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    providedId,
+  );
+  const id = isValidUUID ? providedId : randomUUID();
+
   return {
-    id: typeof record.id === 'string' && record.id.length > 0 ? record.id : randomUUID(),
+    id,
     type: typeRaw as ActionType,
     payload: isRecord(record.payload) ? record.payload : {},
     confidence,
