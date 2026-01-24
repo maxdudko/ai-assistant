@@ -10,6 +10,8 @@ import {
   type Message as CoreMessage,
   type UserProfile as CoreUserProfile,
   type Memory as CoreMemory,
+  type DayContext as CoreDayContext,
+  type TaskContext as CoreTaskContext,
   ConversationMode as CoreConversationMode,
   MessageRole as CoreMessageRole,
 } from '../../../../packages/ai-core/src/index';
@@ -32,11 +34,27 @@ interface Memory {
   tags: string[];
 }
 
+interface DayContext {
+  date: string;
+  state: 'START' | 'ACTIVE' | 'END';
+}
+
+interface TaskContext {
+  id: string;
+  name: string;
+  status: string;
+  priority?: string;
+  deadline?: string | null;
+}
+
 interface Context {
   mode: ConversationMode;
   userProfile?: UserProfile | null;
   messages: Message[];
   memories: Memory[];
+  day?: DayContext;
+  tasksToday?: TaskContext[];
+  backlogTasks?: TaskContext[];
 }
 
 @Injectable()
@@ -78,6 +96,9 @@ export class AiService implements OnModuleInit {
         userProfile: context.userProfile ? this.mapUserProfile(context.userProfile) : undefined,
         messages: context.messages.map(msg => this.mapMessage(msg)),
         memories: context.memories.map(mem => this.mapMemory(mem)),
+        day: context.day ? this.mapDayContext(context.day) : undefined,
+        tasksToday: context.tasksToday?.map(task => this.mapTaskContext(task)),
+        backlogTasks: context.backlogTasks?.map(task => this.mapTaskContext(task)),
       };
 
       // Call core AI service (it handles fallback internally)
@@ -138,6 +159,23 @@ export class AiService implements OnModuleInit {
       content: memory.content,
       importance: memory.importance,
       tags: memory.tags,
+    };
+  }
+
+  private mapDayContext(day: DayContext): CoreDayContext {
+    return {
+      date: day.date,
+      state: day.state,
+    };
+  }
+
+  private mapTaskContext(task: TaskContext): CoreTaskContext {
+    return {
+      id: task.id,
+      name: task.name,
+      status: task.status,
+      priority: task.priority,
+      deadline: task.deadline,
     };
   }
 }

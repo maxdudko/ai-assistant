@@ -5,6 +5,10 @@
  * Handles prompt building, LLM calls, and memory extraction
  */
 
+import { randomUUID } from 'crypto';
+
+import type { ActionCandidate, ActionType } from '@ai/shared-types';
+
 import type { ConversationContext, AiResponse, UserProfile, LlmRequest } from './types/index.js';
 import { ConversationMode } from './types/index.js';
 import type { LlmProvider } from './providers/index.js';
@@ -79,17 +83,19 @@ export class AiService {
 
       // Call LLM provider
       const llmResponse = await this.provider.generate(llmRequest);
+      const parsedResponse = parseStructuredResponse(llmResponse.content);
 
       // Extract memory candidates
       const memoryCandidates = extractMemoryCandidates(
         message,
-        llmResponse.content,
+        parsedResponse.text,
         context.mode,
         context.memories,
       );
 
       return {
-        content: llmResponse.content,
+        content: parsedResponse.text,
+        actionCandidates: parsedResponse.actions.length > 0 ? parsedResponse.actions : undefined,
         memoryCandidates: memoryCandidates.length > 0 ? memoryCandidates : undefined,
       };
     } catch (error) {
@@ -122,4 +128,89 @@ export class AiService {
   getProviderName(): string {
     return this.provider.getName();
   }
+}
+
+const ACTION_TYPES = new Set<ActionType>([
+  'TASK_CREATE',
+  'TASK_UPDATE_STATUS',
+  'TASK_SET_PRIORITY',
+  'TASK_SET_DUE_DATE',
+  'TASK_COMPLETE',
+  'DAY_START',
+  'DAY_END',
+]);
+
+function parseStructuredResponse(content: string): { text: string; actions: ActionCandidate[] } {
+  const trimmed = content.trim();
+  const jsonPayload = stripJsonFence(trimmed);
+
+  if (!looksLikeJson(jsonPayload)) {
+    return { text: content, actions: [] };
+  }
+
+  try {
+    const parsed = JSON.parse(jsonPayload) as {
+      text?: unknown;
+      actions?: unknown;
+    };
+    const text = typeof parsed.text === 'string' ? parsed.text : content;
+    const actions = Array.isArray(parsed.actions)
+      ? parsed.actions
+          .map(candidate => normalizeActionCandidate(candidate))
+          .filter((candidate): candidate is ActionCandidate => candidate !== null)
+      : [];
+
+    return { text, actions };
+  } catch {
+    return { text: content, actions: [] };
+  }
+}
+
+function stripJsonFence(content: string): string {
+  if (!content.startsWith('```')) {
+    return content;
+  }
+
+  return content
+    .replace(/^```(?:json)?/i, '')
+    .replace(/```$/, '')
+    .trim();
+}
+
+function looksLikeJson(content: string): boolean {
+  return content.startsWith('{') && content.endsWith('}');
+}
+
+function normalizeActionCandidate(candidate: unknown): ActionCandidate | null {
+  if (!candidate || typeof candidate !== 'object') {
+    return null;
+  }
+
+  const record = candidate as Record<string, unknown>;
+  const typeRaw = typeof record.type === 'string' ? record.type.toUpperCase() : '';
+  if (!ACTION_TYPES.has(typeRaw as ActionType)) {
+    return null;
+  }
+
+  const confidenceRaw = typeof record.confidence === 'number' ? record.confidence : 0.5;
+  const confidence = Math.min(1, Math.max(0, confidenceRaw));
+
+  // Validate UUID format - if provided ID is not a valid UUID, generate a new one
+  const providedId = typeof record.id === 'string' ? record.id : '';
+  const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    providedId,
+  );
+  const id = isValidUUID ? providedId : randomUUID();
+
+  return {
+    id,
+    type: typeRaw as ActionType,
+    payload: isRecord(record.payload) ? record.payload : {},
+    confidence,
+    requiresConfirmation: true,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

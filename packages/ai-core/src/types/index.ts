@@ -2,6 +2,8 @@
  * Core types for AI Core package
  */
 
+import type { ActionCandidate } from '@ai/shared-types';
+
 export enum ConversationMode {
   MANAGER = 'MANAGER',
   REFLECTION = 'REFLECTION',
@@ -33,11 +35,29 @@ export interface Memory {
   tags: string[];
 }
 
+export type DayState = 'START' | 'ACTIVE' | 'END';
+
+export interface DayContext {
+  date: string;
+  state: DayState;
+}
+
+export interface TaskContext {
+  id: string;
+  name: string;
+  status: string;
+  priority?: string;
+  deadline?: string | null;
+}
+
 export interface ConversationContext {
   mode: ConversationMode;
   userProfile?: UserProfile;
   messages: Message[];
   memories: Memory[];
+  day?: DayContext;
+  tasksToday?: TaskContext[];
+  backlogTasks?: TaskContext[];
 }
 
 export interface MemoryCandidate {
@@ -48,6 +68,7 @@ export interface MemoryCandidate {
 
 export interface AiResponse {
   content: string;
+  actionCandidates?: ActionCandidate[];
   memoryCandidates?: MemoryCandidate[];
 }
 

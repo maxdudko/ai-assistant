@@ -94,6 +94,8 @@ model User {
   tasks         Task[]
   goals         Goal[]
   days          Day[]
+  actionCandidates   ActionCandidate[]
+  actionExecutionLogs ActionExecutionLog[]
 }
 
 model UserProfile {
@@ -129,6 +131,7 @@ model Conversation {
   memories Memory[]
   tasks    Task[]    @relation("ConversationTasks")
   goals    Goal[]    @relation("ConversationGoals")
+  actionCandidates ActionCandidate[]
 
   @@unique([userId, type, date]) // One daily conversation per user per day
   @@index([userId, state, type])
@@ -165,6 +168,44 @@ model Memory {
 
   @@index([userId, createdAt])
   @@index([conversationId])
+}
+
+model ActionCandidate {
+  id                   String   @id @default(uuid())
+  userId               String
+  conversationId       String?
+  type                 String
+  payload              Json
+  confidence           Float
+  requiresConfirmation Boolean  @default(true)
+  status               String   @default("PENDING")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  logs         ActionExecutionLog[]
+
+  @@index([userId, createdAt])
+  @@index([conversationId])
+  @@index([status])
+}
+
+model ActionExecutionLog {
+  id        String   @id @default(uuid())
+  actionId  String?
+  userId    String
+  type      String
+  payload   Json
+  status    String
+  error     String?
+  createdAt DateTime @default(now())
+
+  action ActionCandidate? @relation(fields: [actionId], references: [id], onDelete: SetNull)
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([actionId])
 }
 
 model Task {
