@@ -283,7 +283,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
                           type="button"
                           onClick={() => handleConfirmAction(action)}
                           disabled={executed || confirming}
-                          className={`rounded border px-3 py-1 text-xs text-left ${
+                          className={`rounded border px-3 py-1 text-xs text-left cursor-pointer ${
                             executed
                               ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
                               : 'border-indigo-600/40 bg-indigo-600/10 text-indigo-200 hover:bg-indigo-600/20'
