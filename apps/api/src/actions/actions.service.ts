@@ -1,6 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { ActionCandidate } from '@ai/shared-types';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -117,13 +117,13 @@ export class ActionsService {
 
   private normalizeCandidate(candidate: ActionCandidate, context: ActionContext): ActionCandidate {
     const payload = { ...candidate.payload } as Record<string, unknown>;
-    
+
     // Validate UUID format - if provided ID is not a valid UUID, generate a new one
     const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
       candidate.id,
     );
     const id = isValidUUID ? candidate.id : randomUUID();
-    
+
     const normalized: ActionCandidate = {
       id,
       type: candidate.type,

@@ -5,7 +5,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import Editor from '@uiw/react-md-editor';
-
 import type { ActionCandidate } from '@ai/shared-types';
 
 import type { ConversationDto, MessageDto, ConversationMode } from '@/lib/api/types';
@@ -112,25 +111,26 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
     [input, loading, conversation],
   );
 
-  const handleConfirmAction = useCallback(async (action: ActionCandidate) => {
-    if (confirmingActionId || executedActionIds.includes(action.id)) return;
+  const handleConfirmAction = useCallback(
+    async (action: ActionCandidate) => {
+      if (confirmingActionId || executedActionIds.includes(action.id)) return;
 
-    try {
-      setConfirmingActionId(action.id);
-      setError(null);
-      const result = await confirmActionApi({ actionId: action.id });
-      if (result.status === 'EXECUTED') {
-        setExecutedActionIds(prev =>
-          prev.includes(action.id) ? prev : [...prev, action.id],
-        );
+      try {
+        setConfirmingActionId(action.id);
+        setError(null);
+        const result = await confirmActionApi({ actionId: action.id });
+        if (result.status === 'EXECUTED') {
+          setExecutedActionIds(prev => (prev.includes(action.id) ? prev : [...prev, action.id]));
+        }
+      } catch (err) {
+        console.error('Failed to confirm action:', err);
+        setError('Failed to confirm action');
+      } finally {
+        setConfirmingActionId(null);
       }
-    } catch (err) {
-      console.error('Failed to confirm action:', err);
-      setError('Failed to confirm action');
-    } finally {
-      setConfirmingActionId(null);
-    }
-  }, [confirmingActionId, executedActionIds]);
+    },
+    [confirmingActionId, executedActionIds],
+  );
 
   const getActionLabel = (action: ActionCandidate): string => {
     const payload = action.payload as Record<string, unknown>;

@@ -1,10 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { TaskStatus, TaskPriority } from '@prisma/client';
+import type { ActionCandidate } from '@ai/shared-types';
 
 import { TasksService } from '../tasks/tasks.service';
 import { DaysService } from '../days/days.service';
-
-import type { ActionCandidate } from '@ai/shared-types';
 
 @Injectable()
 export class ActionExecutorService {
@@ -67,13 +66,13 @@ export class ActionExecutorService {
     }
   }
 
-  private getRequiredString(
-    payload: Record<string, unknown>,
-    keys: string[],
-  ): string {
+  private getRequiredString(payload: Record<string, unknown>, keys: string[]): string {
+    console.log(payload, keys);
+    // TODO: status field in payload ???
     for (const key of keys) {
       const value = payload[key];
-      if (typeof value === 'string' && value.trim().length > 0) {
+      // if (typeof value === 'string' && value.trim().length > 0) {
+      if (typeof value === 'string') {
         return value;
       }
     }
@@ -107,10 +106,7 @@ export class ActionExecutorService {
     return this.parseTaskPriority(value);
   }
 
-  private getRequiredTaskPriority(
-    payload: Record<string, unknown>,
-    keys: string[],
-  ): TaskPriority {
+  private getRequiredTaskPriority(payload: Record<string, unknown>, keys: string[]): TaskPriority {
     const value = this.getRequiredString(payload, keys);
     return this.parseTaskPriority(value);
   }

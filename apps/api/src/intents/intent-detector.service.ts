@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 
+import { Injectable } from '@nestjs/common';
 import type { ActionCandidate } from '@ai/shared-types';
 
 interface TaskSummary {

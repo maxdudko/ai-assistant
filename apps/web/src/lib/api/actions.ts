@@ -9,9 +9,7 @@ export interface ConfirmActionResponse {
   status: string;
 }
 
-export async function confirmAction(
-  request: ConfirmActionRequest,
-): Promise<ConfirmActionResponse> {
+export async function confirmAction(request: ConfirmActionRequest): Promise<ConfirmActionResponse> {
   return apiFetch<ConfirmActionResponse>('/api/actions/confirm', {
     method: 'POST',
     body: JSON.stringify(request),

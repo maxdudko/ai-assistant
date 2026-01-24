@@ -5,8 +5,9 @@
  * Handles prompt building, LLM calls, and memory extraction
  */
 
-import type { ActionCandidate, ActionType } from '@ai/shared-types';
 import { randomUUID } from 'crypto';
+
+import type { ActionCandidate, ActionType } from '@ai/shared-types';
 
 import type { ConversationContext, AiResponse, UserProfile, LlmRequest } from './types/index.js';
 import { ConversationMode } from './types/index.js';
@@ -170,7 +171,10 @@ function stripJsonFence(content: string): string {
     return content;
   }
 
-  return content.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  return content
+    .replace(/^```(?:json)?/i, '')
+    .replace(/```$/, '')
+    .trim();
 }
 
 function looksLikeJson(content: string): boolean {

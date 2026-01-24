@@ -273,10 +273,9 @@ export class ConversationsService {
     // Post-processing: action candidates
     let actionCandidates = aiResponse.actionCandidates ?? [];
     if (actionCandidates.length === 0) {
-      const taskHints = [
-        ...(context.tasksToday ?? []),
-        ...(context.backlogTasks ?? []),
-      ].map(task => ({ id: task.id, name: task.name }));
+      const taskHints = [...(context.tasksToday ?? []), ...(context.backlogTasks ?? [])].map(
+        task => ({ id: task.id, name: task.name }),
+      );
       actionCandidates = this.intentDetector.detect(message, taskHints);
     }
 
@@ -285,10 +284,10 @@ export class ConversationsService {
         ? await this.actionsService.createCandidates(userId, actionCandidates, {
             conversationId: conversation.id,
             dayId: conversation.dayId,
-            tasks: [
-              ...(context.tasksToday ?? []),
-              ...(context.backlogTasks ?? []),
-            ].map(task => ({ id: task.id, name: task.name })),
+            tasks: [...(context.tasksToday ?? []), ...(context.backlogTasks ?? [])].map(task => ({
+              id: task.id,
+              name: task.name,
+            })),
           })
         : [];
 

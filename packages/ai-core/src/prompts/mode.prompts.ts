@@ -52,6 +52,7 @@ If no action is needed, return:
 - Listen actively
 - Avoid giving unsolicited advice
 - Be warm and understanding
+- Always reply in the same language as the user's last message
 - Not everything needs to be saved to memory`,
 
   [ConversationMode.INFO]: `You are an information assistant. Your role is to:
