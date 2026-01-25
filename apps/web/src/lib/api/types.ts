@@ -1,3 +1,5 @@
+import type { ActionCandidate } from '@ai/shared-types';
+
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
@@ -46,6 +48,7 @@ export interface MessageDto {
 export interface ConversationDto {
   id: string;
   userId: string;
+  dayId: string | null;
   mode: ConversationMode;
   state: ConversationState;
   type: ConversationType;
@@ -53,6 +56,7 @@ export interface ConversationDto {
   createdAt: string;
   updatedAt: string;
   messages?: MessageDto[];
+  day?: DayDto | null;
   _count?: {
     messages: number;
   };
@@ -67,8 +71,152 @@ export interface SendMessageRequest {
 export interface SendMessageResponse {
   conversationId: string;
   message: MessageDto;
+  actions?: ActionCandidate[];
 }
 
 export interface SwitchModeRequest {
   mode: ConversationMode;
+}
+
+export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE';
+export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH';
+export type TaskSource = 'CHAT' | 'MANUAL';
+
+export interface TaskDto {
+  id: string;
+  userId: string;
+  dayId: string | null;
+  name: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  deadline: string | null;
+  source: TaskSource;
+  conversationId: string | null;
+  parentId: string | null;
+  goalId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  conversation?: ConversationDto | null;
+  parent?: TaskDto | null;
+  subtasks?: TaskDto[];
+  goal?: GoalDto | null;
+  day?: DayDto | null;
+}
+
+export interface CreateTaskRequest {
+  name: string;
+  description?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  deadline?: string;
+  source?: TaskSource;
+  conversationId?: string;
+  parentId?: string;
+}
+
+export interface UpdateTaskRequest {
+  name?: string;
+  description?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  deadline?: string;
+  parentId?: string;
+  goalId?: string;
+}
+
+export type GoalType = 'SHORT' | 'MIDDLE' | 'LONG';
+export type GoalPriority = 'LOW' | 'MEDIUM' | 'HIGH';
+export type GoalSource = 'CHAT' | 'MANUAL';
+
+export interface GoalDto {
+  id: string;
+  userId: string;
+  name: string;
+  description: string | null;
+  type: GoalType;
+  priority: GoalPriority;
+  isAchieved: boolean;
+  source: GoalSource;
+  conversationId: string | null;
+  parentId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  conversation?: ConversationDto | null;
+  parent?: GoalDto | null;
+  subgoals?: GoalDto[];
+  tasks?: TaskDto[];
+}
+
+export interface CreateGoalRequest {
+  name: string;
+  description?: string;
+  type?: GoalType;
+  priority?: GoalPriority;
+  isAchieved?: boolean;
+  source?: GoalSource;
+  conversationId?: string;
+  parentId?: string;
+}
+
+export interface UpdateGoalRequest {
+  name?: string;
+  description?: string;
+  type?: GoalType;
+  priority?: GoalPriority;
+  isAchieved?: boolean;
+  parentId?: string;
+}
+
+export type DayState = 'START' | 'ACTIVE' | 'END';
+
+export interface DayDto {
+  id: string;
+  userId: string;
+  date: string;
+  state: DayState;
+  startedAt: string | null;
+  endedAt: string | null;
+  createdAt: string;
+  tasks?: TaskDto[];
+  conversations?: ConversationDto[];
+}
+
+export interface DaySummaryDto {
+  day: {
+    id: string;
+    date: string;
+    state: DayState;
+    startedAt: string | null;
+    endedAt: string | null;
+    createdAt: string;
+  } | null;
+  conversations: Array<{
+    id: string;
+    mode: ConversationMode;
+    state: ConversationState;
+    type: ConversationType;
+    messageCount: number;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  taskSummary: {
+    total: number;
+    todo: number;
+    inProgress: number;
+    done: number;
+    completionRate: number;
+  };
+  tasks: Array<{
+    id: string;
+    name: string;
+    status: TaskStatus;
+    priority: TaskPriority;
+    goal: {
+      id: string;
+      name: string;
+    } | null;
+    createdAt: string;
+    updatedAt: string;
+  }>;
 }

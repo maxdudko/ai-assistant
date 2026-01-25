@@ -20,6 +20,7 @@ const ignores = [
   '**/.next/**',
   '**/build/**',
   '**/coverage/**',
+  '**/generated/**',
   // Test files
   '**/*.spec.ts',
   '**/*.test.ts',

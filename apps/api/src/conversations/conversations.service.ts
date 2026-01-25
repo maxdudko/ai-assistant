@@ -1,16 +1,49 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { ConversationMode } from '@prisma/client';
+import { ConversationMode, TaskStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { ConversationState, ConversationType } from '../prisma/types';
+import { ActionsService } from '../actions/actions.service';
+import { IntentDetectorService } from '../intents/intent-detector.service';
 
 @Injectable()
 export class ConversationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
+    private readonly actionsService: ActionsService,
+    private readonly intentDetector: IntentDetectorService,
   ) {}
+
+  /**
+   * Get or create today's day for a user
+   */
+  private async getOrCreateTodayDay(userId: string): Promise<string> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let day = await this.prisma.day.findUnique({
+      where: {
+        userId_date: {
+          userId,
+          date: today,
+        },
+      },
+    });
+
+    if (!day) {
+      day = await this.prisma.day.create({
+        data: {
+          userId,
+          date: today,
+          state: 'START',
+        },
+      });
+    }
+
+    return day.id;
+  }
 
   /**
    * Get or create the active daily conversation for a user
@@ -35,10 +68,14 @@ export class ConversationsService {
     });
 
     if (!conversation) {
+      // Get or create today's day
+      const dayId = await this.getOrCreateTodayDay(userId);
+
       // Create new daily conversation
       conversation = await this.prisma.conversation.create({
         data: {
           userId,
+          dayId,
           type: ConversationType.DAILY,
           mode: ConversationMode.MANAGER,
           state: ConversationState.CREATED,
@@ -80,9 +117,13 @@ export class ConversationsService {
     userId: string,
     mode: ConversationMode = ConversationMode.COMPANION,
   ): Promise<string> {
+    // Get or create today's day
+    const dayId = await this.getOrCreateTodayDay(userId);
+
     const conversation = await this.prisma.conversation.create({
       data: {
         userId,
+        dayId,
         type: ConversationType.AD_HOC,
         mode,
         state: ConversationState.CREATED,
@@ -113,6 +154,7 @@ export class ConversationsService {
           },
         },
         include: {
+          day: true,
           messages: {
             orderBy: { createdAt: 'asc' },
           },
@@ -166,6 +208,7 @@ export class ConversationsService {
       conversation = await this.prisma.conversation.findUnique({
         where: { id },
         include: {
+          day: true,
           messages: {
             orderBy: { createdAt: 'asc' },
           },
@@ -184,6 +227,7 @@ export class ConversationsService {
         where: { id: conversation.id },
         data: { mode },
         include: {
+          day: true,
           messages: {
             orderBy: { createdAt: 'asc' },
           },
@@ -215,7 +259,6 @@ export class ConversationsService {
 
     // Build context and generate AI response
     const context = await this.buildContext(conversation.id, userId);
-    // @ts-ignore
     const aiResponse = await this.ai.generateResponse(message, context);
 
     // Save AI response
@@ -226,6 +269,27 @@ export class ConversationsService {
         content: aiResponse.content,
       },
     });
+
+    // Post-processing: action candidates
+    let actionCandidates = aiResponse.actionCandidates ?? [];
+    if (actionCandidates.length === 0) {
+      const taskHints = [...(context.tasksToday ?? []), ...(context.backlogTasks ?? [])].map(
+        task => ({ id: task.id, name: task.name }),
+      );
+      actionCandidates = this.intentDetector.detect(message, taskHints);
+    }
+
+    const storedActions =
+      actionCandidates.length > 0
+        ? await this.actionsService.createCandidates(userId, actionCandidates, {
+            conversationId: conversation.id,
+            dayId: conversation.dayId,
+            tasks: [...(context.tasksToday ?? []), ...(context.backlogTasks ?? [])].map(task => ({
+              id: task.id,
+              name: task.name,
+            })),
+          })
+        : [];
 
     // Post-processing: extract actions and memory candidates
     if (aiResponse.memoryCandidates && aiResponse.memoryCandidates.length > 0) {
@@ -240,6 +304,7 @@ export class ConversationsService {
         content: assistantMessage.content,
         createdAt: assistantMessage.createdAt.toISOString(),
       },
+      actions: storedActions,
     };
   }
 
@@ -252,6 +317,13 @@ export class ConversationsService {
       include: {
         messages: {
           orderBy: { createdAt: 'asc' },
+        },
+        day: {
+          include: {
+            tasks: {
+              orderBy: { createdAt: 'desc' },
+            },
+          },
         },
         user: {
           include: {
@@ -269,11 +341,43 @@ export class ConversationsService {
       throw new NotFoundException('Conversation not found');
     }
 
+    const tasksToday = (conversation.day?.tasks ?? []).map(task => ({
+      id: task.id,
+      name: task.name,
+      status: task.status,
+      priority: task.priority,
+      deadline: task.deadline ? task.deadline.toISOString() : null,
+    }));
+
+    const backlogTasks = await this.prisma.task.findMany({
+      where: {
+        userId,
+        status: { not: TaskStatus.DONE },
+        dayId: conversation.dayId ? { not: conversation.dayId } : undefined,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
+
     return {
       mode: conversation.mode,
       userProfile: conversation.user?.profile || null,
       messages: conversation.messages,
       memories: conversation.memories || [],
+      day: conversation.day
+        ? {
+            date: conversation.day.date.toISOString().split('T')[0],
+            state: conversation.day.state,
+          }
+        : undefined,
+      tasksToday,
+      backlogTasks: backlogTasks.map(task => ({
+        id: task.id,
+        name: task.name,
+        status: task.status,
+        priority: task.priority,
+        deadline: task.deadline ? task.deadline.toISOString() : null,
+      })),
     };
   }
 
@@ -366,6 +470,7 @@ export class ConversationsService {
         state: includeArchived ? undefined : { not: ConversationState.ARCHIVED },
       },
       include: {
+        day: true,
         messages: {
           orderBy: { createdAt: 'desc' },
           take: 1, // Get last message for preview
