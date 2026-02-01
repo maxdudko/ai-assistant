@@ -9,6 +9,7 @@ import { IntentDetectorService } from '../intents/intent-detector.service';
 import { MemoryIngestionService } from '../memory/memory-ingestion.service';
 import { MemoryRetrieverService } from '../memory/memory-retriever.service';
 import { DaysService } from '../days/days.service';
+import { MemoryCandidateDto, MemoryType } from '../memory/dto/memory-candidate.dto';
 
 @Injectable()
 export class ConversationsService {
@@ -326,15 +327,16 @@ export class ConversationsService {
 
     // Post-processing: memory ingestion
     if (aiResponse.memoryCandidates && aiResponse.memoryCandidates.length > 0) {
+      const mappedCandidates = this.mapMemoryCandidates(aiResponse.memoryCandidates);
       if (conversation.mode === ConversationMode.REFLECTION) {
-        const curated = this.validateReflectionCandidates(aiResponse.memoryCandidates).slice(0, 3);
+        const curated = this.validateReflectionCandidates(mappedCandidates).slice(0, 3);
         if (curated.length > 0) {
           await this.memoryIngestion.ingest(userId, curated, 'REFLECTION', {
             dayId: conversation.dayId ?? undefined,
           });
         }
       } else {
-        await this.memoryIngestion.ingest(userId, aiResponse.memoryCandidates, 'CONVERSATION', {
+        await this.memoryIngestion.ingest(userId, mappedCandidates, 'CONVERSATION', {
           conversationId: conversation.id,
           dayId: conversation.dayId ?? undefined,
         });
@@ -503,9 +505,42 @@ export class ConversationsService {
     return trimmed.length > 20 ? trimmed : undefined;
   }
 
-  private validateReflectionCandidates(
-    candidates: Array<{ content: string; importance: number; tags?: string[]; confidence: number }>,
-  ) {
+  private mapMemoryCandidates(
+    candidates: Array<{
+      content: string;
+      type?: string;
+      importance: number;
+      tags?: string[];
+      confidence: number;
+    }>,
+  ): MemoryCandidateDto[] {
+    const mapped: MemoryCandidateDto[] = [];
+    for (const candidate of candidates) {
+      const typeRaw = typeof candidate.type === 'string' ? candidate.type.toUpperCase() : '';
+      const type =
+        typeRaw === 'FACTUAL'
+          ? MemoryType.FACTUAL
+          : typeRaw === 'REFLECTION'
+            ? MemoryType.REFLECTION
+            : undefined;
+
+      if (!type) {
+        continue;
+      }
+
+      mapped.push({
+        content: candidate.content,
+        type,
+        importance: candidate.importance,
+        ...(candidate.tags ? { tags: candidate.tags } : {}),
+        confidence: candidate.confidence,
+      });
+    }
+
+    return mapped;
+  }
+
+  private validateReflectionCandidates(candidates: MemoryCandidateDto[]) {
     return candidates.filter(candidate => candidate.confidence >= 0.7 && candidate.importance >= 5);
   }
 
