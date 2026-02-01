@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { EmbeddingsService } from '../embeddings/embeddings.interface';
+import type { EmbeddingsService } from '../embeddings/embeddings.interface';
 
 import { MemoryCandidateDto } from './dto/memory-candidate.dto';
 
@@ -26,19 +26,23 @@ export class MemoryIngestionService {
     for (const c of curated) {
       const embedding = await this.embeddings.embed(c.content);
 
-      await this.prisma.memory.create({
-        data: {
-          userId,
-          type: c.type,
-          content: c.content,
-          importance: c.importance,
-          tags: c.tags ?? [],
-          source,
-          embedding,
-          dayId: context.dayId,
-          conversationId: context.conversationId,
-        },
-      });
+      await this.prisma.$executeRaw`
+        INSERT INTO "Memory" (id, "userId", type, content, importance, tags, source, embedding, "dayId", "conversationId", "createdAt", "updatedAt")
+        VALUES (
+          gen_random_uuid(),
+          ${userId}::uuid,
+          ${c.type}::"MemoryType",
+          ${c.content},
+          ${c.importance},
+          ${c.tags ?? []}::text[],
+          ${source}::"MemorySource",
+          ${JSON.stringify(embedding)}::vector(1536),
+          ${context.dayId ?? null}::uuid,
+          ${context.conversationId ?? null}::uuid,
+          NOW(),
+          NOW()
+        )
+      `;
     }
   }
 }

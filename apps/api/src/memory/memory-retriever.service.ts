@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { EmbeddingsService } from '../embeddings/embeddings.interface';
+import type { EmbeddingsService } from '../embeddings/embeddings.interface';
 
 @Injectable()
 export class MemoryRetrieverService {
