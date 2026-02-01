@@ -42,15 +42,23 @@ export class ActionExecutorService {
         break;
 
       case 'TASK_SET_PRIORITY':
-        await this.tasksService.update(userId, this.getRequiredString(action.payload, ['task_id']), {
-          priority: this.getRequiredTaskPriority(action.payload, ['priority']),
-        });
+        await this.tasksService.update(
+          userId,
+          this.getRequiredString(action.payload, ['task_id']),
+          {
+            priority: this.getRequiredTaskPriority(action.payload, ['priority']),
+          },
+        );
         break;
 
       case 'TASK_SET_DUE_DATE':
-        await this.tasksService.update(userId, this.getRequiredString(action.payload, ['task_id']), {
-          deadline: this.getRequiredString(action.payload, ['dueDate', 'deadline']),
-        });
+        await this.tasksService.update(
+          userId,
+          this.getRequiredString(action.payload, ['task_id']),
+          {
+            deadline: this.getRequiredString(action.payload, ['dueDate', 'deadline']),
+          },
+        );
         break;
 
       case 'DAY_START':
