@@ -28,7 +28,7 @@ export class ActionExecutorService {
       case 'TASK_UPDATE_STATUS':
         await this.tasksService.updateStatus(
           userId,
-          this.getRequiredString(action.payload, ['taskId']),
+          this.getRequiredString(action.payload, ['task_id']),
           this.getTaskStatus(action.payload),
         );
         break;
@@ -36,19 +36,19 @@ export class ActionExecutorService {
       case 'TASK_COMPLETE':
         await this.tasksService.updateStatus(
           userId,
-          this.getRequiredString(action.payload, ['taskId']),
+          this.getRequiredString(action.payload, ['task_id']),
           TaskStatus.DONE,
         );
         break;
 
       case 'TASK_SET_PRIORITY':
-        await this.tasksService.update(userId, this.getRequiredString(action.payload, ['taskId']), {
+        await this.tasksService.update(userId, this.getRequiredString(action.payload, ['task_id']), {
           priority: this.getRequiredTaskPriority(action.payload, ['priority']),
         });
         break;
 
       case 'TASK_SET_DUE_DATE':
-        await this.tasksService.update(userId, this.getRequiredString(action.payload, ['taskId']), {
+        await this.tasksService.update(userId, this.getRequiredString(action.payload, ['task_id']), {
           deadline: this.getRequiredString(action.payload, ['dueDate', 'deadline']),
         });
         break;

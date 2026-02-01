@@ -78,6 +78,17 @@ enum DayState {
   END
 }
 
+enum MemoryType {
+  FACTUAL
+  REFLECTION
+}
+
+enum MemorySource {
+  CONVERSATION
+  REFLECTION
+  ONBOARDING
+}
+
 // ================================
 // Models
 // ================================
@@ -89,13 +100,14 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  profile       UserProfile?
-  conversations Conversation[]
-  tasks         Task[]
-  goals         Goal[]
-  days          Day[]
-  actionCandidates   ActionCandidate[]
+  profile             UserProfile?
+  conversations       Conversation[]
+  tasks               Task[]
+  goals               Goal[]
+  days                Day[]
+  actionCandidates    ActionCandidate[]
   actionExecutionLogs ActionExecutionLog[]
+  memories            Memory[]
 }
 
 model UserProfile {
@@ -125,12 +137,12 @@ model Conversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  day      Day?      @relation(fields: [dayId], references: [id], onDelete: SetNull)
-  messages Message[]
-  memories Memory[]
-  tasks    Task[]    @relation("ConversationTasks")
-  goals    Goal[]    @relation("ConversationGoals")
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day              Day?              @relation(fields: [dayId], references: [id], onDelete: SetNull)
+  messages         Message[]
+  memories         Memory[]
+  tasks            Task[]            @relation("ConversationTasks")
+  goals            Goal[]            @relation("ConversationGoals")
   actionCandidates ActionCandidate[]
 
   @@unique([userId, type, date]) // One daily conversation per user per day
@@ -153,21 +165,27 @@ model Message {
 }
 
 model Memory {
-  id             String  @id @default(uuid())
-  conversationId String
+  id             String       @id @default(uuid())
   userId         String
+  type           MemoryType
+  content        String
+  importance     Int          @default(5) // 1..10
+  tags           String[]
+  source         MemorySource @default(CONVERSATION)
+  dayId          String?
+  conversationId String?
 
-  content     String
-  importance  Int      @default(5) // 1-10 scale
-  tags        String[] // For categorization
+  embedding Unsupported("vector(1536)")?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id])
+  day          Day?          @relation(fields: [dayId], references: [id])
+  conversation Conversation? @relation(fields: [conversationId], references: [id])
 
-  @@index([userId, createdAt])
-  @@index([conversationId])
+  @@index([userId, type])
+  @@index([userId, importance])
 }
 
 model ActionCandidate {
@@ -182,8 +200,8 @@ model ActionCandidate {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation Conversation?        @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   logs         ActionExecutionLog[]
 
   @@index([userId, createdAt])
@@ -202,27 +220,27 @@ model ActionExecutionLog {
   createdAt DateTime @default(now())
 
   action ActionCandidate? @relation(fields: [actionId], references: [id], onDelete: SetNull)
-  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([actionId])
 }
 
 model Task {
-  id             String      @id @default(uuid())
+  id             String       @id @default(uuid())
   userId         String
   dayId          String?
   name           String
   description    String?
-  status         TaskStatus  @default(TODO)
+  status         TaskStatus   @default(TODO)
   priority       TaskPriority @default(MEDIUM)
   deadline       DateTime?
-  source         TaskSource  @default(MANUAL)
+  source         TaskSource   @default(MANUAL)
   conversationId String?
   parentId       String?
   goalId         String?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   day          Day?          @relation(fields: [dayId], references: [id], onDelete: SetNull)
@@ -240,18 +258,18 @@ model Task {
 }
 
 model Goal {
-  id             String      @id @default(uuid())
+  id             String       @id @default(uuid())
   userId         String
   name           String
   description    String?
-  type           GoalType    @default(SHORT)
+  type           GoalType     @default(SHORT)
   priority       GoalPriority @default(MEDIUM)
-  isAchieved     Boolean     @default(false)
-  source         GoalSource  @default(MANUAL)
+  isAchieved     Boolean      @default(false)
+  source         GoalSource   @default(MANUAL)
   conversationId String?
   parentId       String?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversation Conversation? @relation("ConversationGoals", fields: [conversationId], references: [id], onDelete: SetNull)
@@ -266,17 +284,18 @@ model Goal {
 }
 
 model Day {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   userId    String
   date      DateTime
-  state     DayState @default(START)
+  state     DayState  @default(START)
   startedAt DateTime?
   endedAt   DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   tasks         Task[]
   conversations Conversation[]
+  memories      Memory[]
 
   @@unique([userId, date])
   @@index([userId, date])

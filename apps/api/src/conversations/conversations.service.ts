@@ -408,6 +408,7 @@ export class ConversationsService {
       data: candidates.map(c => ({
         conversationId,
         userId,
+        type: conversation?.mode === ConversationMode.REFLECTION ? 'REFLECTION' : 'FACTUAL',
         content: c.content,
         importance: c.importance,
         tags: c.tags || [],
