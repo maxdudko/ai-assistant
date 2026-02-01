@@ -1,9 +1,3 @@
-/*
-  Warnings:
-
-  - Added the required column `type` to the `Memory` table without a default value. This is not possible if the table is not empty.
-
-*/
 -- EnableExtension
 CREATE EXTENSION IF NOT EXISTS vector;
 
