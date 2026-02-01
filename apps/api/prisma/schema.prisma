@@ -167,7 +167,7 @@ model Message {
 model Memory {
   id             String       @id @default(uuid())
   userId         String
-  type           MemoryType
+  type           MemoryType   @default(FACTUAL)
   content        String
   importance     Int          @default(5) // 1..10
   tags           String[]
