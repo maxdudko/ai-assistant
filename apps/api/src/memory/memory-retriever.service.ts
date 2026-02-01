@@ -14,11 +14,14 @@ export class MemoryRetrieverService {
   async retrieve(userId: string, query: string, limit = 3) {
     const embedding = await this.embeddings.embed(query);
 
-    return this.prisma.$queryRawUnsafe<{ id: string; content: string; importance: number }[]>(
+    return this.prisma.$queryRawUnsafe<
+      { id: string; content: string; importance: number; tags: string[] }[]
+    >(
       `
-      SELECT id, content, importance
+      SELECT id, content, importance, tags
       FROM "Memory"
       WHERE "userId" = $1
+        AND embedding IS NOT NULL
       ORDER BY embedding <-> $2
       LIMIT $3
       `, // Using the pgvector distance operator <-> for similarity search
