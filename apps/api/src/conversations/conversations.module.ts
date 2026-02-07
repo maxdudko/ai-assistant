@@ -4,12 +4,14 @@ import { AiModule } from '../ai/ai.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { ActionsModule } from '../actions/actions.module';
 import { IntentsModule } from '../intents/intents.module';
+import { MemoryModule } from '../memory/memory.module';
+import { DaysModule } from '../days/days.module';
 
 import { ConversationsController } from './conversations.controller';
 import { ConversationsService } from './conversations.service';
 
 @Module({
-  imports: [AiModule, PrismaModule, ActionsModule, IntentsModule],
+  imports: [AiModule, PrismaModule, ActionsModule, IntentsModule, MemoryModule, DaysModule],
   controllers: [ConversationsController],
   providers: [ConversationsService],
 })

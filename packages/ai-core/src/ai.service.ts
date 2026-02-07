@@ -9,7 +9,13 @@ import { randomUUID } from 'crypto';
 
 import type { ActionCandidate, ActionType } from '@ai/shared-types';
 
-import type { ConversationContext, AiResponse, UserProfile, LlmRequest } from './types/index.js';
+import type {
+  ConversationContext,
+  AiResponse,
+  UserProfile,
+  LlmRequest,
+  MemoryCandidate,
+} from './types/index.js';
 import { ConversationMode } from './types/index.js';
 import type { LlmProvider } from './providers/index.js';
 import { buildSystemPrompt } from './prompts/index.js';
@@ -85,18 +91,23 @@ export class AiService {
       const llmResponse = await this.provider.generate(llmRequest);
       const parsedResponse = parseStructuredResponse(llmResponse.content);
 
-      // Extract memory candidates
-      const memoryCandidates = extractMemoryCandidates(
+      // Extract memory candidates or use structured payload if provided
+      const derivedCandidates = extractMemoryCandidates(
         message,
         parsedResponse.text,
         context.mode,
         context.memories,
       );
+      const memoryCandidates =
+        parsedResponse.memoryCandidates && parsedResponse.memoryCandidates.length > 0
+          ? parsedResponse.memoryCandidates
+          : derivedCandidates;
 
       return {
         content: parsedResponse.text,
         actionCandidates: parsedResponse.actions.length > 0 ? parsedResponse.actions : undefined,
         memoryCandidates: memoryCandidates.length > 0 ? memoryCandidates : undefined,
+        summary: parsedResponse.summary,
       };
     } catch (error) {
       // Log error (caller should handle logging with their logger)
@@ -140,7 +151,12 @@ const ACTION_TYPES = new Set<ActionType>([
   'DAY_END',
 ]);
 
-function parseStructuredResponse(content: string): { text: string; actions: ActionCandidate[] } {
+function parseStructuredResponse(content: string): {
+  text: string;
+  actions: ActionCandidate[];
+  summary?: string;
+  memoryCandidates?: MemoryCandidate[];
+} {
   const trimmed = content.trim();
   const jsonPayload = stripJsonFence(trimmed);
 
@@ -152,6 +168,8 @@ function parseStructuredResponse(content: string): { text: string; actions: Acti
     const parsed = JSON.parse(jsonPayload) as {
       text?: unknown;
       actions?: unknown;
+      summary?: unknown;
+      memoryCandidates?: unknown;
     };
     const text = typeof parsed.text === 'string' ? parsed.text : content;
     const actions = Array.isArray(parsed.actions)
@@ -159,8 +177,14 @@ function parseStructuredResponse(content: string): { text: string; actions: Acti
           .map(candidate => normalizeActionCandidate(candidate))
           .filter((candidate): candidate is ActionCandidate => candidate !== null)
       : [];
+    const summary = typeof parsed.summary === 'string' ? parsed.summary : undefined;
+    const memoryCandidates = Array.isArray(parsed.memoryCandidates)
+      ? parsed.memoryCandidates
+          .map(candidate => normalizeMemoryCandidate(candidate))
+          .filter((candidate): candidate is MemoryCandidate => candidate !== null)
+      : undefined;
 
-    return { text, actions };
+    return { text, actions, summary, memoryCandidates };
   } catch {
     return { text: content, actions: [] };
   }
@@ -213,4 +237,39 @@ function normalizeActionCandidate(candidate: unknown): ActionCandidate | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeMemoryCandidate(candidate: unknown): MemoryCandidate | null {
+  if (!candidate || typeof candidate !== 'object') {
+    return null;
+  }
+
+  const record = candidate as Record<string, unknown>;
+  const content = typeof record.content === 'string' ? record.content.trim() : '';
+  if (!content) {
+    return null;
+  }
+
+  const typeRaw = typeof record.type === 'string' ? record.type.toUpperCase() : '';
+  if (typeRaw !== 'FACTUAL' && typeRaw !== 'REFLECTION') {
+    return null;
+  }
+
+  const importanceRaw = typeof record.importance === 'number' ? record.importance : 5;
+  const importance = Math.min(10, Math.max(1, Math.round(importanceRaw)));
+
+  const confidenceRaw = typeof record.confidence === 'number' ? record.confidence : 0.5;
+  const confidence = Math.min(1, Math.max(0, confidenceRaw));
+
+  const tags = Array.isArray(record.tags)
+    ? record.tags.filter((tag): tag is string => typeof tag === 'string')
+    : undefined;
+
+  return {
+    content,
+    type: typeRaw as MemoryCandidate['type'],
+    importance,
+    tags,
+    confidence,
+  };
 }

@@ -45,6 +45,27 @@ export function buildSystemPrompt(context: ConversationContext): string {
     prompt += `Backlog tasks:\n${backlogTasks}\n\n`;
   }
 
+  if (context.mode === ConversationMode.REFLECTION) {
+    if (context.day) {
+      prompt += `Reflection context:\n`;
+      prompt += `- date: ${context.day.date}\n`;
+      prompt += `- dayState: ${context.day.state}\n`;
+    } else {
+      prompt += `Reflection context:\n`;
+    }
+
+    const tasksToday = formatTaskList(context.tasksToday);
+    prompt += `Tasks today:\n${tasksToday}\n\n`;
+
+    if (context.keyMessages && context.keyMessages.length > 0) {
+      prompt += `Key messages:\n`;
+      context.keyMessages.forEach((message, idx) => {
+        prompt += `${idx + 1}. ${message}\n`;
+      });
+      prompt += `\n`;
+    }
+  }
+
   // Add relevant memories
   if (context.memories && context.memories.length > 0) {
     prompt += `Relevant memories:\n`;

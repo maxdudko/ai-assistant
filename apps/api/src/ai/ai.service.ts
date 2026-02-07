@@ -55,6 +55,7 @@ interface Context {
   day?: DayContext;
   tasksToday?: TaskContext[];
   backlogTasks?: TaskContext[];
+  keyMessages?: string[];
 }
 
 @Injectable()
@@ -99,6 +100,7 @@ export class AiService implements OnModuleInit {
         day: context.day ? this.mapDayContext(context.day) : undefined,
         tasksToday: context.tasksToday?.map(task => this.mapTaskContext(task)),
         backlogTasks: context.backlogTasks?.map(task => this.mapTaskContext(task)),
+        keyMessages: context.keyMessages,
       };
 
       // Call core AI service (it handles fallback internally)

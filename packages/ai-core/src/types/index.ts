@@ -58,6 +58,7 @@ export interface ConversationContext {
   day?: DayContext;
   tasksToday?: TaskContext[];
   backlogTasks?: TaskContext[];
+  keyMessages?: string[];
 }
 
 export type MemoryType = 'FACTUAL' | 'REFLECTION';
@@ -75,6 +76,7 @@ export interface AiResponse {
   content: string;
   actionCandidates?: ActionCandidate[];
   memoryCandidates?: MemoryCandidate[];
+  summary?: string;
 }
 
 export interface LlmRequest {

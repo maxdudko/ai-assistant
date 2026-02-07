@@ -1,19 +1,36 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConversationMode, TaskStatus } from '@prisma/client';
+
+import {
+  buildSystemPrompt,
+  messagesToLlmFormat,
+  type ConversationContext,
+  ConversationMode as CoreConversationMode,
+  MessageRole as CoreMessageRole,
+} from '../../../../packages/ai-core/src/index';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { ConversationState, ConversationType } from '../prisma/types';
 import { ActionsService } from '../actions/actions.service';
 import { IntentDetectorService } from '../intents/intent-detector.service';
+import { MemoryIngestionService } from '../memory/memory-ingestion.service';
+import { MemoryRetrieverService } from '../memory/memory-retriever.service';
+import { DaysService } from '../days/days.service';
+import { MemoryCandidateDto, MemoryType } from '../memory/dto/memory-candidate.dto';
 
 @Injectable()
 export class ConversationsService {
+  private readonly logger = new Logger(ConversationsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
     private readonly actionsService: ActionsService,
     private readonly intentDetector: IntentDetectorService,
+    private readonly memoryIngestion: MemoryIngestionService,
+    private readonly memoryRetriever: MemoryRetrieverService,
+    private readonly daysService: DaysService,
   ) {}
 
   /**
@@ -240,6 +257,25 @@ export class ConversationsService {
       });
     }
 
+    const reflectionTriggered = this.isReflectionTrigger(message);
+    if (reflectionTriggered && conversation.mode !== ConversationMode.REFLECTION) {
+      conversation = await this.prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { mode: ConversationMode.REFLECTION },
+        include: {
+          day: true,
+          messages: {
+            orderBy: { createdAt: 'asc' },
+          },
+          user: {
+            include: {
+              profile: true,
+            },
+          },
+        },
+      });
+    }
+
     // Save user message
     await this.prisma.message.create({
       data: {
@@ -258,8 +294,23 @@ export class ConversationsService {
     }
 
     // Build context and generate AI response
-    const context = await this.buildContext(conversation.id, userId);
+    const context = await this.buildContext(
+      conversation.id,
+      userId,
+      message,
+      conversation.mode === ConversationMode.REFLECTION || reflectionTriggered,
+    );
     const aiResponse = await this.ai.generateResponse(message, context);
+
+    const promptLog = this.buildPromptLog(context, message);
+    this.logger.log('mode: ' + conversation.mode);
+    this.logger.log('systemPrompt: ' + promptLog.systemPrompt);
+    this.logger.log('messages: ' + JSON.stringify(promptLog.messages));
+    this.logger.log('memories: ' + JSON.stringify(context.memories));
+    this.logger.log('response: ' + JSON.stringify(aiResponse.content));
+    this.logger.log('actions: ' + JSON.stringify(aiResponse.actionCandidates ?? []));
+    this.logger.log('memoryCandidates: ' + JSON.stringify(aiResponse.memoryCandidates ?? []));
+    this.logger.log('summary: ' + JSON.stringify(aiResponse.summary ?? []));
 
     // Save AI response
     const assistantMessage = await this.prisma.message.create({
@@ -270,30 +321,50 @@ export class ConversationsService {
       },
     });
 
-    // Post-processing: action candidates
-    let actionCandidates = aiResponse.actionCandidates ?? [];
-    if (actionCandidates.length === 0) {
-      const taskHints = [...(context.tasksToday ?? []), ...(context.backlogTasks ?? [])].map(
-        task => ({ id: task.id, name: task.name }),
-      );
-      actionCandidates = this.intentDetector.detect(message, taskHints);
+    let storedActions = [] as Awaited<ReturnType<ActionsService['createCandidates']>>;
+    if (conversation.mode !== ConversationMode.REFLECTION) {
+      // Post-processing: action candidates
+      let actionCandidates = aiResponse.actionCandidates ?? [];
+      if (actionCandidates.length === 0) {
+        const taskHints = [...(context.tasksToday ?? []), ...(context.backlogTasks ?? [])].map(
+          task => ({ id: task.id, name: task.name }),
+        );
+        actionCandidates = this.intentDetector.detect(message, taskHints);
+      }
+
+      storedActions =
+        actionCandidates.length > 0
+          ? await this.actionsService.createCandidates(userId, actionCandidates, {
+              conversationId: conversation.id,
+              dayId: conversation.dayId,
+              tasks: [...(context.tasksToday ?? []), ...(context.backlogTasks ?? [])].map(task => ({
+                id: task.id,
+                name: task.name,
+              })),
+            })
+          : [];
     }
 
-    const storedActions =
-      actionCandidates.length > 0
-        ? await this.actionsService.createCandidates(userId, actionCandidates, {
-            conversationId: conversation.id,
-            dayId: conversation.dayId,
-            tasks: [...(context.tasksToday ?? []), ...(context.backlogTasks ?? [])].map(task => ({
-              id: task.id,
-              name: task.name,
-            })),
-          })
-        : [];
-
-    // Post-processing: extract actions and memory candidates
+    // Post-processing: memory ingestion
     if (aiResponse.memoryCandidates && aiResponse.memoryCandidates.length > 0) {
-      await this.createMemoryCandidates(conversation.id, userId, aiResponse.memoryCandidates);
+      const mappedCandidates = this.mapMemoryCandidates(aiResponse.memoryCandidates);
+      if (conversation.mode === ConversationMode.REFLECTION) {
+        const curated = this.validateReflectionCandidates(mappedCandidates).slice(0, 3);
+        if (curated.length > 0) {
+          await this.memoryIngestion.ingest(userId, curated, 'REFLECTION', {
+            dayId: conversation.dayId ?? undefined,
+          });
+        }
+      } else {
+        await this.memoryIngestion.ingest(userId, mappedCandidates, 'CONVERSATION', {
+          conversationId: conversation.id,
+          dayId: conversation.dayId ?? undefined,
+        });
+      }
+    }
+
+    if (reflectionTriggered) {
+      await this.daysService.endDay(userId);
     }
 
     return {
@@ -305,13 +376,22 @@ export class ConversationsService {
         createdAt: assistantMessage.createdAt.toISOString(),
       },
       actions: storedActions,
+      summary:
+        conversation.mode === ConversationMode.REFLECTION
+          ? this.validateSummary(aiResponse.summary)
+          : undefined,
     };
   }
 
   /**
    * Build context for AI response
    */
-  private async buildContext(conversationId: string, userId: string) {
+  private async buildContext(
+    conversationId: string,
+    userId: string,
+    query?: string,
+    includeReflectionContext = false,
+  ) {
     const conversation = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
       include: {
@@ -329,10 +409,6 @@ export class ConversationsService {
           include: {
             profile: true,
           },
-        },
-        memories: {
-          orderBy: { importance: 'desc' },
-          take: 10, // Get most important recent memories
         },
       },
     });
@@ -359,11 +435,22 @@ export class ConversationsService {
       take: 5,
     });
 
+    const keyMessages =
+      includeReflectionContext && conversation.dayId
+        ? await this.buildReflectionKeyMessages(conversation.dayId)
+        : undefined;
+
+    const retrievedMemories = query ? await this.memoryRetriever.retrieve(userId, query) : [];
+
     return {
       mode: conversation.mode,
       userProfile: conversation.user?.profile || null,
       messages: conversation.messages,
-      memories: conversation.memories || [],
+      memories: retrievedMemories.map(memory => ({
+        content: memory.content,
+        importance: memory.importance,
+        tags: memory.tags ?? [],
+      })),
       day: conversation.day
         ? {
             date: conversation.day.date.toISOString().split('T')[0],
@@ -371,6 +458,7 @@ export class ConversationsService {
           }
         : undefined,
       tasksToday,
+      keyMessages,
       backlogTasks: backlogTasks.map(task => ({
         id: task.id,
         name: task.name,
@@ -381,39 +469,136 @@ export class ConversationsService {
     };
   }
 
-  /**
-   * Create memory candidates from AI response
-   */
-  private async createMemoryCandidates(
-    conversationId: string,
-    userId: string,
-    candidates: Array<{ content: string; importance: number; tags?: string[] }>,
-  ) {
-    // Only save memories in REFLECTION mode or if explicitly marked as important
-    const conversation = await this.prisma.conversation.findUnique({
-      where: { id: conversationId },
+  private isReflectionTrigger(message: string): boolean {
+    const normalized = message.trim().toLowerCase();
+    const triggers = [
+      "let's summarize the day",
+      'lets summarize the day',
+      'summarize the day',
+      'summary of the day',
+      "let's reflect",
+      'lets reflect',
+      'reflect on the day',
+      'daily reflection',
+      'reflect today',
+    ];
+    return triggers.some(trigger => normalized.includes(trigger));
+  }
+
+  private async buildReflectionKeyMessages(dayId: string): Promise<string[]> {
+    const day = await this.prisma.day.findUnique({
+      where: { id: dayId },
+      include: {
+        conversations: {
+          include: {
+            messages: {
+              orderBy: { createdAt: 'asc' },
+            },
+          },
+        },
+      },
     });
 
-    if (
-      conversation?.mode !== ConversationMode.REFLECTION &&
-      conversation?.mode !== ConversationMode.COMPANION
-    ) {
-      // Only save high-importance memories in other modes
-      candidates = candidates.filter(c => c.importance >= 8);
+    if (!day) {
+      return [];
     }
 
-    if (candidates.length === 0) return;
+    const messages = day.conversations
+      .flatMap(conversation => conversation.messages)
+      .filter(message => message.role !== 'SYSTEM')
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(-10);
 
-    await this.prisma.memory.createMany({
-      data: candidates.map(c => ({
-        conversationId,
-        userId,
-        type: conversation?.mode === ConversationMode.REFLECTION ? 'REFLECTION' : 'FACTUAL',
-        content: c.content,
-        importance: c.importance,
-        tags: c.tags || [],
-      })),
+    return messages.map(message => {
+      const prefix = message.role === 'USER' ? 'User' : 'Assistant';
+      return `${prefix}: ${message.content}`;
     });
+  }
+
+  private validateSummary(summary?: string): string | undefined {
+    if (!summary) {
+      return undefined;
+    }
+    const trimmed = summary.trim();
+    return trimmed.length > 20 ? trimmed : undefined;
+  }
+
+  private mapMemoryCandidates(
+    candidates: Array<{
+      content: string;
+      type?: string;
+      importance: number;
+      tags?: string[];
+      confidence: number;
+    }>,
+  ): MemoryCandidateDto[] {
+    const mapped: MemoryCandidateDto[] = [];
+    for (const candidate of candidates) {
+      const typeRaw = typeof candidate.type === 'string' ? candidate.type.toUpperCase() : '';
+      const type =
+        typeRaw === 'FACTUAL'
+          ? MemoryType.FACTUAL
+          : typeRaw === 'REFLECTION'
+            ? MemoryType.REFLECTION
+            : undefined;
+
+      if (!type) {
+        continue;
+      }
+
+      mapped.push({
+        content: candidate.content,
+        type,
+        importance: candidate.importance,
+        ...(candidate.tags ? { tags: candidate.tags } : {}),
+        confidence: candidate.confidence,
+      });
+    }
+
+    return mapped;
+  }
+
+  private validateReflectionCandidates(candidates: MemoryCandidateDto[]) {
+    return candidates.filter(candidate => candidate.confidence >= 0.7 && candidate.importance >= 5);
+  }
+
+  private buildPromptLog(
+    context: Awaited<ReturnType<ConversationsService['buildContext']>>,
+    message: string,
+  ) {
+    const coreContext: ConversationContext = {
+      mode: context.mode as unknown as CoreConversationMode,
+      userProfile: context.userProfile
+        ? {
+            displayName: context.userProfile.displayName,
+            tone: context.userProfile.tone,
+            verbosity: context.userProfile.verbosity,
+            useEmoji: context.userProfile.useEmoji,
+          }
+        : undefined,
+      messages: context.messages.map(msg => ({
+        role: msg.role as unknown as CoreMessageRole,
+        content: msg.content,
+      })),
+      memories: context.memories.map(memory => ({
+        content: memory.content,
+        importance: memory.importance,
+        tags: memory.tags,
+      })),
+      day: context.day,
+      tasksToday: context.tasksToday,
+      backlogTasks: context.backlogTasks,
+      keyMessages: context.keyMessages,
+    };
+
+    const systemPrompt = buildSystemPrompt(coreContext);
+    const llmMessages = messagesToLlmFormat(coreContext.messages);
+    llmMessages.push({ role: 'USER', content: message });
+
+    return {
+      systemPrompt,
+      messages: llmMessages,
+    };
   }
 
   /**
