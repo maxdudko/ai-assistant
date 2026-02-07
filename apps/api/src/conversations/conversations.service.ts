@@ -306,6 +306,7 @@ export class ConversationsService {
     this.logger.log('mode: ' + conversation.mode);
     this.logger.log('systemPrompt: ' + promptLog.systemPrompt);
     this.logger.log('messages: ' + JSON.stringify(promptLog.messages));
+    this.logger.log('memories: ' + JSON.stringify(context.memories));
     this.logger.log('response: ' + JSON.stringify(aiResponse.content));
     this.logger.log('actions: ' + JSON.stringify(aiResponse.actionCandidates ?? []));
     this.logger.log('memoryCandidates: ' + JSON.stringify(aiResponse.memoryCandidates ?? []));
@@ -439,9 +440,7 @@ export class ConversationsService {
         ? await this.buildReflectionKeyMessages(conversation.dayId)
         : undefined;
 
-    const retrievedMemories = query
-      ? await this.memoryRetriever.retrieve(userId, query, 3)
-      : [];
+    const retrievedMemories = query ? await this.memoryRetriever.retrieve(userId, query) : [];
 
     return {
       mode: conversation.mode,
