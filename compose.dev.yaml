@@ -32,7 +32,7 @@ services:
   #      - api
 
   db:
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_DB: pma
       POSTGRES_USER: postgres

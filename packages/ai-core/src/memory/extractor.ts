@@ -37,8 +37,10 @@ export function extractMemoryCandidates(
     if (hasReflection || userMessage.length > 100) {
       candidates.push({
         content: `${userMessage} → ${aiResponse}`,
+        type: 'REFLECTION',
         importance: 7,
         tags: ['reflection', 'insight'],
+        confidence: 0.7,
       });
     }
   }
@@ -53,8 +55,10 @@ export function extractMemoryCandidates(
     if (hasPriority) {
       candidates.push({
         content: userMessage,
+        type: 'FACTUAL',
         importance: 8,
         tags: ['planning', 'priority'],
+        confidence: 0.8,
       });
     }
   }

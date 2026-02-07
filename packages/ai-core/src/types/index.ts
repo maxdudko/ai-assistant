@@ -58,18 +58,25 @@ export interface ConversationContext {
   day?: DayContext;
   tasksToday?: TaskContext[];
   backlogTasks?: TaskContext[];
+  keyMessages?: string[];
 }
+
+export type MemoryType = 'FACTUAL' | 'REFLECTION';
+export type MemorySource = 'CONVERSATION' | 'REFLECTION' | 'ONBOARDING';
 
 export interface MemoryCandidate {
   content: string;
-  importance: number;
+  type: MemoryType;
+  importance: number; // 1..10
   tags?: string[];
+  confidence: number; // 0..1
 }
 
 export interface AiResponse {
   content: string;
   actionCandidates?: ActionCandidate[];
   memoryCandidates?: MemoryCandidate[];
+  summary?: string;
 }
 
 export interface LlmRequest {
