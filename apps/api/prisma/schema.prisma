@@ -181,11 +181,12 @@ model Conversation {
 }
 
 model Message {
-  id             String @id @default(uuid())
+  id             String            @id @default(uuid())
   conversationId String
 
   role    MessageRole
   content String
+  mode    ConversationMode @default(MANAGER)
 
   createdAt DateTime @default(now())
 

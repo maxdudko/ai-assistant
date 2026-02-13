@@ -104,6 +104,7 @@ export class ConversationsService {
               role: 'SYSTEM',
               content:
                 'Daily conversation started. Ready to help with planning, execution, and reflection.',
+              mode: ConversationMode.MANAGER,
             },
           },
         },
@@ -151,6 +152,7 @@ export class ConversationsService {
           create: {
             role: 'SYSTEM',
             content: `Ad-hoc conversation started in ${mode} mode.`,
+            mode,
           },
         },
       },
@@ -304,6 +306,7 @@ export class ConversationsService {
         conversationId: conversation.id,
         role: 'USER',
         content: message,
+        mode: conversation.mode,
       },
     });
 
@@ -329,6 +332,7 @@ export class ConversationsService {
           conversationId: conversation.id,
           role: 'ASSISTANT',
           content: digest.content,
+          mode: conversation.mode,
         },
       });
 
@@ -346,6 +350,7 @@ export class ConversationsService {
           id: assistantMessage.id,
           role: 'ASSISTANT' as const,
           content: assistantMessage.content,
+          mode: assistantMessage.mode,
           createdAt: assistantMessage.createdAt.toISOString(),
         },
         actions: storedActions,
@@ -379,6 +384,7 @@ export class ConversationsService {
         conversationId: conversation.id,
         role: 'ASSISTANT',
         content: aiResponse.content,
+        mode: conversation.mode,
       },
     });
 
@@ -434,6 +440,7 @@ export class ConversationsService {
         id: assistantMessage.id,
         role: 'ASSISTANT' as const,
         content: assistantMessage.content,
+        mode: assistantMessage.mode,
         createdAt: assistantMessage.createdAt.toISOString(),
       },
       actions: storedActions,

@@ -94,7 +94,7 @@ const Onboarding: FC = () => {
       </ul>
       <button
         onClick={handleNext}
-        className="w-full rounded bg-indigo-600 px-4 py-2 font-medium hover:bg-indigo-700"
+        className="w-full rounded bg-indigo-600 px-4 py-2 font-medium hover:bg-indigo-700 cursor-pointer"
       >
         Next
       </button>
@@ -270,7 +270,7 @@ const Onboarding: FC = () => {
 
       <button
         onClick={handleNext}
-        className="w-full rounded bg-indigo-600 px-4 py-2 font-medium hover:bg-indigo-700"
+        className="w-full rounded bg-indigo-600 px-4 py-2 font-medium hover:bg-indigo-700 cursor-pointer"
       >
         Next
       </button>

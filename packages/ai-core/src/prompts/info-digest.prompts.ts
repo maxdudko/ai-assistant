@@ -25,7 +25,7 @@ Rules:
 - Be neutral, factual, and concise.
 - No opinions, no advice, no speculation.
 - Return 3 to 5 highlights.
-- Each highlight must be exactly one sentence.
+- Else return URLs of the most relevant search results.
 - Use markdown formatting for highlights (e.g. bullet points).
 
 Output:

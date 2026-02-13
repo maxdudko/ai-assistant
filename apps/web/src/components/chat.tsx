@@ -119,12 +119,14 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         id: `temp-${Date.now()}`,
         role: 'USER',
         content: userMessage,
+        mode: conversation?.mode || 'MANAGER',
         createdAt: new Date().toISOString(),
       };
       const tempAssistantMessage: ChatMessage = {
         id: `temp-assistant-${Date.now()}`,
         role: 'ASSISTANT',
         content: '',
+        mode: conversation?.mode || 'MANAGER',
         createdAt: new Date().toISOString(),
       };
       streamingMessageIdRef.current = tempAssistantMessage.id;
@@ -327,10 +329,15 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
                       : 'bg-[#212121] border border-indigo-800 text-neutral-200'
                 }`}
               >
-                <div className="font-medium mb-1 underline">
-                  {message.role === 'USER' && 'You'}
-                  {message.role === 'ASSISTANT' && 'AI Assistant'}
-                  {message.role === 'SYSTEM' && 'System'}
+                <div className="font-medium mb-1 flex items-center justify-between">
+                  <span className="underline">
+                    {message.role === 'USER' && 'You'}
+                    {message.role === 'ASSISTANT' && 'AI Assistant'}
+                    {message.role === 'SYSTEM' && 'System'}
+                  </span>
+                  <span className="text-xs font-normal opacity-70 ml-2">
+                    {getModeLabel(message.mode)}
+                  </span>
                 </div>
                 <ReactMarkdown>{message.content}</ReactMarkdown>
                 {message.role === 'ASSISTANT' && message.actions && message.actions.length > 0 && (

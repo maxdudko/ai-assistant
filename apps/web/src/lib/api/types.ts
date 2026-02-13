@@ -61,6 +61,7 @@ export interface MessageDto {
   id: string;
   role: MessageRole;
   content: string;
+  mode: ConversationMode;
   createdAt: string;
 }
 
