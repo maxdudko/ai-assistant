@@ -1,5 +1,17 @@
-import { Controller, Post, Body, Get, Patch, Param, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Patch,
+  Param,
+  Query,
+  Req,
+  UseGuards,
+  Res,
+} from '@nestjs/common';
 import { ConversationMode } from '@prisma/client';
+import type { Response } from 'express';
 
 import { JwtAuthGuard } from '../auth/jwt.guard';
 
@@ -19,6 +31,39 @@ export class ConversationsController {
     @Body() body: { message: string; conversationId?: string; mode?: ConversationMode },
   ) {
     return this.service.handleMessage(req.user.id, body.message, body.conversationId, body.mode);
+  }
+
+  @Post('message/stream')
+  async sendMessageStream(
+    @Req() req,
+    @Body() body: { message: string; conversationId?: string; mode?: ConversationMode },
+    @Res() res: Response,
+  ) {
+    res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    const emit = (payload: Record<string, unknown>) => {
+      res.write(`${JSON.stringify(payload)}\n`);
+    };
+
+    try {
+      emit({ type: 'start' });
+      const result = await this.service.handleMessage(
+        req.user.id,
+        body.message,
+        body.conversationId,
+        body.mode,
+        token => emit({ type: 'delta', delta: token }),
+      );
+      emit({ type: 'complete', ...result });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown stream error';
+      emit({ type: 'error', error: message });
+    } finally {
+      res.end();
+    }
   }
 
   /**

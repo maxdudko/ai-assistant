@@ -123,6 +123,30 @@ export class AiService implements OnModuleInit {
     }
   }
 
+  async generateResponseStream(
+    message: string,
+    context: Context,
+    onToken: (token: string) => Promise<void> | void,
+  ): Promise<AiResponse> {
+    try {
+      const coreContext: ConversationContext = {
+        mode: this.mapConversationMode(context.mode),
+        userProfile: context.userProfile ? this.mapUserProfile(context.userProfile) : undefined,
+        messages: context.messages.map(msg => this.mapMessage(msg)),
+        memories: context.memories.map(mem => this.mapMemory(mem)),
+        day: context.day ? this.mapDayContext(context.day) : undefined,
+        tasksToday: context.tasksToday?.map(task => this.mapTaskContext(task)),
+        backlogTasks: context.backlogTasks?.map(task => this.mapTaskContext(task)),
+        keyMessages: context.keyMessages,
+      };
+
+      return await this.coreAiService.generateResponseStream(message, coreContext, onToken);
+    } catch (error) {
+      this.logger.error('Failed to stream AI response:', error);
+      throw error;
+    }
+  }
+
   async generateInfoSearchQuery(userMessage: string): Promise<InfoSearchQueryPayload> {
     const request: LlmRequest = {
       systemPrompt: buildInfoSearchQueryPrompt(),

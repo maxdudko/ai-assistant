@@ -4,14 +4,13 @@ import type { FC } from 'react';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
-import Editor from '@uiw/react-md-editor';
 import type { ActionCandidate } from '@ai/shared-types';
 
 import type { ConversationDto, MessageDto, ConversationMode } from '@/lib/api/types';
 import {
   getDailyConversation,
   getConversation,
-  sendMessage as sendMessageApi,
+  sendMessageStream as sendMessageStreamApi,
   switchMode as switchModeApi,
 } from '@/lib/api/conversations';
 import { confirmAction as confirmActionApi } from '@/lib/api/actions';
@@ -31,6 +30,9 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
   const [confirmingActionId, setConfirmingActionId] = useState<string | null>(null);
   const [executedActionIds, setExecutedActionIds] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const streamingMessageIdRef = useRef<string | null>(null);
+  const streamingBufferRef = useRef('');
+  const streamingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load conversation on mount or when conversationId changes
   useEffect(() => {
@@ -42,9 +44,48 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleInputChange = (value: string | undefined) => {
-    setInput(value || '');
-  };
+  const stopStreamingAnimation = useCallback(() => {
+    if (streamingIntervalRef.current) {
+      clearInterval(streamingIntervalRef.current);
+      streamingIntervalRef.current = null;
+    }
+    streamingBufferRef.current = '';
+    streamingMessageIdRef.current = null;
+  }, []);
+
+  const queueStreamingDelta = useCallback((delta: string) => {
+    if (!streamingMessageIdRef.current) return;
+    streamingBufferRef.current += delta;
+    if (streamingIntervalRef.current) return;
+
+    streamingIntervalRef.current = setInterval(() => {
+      const messageId = streamingMessageIdRef.current;
+      if (!messageId) {
+        stopStreamingAnimation();
+        return;
+      }
+
+      if (!streamingBufferRef.current.length) {
+        stopStreamingAnimation();
+        return;
+      }
+
+      const nextChar = streamingBufferRef.current[0];
+      streamingBufferRef.current = streamingBufferRef.current.slice(1);
+
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === messageId ? { ...msg, content: `${msg.content}${nextChar}` } : msg,
+        ),
+      );
+    }, 12);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopStreamingAnimation();
+    };
+  }, [stopStreamingAnimation]);
 
   const loadConversation = async () => {
     try {
@@ -71,6 +112,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
       const userMessage = input.trim();
       setInput('');
       setError(null);
+      setLoading(true);
 
       // Optimistically add user message
       const tempUserMessage: MessageDto = {
@@ -79,36 +121,52 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         content: userMessage,
         createdAt: new Date().toISOString(),
       };
-      setMessages(prev => [...prev, tempUserMessage]);
+      const tempAssistantMessage: ChatMessage = {
+        id: `temp-assistant-${Date.now()}`,
+        role: 'ASSISTANT',
+        content: '',
+        createdAt: new Date().toISOString(),
+      };
+      streamingMessageIdRef.current = tempAssistantMessage.id;
+      setMessages(prev => [...prev, tempUserMessage, tempAssistantMessage]);
 
       try {
-        const response = await sendMessageApi({
-          message: userMessage,
-          conversationId: conversation?.id,
-        });
-
-        // Update conversation and messages
-        if (response.conversationId !== conversation?.id) {
-          // New conversation created, reload it
-          await loadConversation();
-        } else {
-          // Add assistant response
-          setMessages(prev => [
-            ...prev,
-            {
-              ...response.message,
-              actions: response.actions || [],
+        const response = await sendMessageStreamApi(
+          {
+            message: userMessage,
+            conversationId: conversation?.id,
+          },
+          {
+            onDelta: delta => queueStreamingDelta(delta),
+            onComplete: result => {
+              stopStreamingAnimation();
+              setMessages(prev =>
+                prev.map(msg =>
+                  msg.id === tempAssistantMessage.id
+                    ? { ...result.message, actions: result.actions || [] }
+                    : msg,
+                ),
+              );
             },
-          ]);
+          },
+        );
+
+        if (response.conversationId !== conversation?.id) {
+          await loadConversation();
         }
       } catch (err) {
         console.error('Failed to send message:', err);
         setError('Failed to send message');
-        // Remove optimistic message on error
-        setMessages(prev => prev.filter(msg => msg.id !== tempUserMessage.id));
+        stopStreamingAnimation();
+        // Remove optimistic messages on error
+        setMessages(prev =>
+          prev.filter(msg => msg.id !== tempUserMessage.id && msg.id !== tempAssistantMessage.id),
+        );
+      } finally {
+        setLoading(false);
       }
     },
-    [input, loading, conversation],
+    [input, loading, conversation, queueStreamingDelta, stopStreamingAnimation],
   );
 
   const handleConfirmAction = useCallback(
@@ -313,15 +371,14 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
 
       {/* Input form */}
       <form onSubmit={handleSendMessage} className="mt-4 flex gap-2">
-        {/*<textarea*/}
-        {/*  rows={5}*/}
-        {/*  value={input}*/}
-        {/*  onChange={e => setInput(e.target.value)}*/}
-        {/*  className="flex-1 rounded bg-neutral-800 p-2 text-neutral-200 placeholder:text-neutral-500"*/}
-        {/*  placeholder="Type your message..."*/}
-        {/*  disabled={loading}*/}
-        {/*/>*/}
-        <Editor className="w-full bg-neutral-900" value={input} onChange={handleInputChange} />
+        <textarea
+          rows={5}
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          className="flex-1 rounded bg-[#0d1117] p-2 text-neutral-200 placeholder:text-neutral-500"
+          placeholder="Type your message..."
+          disabled={loading}
+        />
         <button
           type="submit"
           disabled={loading || !input.trim()}

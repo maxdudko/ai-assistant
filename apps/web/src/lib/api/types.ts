@@ -93,6 +93,12 @@ export interface SendMessageResponse {
   actions?: ActionCandidate[];
 }
 
+export type SendMessageStreamEvent =
+  | { type: 'start' }
+  | { type: 'delta'; delta: string }
+  | ({ type: 'complete' } & SendMessageResponse)
+  | { type: 'error'; error: string };
+
 export interface SwitchModeRequest {
   mode: ConversationMode;
 }

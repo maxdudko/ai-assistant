@@ -4,9 +4,6 @@
  * Main orchestrator for AI interactions
  * Handles prompt building, LLM calls, and memory extraction
  */
-
-import { randomUUID } from 'crypto';
-
 import type { ActionCandidate, ActionType } from '@ai/shared-types';
 
 import type {
@@ -127,6 +124,58 @@ export class AiService {
   }
 
   /**
+   * Generate AI response and stream intermediate tokens to callback.
+   */
+  async generateResponseStream(
+    message: string,
+    context: ConversationContext,
+    onToken: (token: string) => Promise<void> | void,
+  ): Promise<AiResponse> {
+    try {
+      const systemPrompt = buildSystemPrompt(context);
+      const llmMessages = messagesToLlmFormat(context.messages);
+      llmMessages.push({
+        role: 'USER',
+        content: message,
+      });
+
+      const llmRequest: LlmRequest = {
+        systemPrompt,
+        messages: llmMessages,
+        temperature: 0.7,
+      };
+
+      if (!this.provider.generateStream) {
+        const llmResponse = await this.provider.generate(llmRequest);
+        for (const char of llmResponse.content) {
+          await onToken(char);
+        }
+        return this.buildAiResponseFromContent(message, context, llmResponse.content);
+      }
+
+      let content = '';
+      for await (const token of this.provider.generateStream(llmRequest)) {
+        content += token;
+        await onToken(token);
+      }
+
+      return this.buildAiResponseFromContent(message, context, content);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (this.enableStubFallback) {
+        const fallbackResponse = generateStubResponse(message, context.mode, context.userProfile);
+        for (const char of fallbackResponse) {
+          await onToken(char);
+        }
+        return {
+          content: fallbackResponse,
+        };
+      }
+      throw new Error(`Failed to generate AI response: ${errorMessage}`);
+    }
+  }
+
+  /**
    * Generate JSON payload from a prompt.
    * Returns null when output is not valid JSON and fallback mode is enabled.
    */
@@ -156,6 +205,31 @@ export class AiService {
    */
   getProviderName(): string {
     return this.provider.getName();
+  }
+
+  private buildAiResponseFromContent(
+    message: string,
+    context: ConversationContext,
+    rawContent: string,
+  ): AiResponse {
+    const parsedResponse = parseStructuredResponse(rawContent);
+    const derivedCandidates = extractMemoryCandidates(
+      message,
+      parsedResponse.text,
+      context.mode,
+      context.memories,
+    );
+    const memoryCandidates =
+      parsedResponse.memoryCandidates && parsedResponse.memoryCandidates.length > 0
+        ? parsedResponse.memoryCandidates
+        : derivedCandidates;
+
+    return {
+      content: parsedResponse.text,
+      actionCandidates: parsedResponse.actions.length > 0 ? parsedResponse.actions : undefined,
+      memoryCandidates: memoryCandidates.length > 0 ? memoryCandidates : undefined,
+      summary: parsedResponse.summary,
+    };
   }
 }
 
@@ -232,6 +306,14 @@ function parseJsonPayload<T>(content: string): T | null {
   }
 }
 
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 function normalizeActionCandidate(candidate: unknown): ActionCandidate | null {
   if (!candidate || typeof candidate !== 'object') {
     return null;
@@ -251,7 +333,7 @@ function normalizeActionCandidate(candidate: unknown): ActionCandidate | null {
   const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
     providedId,
   );
-  const id = isValidUUID ? providedId : randomUUID();
+  const id = isValidUUID ? providedId : generateUUID();
 
   return {
     id,

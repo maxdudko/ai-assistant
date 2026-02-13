@@ -97,6 +97,98 @@ export class OllamaProvider implements LlmProvider {
     }
   }
 
+  async *generateStream(request: LlmRequest): AsyncGenerator<string> {
+    const prompt = this.buildOllamaPrompt(request);
+    const url = `${this.config.url}/api/generate`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: this.config.model,
+          prompt,
+          stream: true,
+          options: {
+            temperature: request.temperature ?? this.config.temperature,
+            top_p: this.config.topP,
+            top_k: this.config.topK,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
+      }
+
+      if (!response.body) {
+        throw new Error('Ollama API returned an empty stream');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+
+        let lineBreakIndex = buffer.indexOf('\n');
+        while (lineBreakIndex !== -1) {
+          const line = buffer.slice(0, lineBreakIndex).trim();
+          buffer = buffer.slice(lineBreakIndex + 1);
+
+          if (line) {
+            const chunk = JSON.parse(line) as { response?: string; done?: boolean; error?: string };
+            if (chunk.error) {
+              throw new Error(`Ollama stream error: ${chunk.error}`);
+            }
+            if (chunk.response) {
+              yield chunk.response;
+            }
+            if (chunk.done) {
+              return;
+            }
+          }
+
+          lineBreakIndex = buffer.indexOf('\n');
+        }
+      }
+
+      const remaining = buffer.trim();
+      if (remaining) {
+        const chunk = JSON.parse(remaining) as {
+          response?: string;
+          done?: boolean;
+          error?: string;
+        };
+        if (chunk.error) {
+          throw new Error(`Ollama stream error: ${chunk.error}`);
+        }
+        if (chunk.response) {
+          yield chunk.response;
+        }
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('fetch failed') || error.message.includes('ECONNREFUSED')) {
+          throw new Error(
+            `Ollama is not available at ${this.config.url}. Please ensure Ollama is running and the model ${this.config.model} is installed.`,
+          );
+        }
+        throw error;
+      }
+      throw new Error('Unknown error calling Ollama API stream');
+    }
+  }
+
   /**
    * Build a single prompt string from system prompt and messages
    * Ollama doesn't support separate system messages, so we combine them

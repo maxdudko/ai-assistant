@@ -217,6 +217,7 @@ export class ConversationsService {
     message: string,
     conversationId?: string,
     mode?: ConversationMode,
+    onToken?: (token: string) => Promise<void> | void,
   ) {
     // Get or create conversation
     let conversation;
@@ -317,6 +318,12 @@ export class ConversationsService {
     if (infoTriggered) {
       const digest = await this.digestService.generateDigest(userId, message);
 
+      if (onToken) {
+        for (const char of digest.content) {
+          await onToken(char);
+        }
+      }
+
       const assistantMessage = await this.prisma.message.create({
         data: {
           conversationId: conversation.id,
@@ -352,7 +359,9 @@ export class ConversationsService {
       message,
       conversation.mode === ConversationMode.REFLECTION || reflectionTriggered,
     );
-    const aiResponse = await this.ai.generateResponse(message, context);
+    const aiResponse = onToken
+      ? await this.ai.generateResponseStream(message, context, onToken)
+      : await this.ai.generateResponse(message, context);
 
     const promptLog = this.buildPromptLog(context, message);
     this.logger.log('mode: ' + conversation.mode);

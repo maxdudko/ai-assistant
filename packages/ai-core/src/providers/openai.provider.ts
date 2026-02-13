@@ -119,4 +119,11 @@ export class OpenAIProvider implements LlmProvider {
       throw new Error('Unknown error calling OpenAI API');
     }
   }
+
+  async *generateStream(request: LlmRequest): AsyncGenerator<string> {
+    const response = await this.generate(request);
+    for (const char of response.content) {
+      yield char;
+    }
+  }
 }
