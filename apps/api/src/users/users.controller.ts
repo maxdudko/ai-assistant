@@ -1,6 +1,5 @@
 import { Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
 
-import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 
 import { UsersService } from './users.service';
@@ -8,10 +7,7 @@ import { UpdateMeDto } from './dto/update-me.dto';
 
 @Controller('users')
 export class UsersController {
-  constructor(
-    private prisma: PrismaService,
-    private usersService: UsersService,
-  ) {}
+  constructor(private usersService: UsersService) {}
 
   @Get('me')
   @UseGuards(JwtAuthGuard)

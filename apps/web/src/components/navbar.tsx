@@ -23,8 +23,11 @@ const Navbar: FC = () => {
         <button
           className="cursor-pointer "
           onClick={async () => {
-            await authApi.logout();
-            router.push('/me');
+            try {
+              await authApi.logout();
+            } finally {
+              router.push('/auth/login');
+            }
           }}
         >
           Exit
