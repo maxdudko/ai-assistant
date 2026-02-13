@@ -138,7 +138,8 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
       (typeof payload.title === 'string' && payload.title) ||
       (typeof payload.name === 'string' && payload.name) ||
       (typeof payload.taskName === 'string' && payload.taskName) ||
-      (typeof payload.task === 'string' && payload.task);
+      (typeof payload.task === 'string' && payload.task) ||
+      (typeof payload.topic === 'string' && payload.topic);
 
     switch (action.type) {
       case 'TASK_CREATE':
@@ -154,6 +155,8 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         return 'Start the day';
       case 'DAY_END':
         return 'End the day';
+      case 'SUGGEST_DIGEST_SUBSCRIPTION':
+        return `Subscribe to daily digest${title ? `: ${title}` : ''}`;
       default:
         return 'Confirm action';
     }

@@ -127,6 +127,24 @@ export class AiService {
   }
 
   /**
+   * Generate JSON payload from a prompt.
+   * Returns null when output is not valid JSON and fallback mode is enabled.
+   */
+  async generateJson<T>(request: LlmRequest): Promise<T | null> {
+    try {
+      const llmResponse = await this.provider.generate(request);
+      return parseJsonPayload<T>(llmResponse.content);
+    } catch (error) {
+      if (this.enableStubFallback) {
+        return null;
+      }
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to generate JSON response: ${errorMessage}`);
+    }
+  }
+
+  /**
    * Check if the AI service is available
    */
   async isAvailable(): Promise<boolean> {
@@ -149,6 +167,7 @@ const ACTION_TYPES = new Set<ActionType>([
   'TASK_COMPLETE',
   'DAY_START',
   'DAY_END',
+  'SUGGEST_DIGEST_SUBSCRIPTION',
 ]);
 
 function parseStructuredResponse(content: string): {
@@ -157,37 +176,31 @@ function parseStructuredResponse(content: string): {
   summary?: string;
   memoryCandidates?: MemoryCandidate[];
 } {
-  const trimmed = content.trim();
-  const jsonPayload = stripJsonFence(trimmed);
+  const parsed = parseJsonPayload<{
+    text?: unknown;
+    actions?: unknown;
+    summary?: unknown;
+    memoryCandidates?: unknown;
+  }>(content);
 
-  if (!looksLikeJson(jsonPayload)) {
+  if (!parsed) {
     return { text: content, actions: [] };
   }
 
-  try {
-    const parsed = JSON.parse(jsonPayload) as {
-      text?: unknown;
-      actions?: unknown;
-      summary?: unknown;
-      memoryCandidates?: unknown;
-    };
-    const text = typeof parsed.text === 'string' ? parsed.text : content;
-    const actions = Array.isArray(parsed.actions)
-      ? parsed.actions
-          .map(candidate => normalizeActionCandidate(candidate))
-          .filter((candidate): candidate is ActionCandidate => candidate !== null)
-      : [];
-    const summary = typeof parsed.summary === 'string' ? parsed.summary : undefined;
-    const memoryCandidates = Array.isArray(parsed.memoryCandidates)
-      ? parsed.memoryCandidates
-          .map(candidate => normalizeMemoryCandidate(candidate))
-          .filter((candidate): candidate is MemoryCandidate => candidate !== null)
-      : undefined;
+  const text = typeof parsed.text === 'string' ? parsed.text : content;
+  const actions = Array.isArray(parsed.actions)
+    ? parsed.actions
+        .map(candidate => normalizeActionCandidate(candidate))
+        .filter((candidate): candidate is ActionCandidate => candidate !== null)
+    : [];
+  const summary = typeof parsed.summary === 'string' ? parsed.summary : undefined;
+  const memoryCandidates = Array.isArray(parsed.memoryCandidates)
+    ? parsed.memoryCandidates
+        .map(candidate => normalizeMemoryCandidate(candidate))
+        .filter((candidate): candidate is MemoryCandidate => candidate !== null)
+    : undefined;
 
-    return { text, actions, summary, memoryCandidates };
-  } catch {
-    return { text: content, actions: [] };
-  }
+  return { text, actions, summary, memoryCandidates };
 }
 
 function stripJsonFence(content: string): string {
@@ -203,6 +216,20 @@ function stripJsonFence(content: string): string {
 
 function looksLikeJson(content: string): boolean {
   return content.startsWith('{') && content.endsWith('}');
+}
+
+function parseJsonPayload<T>(content: string): T | null {
+  const jsonPayload = stripJsonFence(content.trim());
+
+  if (!looksLikeJson(jsonPayload)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(jsonPayload) as T;
+  } catch {
+    return null;
+  }
 }
 
 function normalizeActionCandidate(candidate: unknown): ActionCandidate | null {

@@ -13,6 +13,8 @@ export type {
   UserProfile,
   Memory,
   MemoryCandidate,
+  InfoSearchQueryPayload,
+  InfoDigestPayload,
   LlmRequest,
   LlmResponse,
 } from './types/index.js';

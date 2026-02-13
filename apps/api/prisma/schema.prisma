@@ -90,6 +90,10 @@ enum MemorySource {
   ONBOARDING
 }
 
+enum DigestFrequency {
+  DAILY
+}
+
 // ================================
 // Models
 // ================================
@@ -109,6 +113,7 @@ model User {
   actionCandidates    ActionCandidate[]
   actionExecutionLogs ActionExecutionLog[]
   memories            Memory[]
+  digestSubscriptions DigestSubscription[]
 }
 
 model UserProfile {
@@ -301,4 +306,29 @@ model Day {
   @@unique([userId, date])
   @@index([userId, date])
   @@index([userId, state])
+}
+
+model DigestTopic {
+  id             String @id @default(uuid())
+  name           String
+  normalizedName String @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  subscriptions DigestSubscription[]
+}
+
+model DigestSubscription {
+  id        String          @id @default(uuid())
+  userId    String
+  topicId   String
+  frequency DigestFrequency @default(DAILY)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic DigestTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+  @@index([userId, frequency])
 }

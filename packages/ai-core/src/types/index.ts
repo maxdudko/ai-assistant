@@ -79,6 +79,16 @@ export interface AiResponse {
   summary?: string;
 }
 
+export interface InfoSearchQueryPayload {
+  searchQuery: string;
+  topic?: string;
+}
+
+export interface InfoDigestPayload {
+  title: string;
+  highlights: string[];
+}
+
 export interface LlmRequest {
   systemPrompt: string;
   messages: Array<{ role: string; content: string }>;

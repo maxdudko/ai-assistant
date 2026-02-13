@@ -18,6 +18,7 @@ import { MemoryIngestionService } from '../memory/memory-ingestion.service';
 import { MemoryRetrieverService } from '../memory/memory-retriever.service';
 import { DaysService } from '../days/days.service';
 import { MemoryCandidateDto, MemoryType } from '../memory/dto/memory-candidate.dto';
+import { DigestService } from '../digest/digest.service';
 
 @Injectable()
 export class ConversationsService {
@@ -31,6 +32,7 @@ export class ConversationsService {
     private readonly memoryIngestion: MemoryIngestionService,
     private readonly memoryRetriever: MemoryRetrieverService,
     private readonly daysService: DaysService,
+    private readonly digestService: DigestService,
   ) {}
 
   /**
@@ -257,7 +259,26 @@ export class ConversationsService {
       });
     }
 
-    const reflectionTriggered = this.isReflectionTrigger(message);
+    const infoTriggered = this.shouldUseInfoMode(message, mode, conversation.mode);
+    if (infoTriggered && conversation.mode !== ConversationMode.INFO) {
+      conversation = await this.prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { mode: ConversationMode.INFO },
+        include: {
+          day: true,
+          messages: {
+            orderBy: { createdAt: 'asc' },
+          },
+          user: {
+            include: {
+              profile: true,
+            },
+          },
+        },
+      });
+    }
+
+    const reflectionTriggered = !infoTriggered && this.isReflectionTrigger(message);
     if (reflectionTriggered && conversation.mode !== ConversationMode.REFLECTION) {
       conversation = await this.prisma.conversation.update({
         where: { id: conversation.id },
@@ -291,6 +312,37 @@ export class ConversationsService {
         where: { id: conversation.id },
         data: { state: ConversationState.ACTIVE },
       });
+    }
+
+    if (infoTriggered) {
+      const digest = await this.digestService.generateDigest(userId, message);
+
+      const assistantMessage = await this.prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          role: 'ASSISTANT',
+          content: digest.content,
+        },
+      });
+
+      const storedActions =
+        digest.actionCandidates.length > 0
+          ? await this.actionsService.createCandidates(userId, digest.actionCandidates, {
+              conversationId: conversation.id,
+              dayId: conversation.dayId,
+            })
+          : [];
+
+      return {
+        conversationId: conversation.id,
+        message: {
+          id: assistantMessage.id,
+          role: 'ASSISTANT' as const,
+          content: assistantMessage.content,
+          createdAt: assistantMessage.createdAt.toISOString(),
+        },
+        actions: storedActions,
+      };
     }
 
     // Build context and generate AI response
@@ -483,6 +535,29 @@ export class ConversationsService {
       'reflect today',
     ];
     return triggers.some(trigger => normalized.includes(trigger));
+  }
+
+  private shouldUseInfoMode(
+    message: string,
+    requestedMode?: ConversationMode,
+    currentMode?: ConversationMode,
+  ): boolean {
+    if (requestedMode === ConversationMode.INFO || currentMode === ConversationMode.INFO) {
+      return true;
+    }
+
+    const normalized = message.trim().toLowerCase();
+    const patterns = [
+      /\bupdates?\s+on\b/,
+      /\blatest\b/,
+      /\bnews\b/,
+      /\bheadline(s)?\b/,
+      /\bwhat happened\b/,
+      /\bdigest\b/,
+      /\bbrief(ing)?\b/,
+    ];
+
+    return patterns.some(pattern => pattern.test(normalized));
   }
 
   private async buildReflectionKeyMessages(dayId: string): Promise<string[]> {
