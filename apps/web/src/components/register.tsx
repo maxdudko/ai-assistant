@@ -12,22 +12,29 @@ const Register: FC = () => {
   const { refresh } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const onSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       setError(null);
+
+      if (password !== confirmPassword) {
+        setError('Passwords do not match');
+        return;
+      }
+
       try {
         await authApi.register({ email, password });
         await refresh();
-        router.push('/me');
+        router.push('/auth/onboarding');
       } catch (error) {
         console.error('Registration failed:', error);
         setError('Registration failed. Email may already be in use.');
       }
     },
-    [email, password, refresh, router],
+    [email, password, confirmPassword, refresh, router],
   );
 
   return (
@@ -47,6 +54,15 @@ const Register: FC = () => {
         className="w-full rounded bg-neutral-800 p-2"
         type="password"
         placeholder="Password"
+        required
+        minLength={6}
+      />
+      <input
+        value={confirmPassword}
+        onChange={e => setConfirmPassword(e.target.value)}
+        className="w-full rounded bg-neutral-800 p-2"
+        type="password"
+        placeholder="Confirm Password"
         required
         minLength={6}
       />

@@ -15,6 +15,21 @@ datasource db {
 // Enums
 // ================================
 
+enum Tone {
+  Neutral
+  Friendly
+  Professional
+  Casual
+  Humorous
+  Empathetic
+}
+
+enum Verbosity {
+  Short
+  Medium
+  Detailed
+}
+
 enum ConversationMode {
   MANAGER
   REFLECTION
@@ -121,9 +136,16 @@ model UserProfile {
   userId      String @unique
   displayName String @default("User")
 
-  tone      String  @default("neutral")
-  verbosity String  @default("medium")
-  useEmoji  Boolean @default(false)
+  tone      String  @default("neutral") // 'neutral' | 'friendly' | 'professional' | 'casual' | 'humorous' | 'empathetic'
+  verbosity String  @default("normal") // 'short' | 'normal' | 'detailed'
+  useEmoji  Boolean @default(true)
+
+  // Onboarding fields
+  primaryUseCase        String?  // 'day-planning' | 'task-tracking' | 'reflection' | 'mixed'
+  helpStyle            String?  // 'active' | 'passive'
+  dayPlanningTime      String?  // 'morning' | 'evening' | 'anytime'
+  reflectionTime       String?  // 'morning' | 'evening' | 'anytime'
+  onboardingCompleted  Boolean  @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -309,9 +331,9 @@ model Day {
 }
 
 model DigestTopic {
-  id             String @id @default(uuid())
+  id             String   @id @default(uuid())
   name           String
-  normalizedName String @unique
+  normalizedName String   @unique
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -326,7 +348,7 @@ model DigestSubscription {
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 
-  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   topic DigestTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
 
   @@unique([userId, topicId])

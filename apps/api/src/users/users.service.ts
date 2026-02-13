@@ -13,14 +13,16 @@ export class UsersService {
     });
   }
 
-  update(userId: string, dto: { email?: string; profile?: Partial<any> }) {
+  update(userId: string, dto: { email?: string; profile?: Record<string, any> }) {
     return this.prisma.user.update({
       where: { id: userId },
       data: {
-        email: dto.email,
-        profile: {
-          update: dto.profile,
-        },
+        ...(dto.email && { email: dto.email }),
+        ...(dto.profile && {
+          profile: {
+            update: dto.profile,
+          },
+        }),
       },
       include: { profile: true },
     });

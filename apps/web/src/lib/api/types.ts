@@ -5,11 +5,28 @@ export interface AuthTokens {
   refreshToken: string;
 }
 
+export type ToneOption =
+  | 'neutral'
+  | 'friendly'
+  | 'professional'
+  | 'casual'
+  | 'humorous'
+  | 'empathetic';
+export type VerbosityOption = 'short' | 'normal' | 'detailed';
+export type PrimaryUseCaseOption = 'day-planning' | 'task-tracking' | 'reflection' | 'mixed';
+export type HelpStyleOption = 'active' | 'passive';
+export type TimePreferenceOption = 'morning' | 'evening' | 'anytime';
+
 export interface UserProfileDto {
   displayName?: string;
-  tone: 'neutral' | 'friendly' | 'strict';
-  verbosity: 'low' | 'medium' | 'high';
+  tone: ToneOption;
+  verbosity: VerbosityOption;
   useEmoji: boolean;
+  primaryUseCase?: PrimaryUseCaseOption;
+  helpStyle?: HelpStyleOption;
+  dayPlanningTime?: TimePreferenceOption;
+  reflectionTime?: TimePreferenceOption;
+  onboardingCompleted?: boolean;
 }
 
 export interface UserDto {
@@ -20,7 +37,9 @@ export interface UserDto {
 
 export interface UpdateMeRequest {
   email?: string;
-  profile?: Partial<UserProfileDto>;
+  profile?: Partial<UserProfileDto> & {
+    onboardingCompleted?: boolean;
+  };
 }
 
 export interface LoginRequest {
