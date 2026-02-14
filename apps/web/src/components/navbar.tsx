@@ -18,6 +18,7 @@ const Navbar: FC = () => {
         <Link href="/me/tasks">Tasks</Link>
         <Link href="/me/memory">Memory</Link>
         <Link href="/me/info-digests">Info Digests</Link>
+        <Link href="/me/logs">Logs</Link>
         <Link href="/me/profile">Profile</Link>
       </nav>
       <div className="flex justify-end">

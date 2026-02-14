@@ -131,6 +131,7 @@ model User {
   actionExecutionLogs ActionExecutionLog[]
   memories            Memory[]
   digestSubscriptions DigestSubscription[]
+  aiLogs              AiLog[]
 }
 
 model UserProfile {
@@ -356,4 +357,19 @@ model DigestSubscription {
 
   @@unique([userId, topicId])
   @@index([userId, frequency])
+}
+
+model AiLog {
+  id        String            @id @default(uuid())
+  userId    String
+  mode      ConversationMode
+  prompt    String            @db.Text
+  response  String            @db.Text
+  actions   Json              // Array of action candidates
+  createdAt DateTime          @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, mode])
 }

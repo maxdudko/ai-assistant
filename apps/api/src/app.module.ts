@@ -14,6 +14,7 @@ import { IntentsModule } from './intents/intents.module';
 import { SearchModule } from './search/search.module';
 import { DigestModule } from './digest/digest.module';
 import { MemoryModule } from './memory/memory.module';
+import { LogsModule } from './logs/logs.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { MemoryModule } from './memory/memory.module';
     SearchModule,
     DigestModule,
     MemoryModule,
+    LogsModule,
   ],
 })
 export class AppModule {}

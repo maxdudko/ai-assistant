@@ -19,6 +19,7 @@ import { MemoryRetrieverService } from '../memory/memory-retriever.service';
 import { DaysService } from '../days/days.service';
 import { MemoryCandidateDto, MemoryType } from '../memory/dto/memory-candidate.dto';
 import { DigestService } from '../digest/digest.service';
+import { LogsService } from '../logs/logs.service';
 
 @Injectable()
 export class ConversationsService {
@@ -33,6 +34,7 @@ export class ConversationsService {
     private readonly memoryRetriever: MemoryRetrieverService,
     private readonly daysService: DaysService,
     private readonly digestService: DigestService,
+    private readonly logsService: LogsService,
   ) {}
 
   /**
@@ -344,6 +346,20 @@ export class ConversationsService {
             })
           : [];
 
+      // Log AI interaction
+      try {
+        const promptText = `INFO mode digest request: ${message}`;
+        await this.logsService.create(
+          userId,
+          conversation.mode,
+          promptText,
+          digest.content,
+          digest.actionCandidates || [],
+        );
+      } catch (error) {
+        this.logger.error('Failed to log AI interaction:', error);
+      }
+
       return {
         conversationId: conversation.id,
         message: {
@@ -377,6 +393,9 @@ export class ConversationsService {
     this.logger.log('actions: ' + JSON.stringify(aiResponse.actionCandidates ?? []));
     this.logger.log('memoryCandidates: ' + JSON.stringify(aiResponse.memoryCandidates ?? []));
     this.logger.log('summary: ' + JSON.stringify(aiResponse.summary ?? []));
+
+    // Build full prompt string for logging
+    const fullPrompt = this.buildFullPromptString(promptLog.systemPrompt, promptLog.messages);
 
     // Save AI response
     const assistantMessage = await this.prisma.message.create({
@@ -432,6 +451,19 @@ export class ConversationsService {
 
     if (reflectionTriggered) {
       await this.daysService.endDay(userId);
+    }
+
+    // Log AI interaction
+    try {
+      await this.logsService.create(
+        userId,
+        conversation.mode,
+        fullPrompt,
+        aiResponse.content,
+        aiResponse.actionCandidates || [],
+      );
+    } catch (error) {
+      this.logger.error('Failed to log AI interaction:', error);
     }
 
     return {
@@ -690,6 +722,23 @@ export class ConversationsService {
       systemPrompt,
       messages: llmMessages,
     };
+  }
+
+  /**
+   * Build a full prompt string from system prompt and messages for logging
+   */
+  private buildFullPromptString(
+    systemPrompt: string,
+    messages: Array<{ role: string; content: string }>,
+  ): string {
+    let prompt = '';
+    if (systemPrompt) {
+      prompt += `System: ${systemPrompt}\n\n`;
+    }
+    messages.forEach(msg => {
+      prompt += `${msg.role}: ${msg.content}\n`;
+    });
+    return prompt.trim();
   }
 
   /**

@@ -262,3 +262,23 @@ export interface MemoryDto {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface AiLogDto {
+  id: string;
+  userId: string;
+  mode: ConversationMode;
+  prompt: string;
+  response: string;
+  actions: unknown[];
+  createdAt: string;
+}
+
+export interface GetLogsResponse {
+  logs: AiLogDto[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}

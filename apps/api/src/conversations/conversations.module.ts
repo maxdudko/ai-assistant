@@ -7,6 +7,7 @@ import { IntentsModule } from '../intents/intents.module';
 import { MemoryModule } from '../memory/memory.module';
 import { DaysModule } from '../days/days.module';
 import { DigestModule } from '../digest/digest.module';
+import { LogsModule } from '../logs/logs.module';
 
 import { ConversationsController } from './conversations.controller';
 import { ConversationsService } from './conversations.service';
@@ -20,6 +21,7 @@ import { ConversationsService } from './conversations.service';
     MemoryModule,
     DaysModule,
     DigestModule,
+    LogsModule,
   ],
   controllers: [ConversationsController],
   providers: [ConversationsService],
