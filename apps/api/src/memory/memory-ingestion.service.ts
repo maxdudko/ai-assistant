@@ -33,8 +33,8 @@ export class MemoryIngestionService {
       if (isZeroEmbedding) {
         this.logger.error(
           `Skipping memory storage for content "${c.content.substring(0, 50)}..." ` +
-          `because embedding generation failed (all zeros). ` +
-          `Please fix the embeddings service configuration.`,
+            `because embedding generation failed (all zeros). ` +
+            `Please fix the embeddings service configuration.`,
         );
         continue;
       }

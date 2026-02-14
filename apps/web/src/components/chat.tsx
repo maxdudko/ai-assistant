@@ -66,47 +66,50 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
     streamingPendingCompleteRef.current = null;
   }, [pauseStreamingAnimation]);
 
-  const queueStreamingDelta = useCallback((delta: string) => {
-    if (!streamingMessageIdRef.current) return;
-    streamingBufferRef.current += delta;
-    if (streamingIntervalRef.current) return;
+  const queueStreamingDelta = useCallback(
+    (delta: string) => {
+      if (!streamingMessageIdRef.current) return;
+      streamingBufferRef.current += delta;
+      if (streamingIntervalRef.current) return;
 
-    streamingIntervalRef.current = setInterval(() => {
-      const messageId = streamingMessageIdRef.current;
-      if (!messageId) {
-        resetStreamingAnimation();
-        return;
-      }
-
-      if (!streamingBufferRef.current.length) {
-        // No buffered characters right now.
-        // - If we've already received "complete", finalize the message.
-        // - Otherwise just pause the interval and wait for the next delta.
-        const pending = streamingPendingCompleteRef.current;
-        if (pending) {
-          setMessages(prev =>
-            prev.map(msg =>
-              msg.id === messageId ? { ...pending.message, actions: pending.actions || [] } : msg,
-            ),
-          );
+      streamingIntervalRef.current = setInterval(() => {
+        const messageId = streamingMessageIdRef.current;
+        if (!messageId) {
           resetStreamingAnimation();
-        } else {
-          pauseStreamingAnimation();
+          return;
         }
-        return;
-      }
 
-      const nextChar = streamingBufferRef.current[0];
-      streamingBufferRef.current = streamingBufferRef.current.slice(1);
-      streamingDisplayedRef.current += nextChar;
+        if (!streamingBufferRef.current.length) {
+          // No buffered characters right now.
+          // - If we've already received "complete", finalize the message.
+          // - Otherwise just pause the interval and wait for the next delta.
+          const pending = streamingPendingCompleteRef.current;
+          if (pending) {
+            setMessages(prev =>
+              prev.map(msg =>
+                msg.id === messageId ? { ...pending.message, actions: pending.actions || [] } : msg,
+              ),
+            );
+            resetStreamingAnimation();
+          } else {
+            pauseStreamingAnimation();
+          }
+          return;
+        }
 
-      setMessages(prev =>
-        prev.map(msg =>
-          msg.id === messageId ? { ...msg, content: `${msg.content}${nextChar}` } : msg,
-        ),
-      );
-    }, 12);
-  }, [pauseStreamingAnimation, resetStreamingAnimation]);
+        const nextChar = streamingBufferRef.current[0];
+        streamingBufferRef.current = streamingBufferRef.current.slice(1);
+        streamingDisplayedRef.current += nextChar;
+
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === messageId ? { ...msg, content: `${msg.content}${nextChar}` } : msg,
+          ),
+        );
+      }, 12);
+    },
+    [pauseStreamingAnimation, resetStreamingAnimation],
+  );
 
   useEffect(() => {
     return () => {
@@ -175,7 +178,9 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
 
               const alreadyShown = streamingDisplayedRef.current;
               const full = result.message.content || '';
-              const remaining = full.startsWith(alreadyShown) ? full.slice(alreadyShown.length) : full;
+              const remaining = full.startsWith(alreadyShown)
+                ? full.slice(alreadyShown.length)
+                : full;
 
               if (remaining.length) {
                 queueStreamingDelta(remaining);

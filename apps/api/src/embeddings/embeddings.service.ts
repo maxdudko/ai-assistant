@@ -20,15 +20,16 @@ export class OllamaEmbeddingsService implements EmbeddingsService {
 
     // Warn if using a model that likely doesn't support embeddings
     const commonChatModels = ['gemma', 'llama', 'mistral', 'phi', 'qwen'];
-    const isLikelyChatModel = commonChatModels.some(name => 
-      this.model.toLowerCase().includes(name) && !this.model.toLowerCase().includes('embed')
+    const isLikelyChatModel = commonChatModels.some(
+      name =>
+        this.model.toLowerCase().includes(name) && !this.model.toLowerCase().includes('embed'),
     );
-    
+
     if (isLikelyChatModel && !this.configService.get<string>('OLLAMA_EMBED_MODEL')) {
       this.logger.warn(
         `Using model '${this.model}' for embeddings. This model may not support embeddings. ` +
-        `Consider setting OLLAMA_EMBED_MODEL to an embedding model like 'nomic-embed-text'. ` +
-        `Install with: ollama pull nomic-embed-text`,
+          `Consider setting OLLAMA_EMBED_MODEL to an embedding model like 'nomic-embed-text'. ` +
+          `Install with: ollama pull nomic-embed-text`,
       );
     }
   }
@@ -55,18 +56,18 @@ export class OllamaEmbeddingsService implements EmbeddingsService {
         }
 
         const errorMessage = `Ollama embeddings failed with status ${response.status}${errorDetails ? `: ${errorDetails}` : ''}`;
-        
+
         // Check if it's a model compatibility issue
         if (response.status === 500 && errorDetails.toLowerCase().includes('embedding')) {
           this.logger.error(
             `${errorMessage}. The model '${this.model}' may not support embeddings. ` +
-            `Please ensure you have an embedding model installed (e.g., 'nomic-embed-text'). ` +
-            `Set OLLAMA_EMBED_MODEL environment variable to use a different model for embeddings.`,
+              `Please ensure you have an embedding model installed (e.g., 'nomic-embed-text'). ` +
+              `Set OLLAMA_EMBED_MODEL environment variable to use a different model for embeddings.`,
           );
         } else {
           this.logger.error(errorMessage);
         }
-        
+
         throw new Error(errorMessage);
       }
 
@@ -81,7 +82,7 @@ export class OllamaEmbeddingsService implements EmbeddingsService {
       const errorMessage = error instanceof Error ? error.message : 'unknown error';
       this.logger.warn(
         `Falling back to zero embeddings: ${errorMessage}. ` +
-        `This will result in non-functional vector search. Please fix the embeddings service configuration.`,
+          `This will result in non-functional vector search. Please fix the embeddings service configuration.`,
       );
       return Array(this.dimension).fill(0);
     }
