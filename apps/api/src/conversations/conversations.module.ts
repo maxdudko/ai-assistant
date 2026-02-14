@@ -6,12 +6,23 @@ import { ActionsModule } from '../actions/actions.module';
 import { IntentsModule } from '../intents/intents.module';
 import { MemoryModule } from '../memory/memory.module';
 import { DaysModule } from '../days/days.module';
+import { DigestModule } from '../digest/digest.module';
+import { LogsModule } from '../logs/logs.module';
 
 import { ConversationsController } from './conversations.controller';
 import { ConversationsService } from './conversations.service';
 
 @Module({
-  imports: [AiModule, PrismaModule, ActionsModule, IntentsModule, MemoryModule, DaysModule],
+  imports: [
+    AiModule,
+    PrismaModule,
+    ActionsModule,
+    IntentsModule,
+    MemoryModule,
+    DaysModule,
+    DigestModule,
+    LogsModule,
+  ],
   controllers: [ConversationsController],
   providers: [ConversationsService],
 })

@@ -1,9 +1,19 @@
-import { Body, Controller, HttpCode, Post, Res } from '@nestjs/common';
-import type { Response } from 'express';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
+import type { Request, Response } from 'express';
 
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { JwtAuthGuard } from './jwt.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -12,7 +22,8 @@ export class AuthController {
   @Post('register')
   async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
     const user = await this.auth.register(dto.email, dto.password);
-    const tokens = this.auth.signTokens(user.id);
+    const tokens = this.auth.signTokens(user.id, user.tokenVersion);
+    await this.auth.storeRefreshTokenHash(user.id, tokens.refreshToken);
 
     this.setCookies(res, tokens);
     return { user };
@@ -22,15 +33,31 @@ export class AuthController {
   @HttpCode(200)
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const user = await this.auth.validateUser(dto.email, dto.password);
-    const tokens = this.auth.signTokens(user.id);
+    const tokens = this.auth.signTokens(user.id, user.tokenVersion);
+    await this.auth.storeRefreshTokenHash(user.id, tokens.refreshToken);
 
     this.setCookies(res, tokens);
     return { user };
   }
 
+  @Post('refresh')
+  @HttpCode(200)
+  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const refreshToken = req.cookies?.refreshToken;
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token is required');
+    }
+
+    const tokens = await this.auth.refreshTokens(refreshToken);
+    this.setCookies(res, tokens);
+    return { message: 'Tokens refreshed' };
+  }
+
   @Post('logout')
   @HttpCode(200)
-  logout(@Res({ passthrough: true }) res: Response) {
+  @UseGuards(JwtAuthGuard)
+  async logout(@Req() req, @Res({ passthrough: true }) res: Response) {
+    await this.auth.logout(req.user.id);
     res.clearCookie('accessToken');
     res.clearCookie('refreshToken');
     return { message: 'Logged out successfully' };
@@ -43,7 +70,7 @@ export class AuthController {
       httpOnly: true,
       sameSite: 'lax',
       secure: isProduction,
-      maxAge: 15 * 60 * 1000, // 15 minutes
+      maxAge: this.auth.getAccessTokenMaxAgeMs(),
       path: '/', // Ensure cookie is available for all paths
     });
 
@@ -51,7 +78,7 @@ export class AuthController {
       httpOnly: true,
       sameSite: 'lax',
       secure: isProduction,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: this.auth.getRefreshTokenMaxAgeMs(),
       path: '/', // Ensure cookie is available for all paths
     });
   }

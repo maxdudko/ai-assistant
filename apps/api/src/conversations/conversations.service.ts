@@ -8,7 +8,6 @@ import {
   ConversationMode as CoreConversationMode,
   MessageRole as CoreMessageRole,
 } from '../../../../packages/ai-core/src/index';
-
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { ConversationState, ConversationType } from '../prisma/types';
@@ -18,6 +17,8 @@ import { MemoryIngestionService } from '../memory/memory-ingestion.service';
 import { MemoryRetrieverService } from '../memory/memory-retriever.service';
 import { DaysService } from '../days/days.service';
 import { MemoryCandidateDto, MemoryType } from '../memory/dto/memory-candidate.dto';
+import { DigestService } from '../digest/digest.service';
+import { LogsService } from '../logs/logs.service';
 
 @Injectable()
 export class ConversationsService {
@@ -31,6 +32,8 @@ export class ConversationsService {
     private readonly memoryIngestion: MemoryIngestionService,
     private readonly memoryRetriever: MemoryRetrieverService,
     private readonly daysService: DaysService,
+    private readonly digestService: DigestService,
+    private readonly logsService: LogsService,
   ) {}
 
   /**
@@ -102,6 +105,7 @@ export class ConversationsService {
               role: 'SYSTEM',
               content:
                 'Daily conversation started. Ready to help with planning, execution, and reflection.',
+              mode: ConversationMode.MANAGER,
             },
           },
         },
@@ -149,6 +153,7 @@ export class ConversationsService {
           create: {
             role: 'SYSTEM',
             content: `Ad-hoc conversation started in ${mode} mode.`,
+            mode,
           },
         },
       },
@@ -215,6 +220,7 @@ export class ConversationsService {
     message: string,
     conversationId?: string,
     mode?: ConversationMode,
+    onToken?: (token: string) => Promise<void> | void,
   ) {
     // Get or create conversation
     let conversation;
@@ -257,7 +263,26 @@ export class ConversationsService {
       });
     }
 
-    const reflectionTriggered = this.isReflectionTrigger(message);
+    const infoTriggered = this.shouldUseInfoMode(message, mode, conversation.mode);
+    if (infoTriggered && conversation.mode !== ConversationMode.INFO) {
+      conversation = await this.prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { mode: ConversationMode.INFO },
+        include: {
+          day: true,
+          messages: {
+            orderBy: { createdAt: 'asc' },
+          },
+          user: {
+            include: {
+              profile: true,
+            },
+          },
+        },
+      });
+    }
+
+    const reflectionTriggered = !infoTriggered && this.isReflectionTrigger(message);
     if (reflectionTriggered && conversation.mode !== ConversationMode.REFLECTION) {
       conversation = await this.prisma.conversation.update({
         where: { id: conversation.id },
@@ -282,6 +307,7 @@ export class ConversationsService {
         conversationId: conversation.id,
         role: 'USER',
         content: message,
+        mode: conversation.mode,
       },
     });
 
@@ -293,6 +319,59 @@ export class ConversationsService {
       });
     }
 
+    if (infoTriggered) {
+      const digest = await this.digestService.generateDigest(userId, message);
+
+      if (onToken) {
+        for (const char of digest.content) {
+          await onToken(char);
+        }
+      }
+
+      const assistantMessage = await this.prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          role: 'ASSISTANT',
+          content: digest.content,
+          mode: conversation.mode,
+        },
+      });
+
+      const storedActions =
+        digest.actionCandidates.length > 0
+          ? await this.actionsService.createCandidates(userId, digest.actionCandidates, {
+              conversationId: conversation.id,
+              dayId: conversation.dayId,
+            })
+          : [];
+
+      // Log AI interaction
+      try {
+        const promptText = `INFO mode digest request: ${message}`;
+        await this.logsService.create(
+          userId,
+          conversation.mode,
+          promptText,
+          digest.content,
+          digest.actionCandidates || [],
+        );
+      } catch (error) {
+        this.logger.error('Failed to log AI interaction:', error);
+      }
+
+      return {
+        conversationId: conversation.id,
+        message: {
+          id: assistantMessage.id,
+          role: 'ASSISTANT' as const,
+          content: assistantMessage.content,
+          mode: assistantMessage.mode,
+          createdAt: assistantMessage.createdAt.toISOString(),
+        },
+        actions: storedActions,
+      };
+    }
+
     // Build context and generate AI response
     const context = await this.buildContext(
       conversation.id,
@@ -300,7 +379,9 @@ export class ConversationsService {
       message,
       conversation.mode === ConversationMode.REFLECTION || reflectionTriggered,
     );
-    const aiResponse = await this.ai.generateResponse(message, context);
+    const aiResponse = onToken
+      ? await this.ai.generateResponseStream(message, context, onToken)
+      : await this.ai.generateResponse(message, context);
 
     const promptLog = this.buildPromptLog(context, message);
     this.logger.log('mode: ' + conversation.mode);
@@ -312,12 +393,16 @@ export class ConversationsService {
     this.logger.log('memoryCandidates: ' + JSON.stringify(aiResponse.memoryCandidates ?? []));
     this.logger.log('summary: ' + JSON.stringify(aiResponse.summary ?? []));
 
+    // Build full prompt string for logging
+    const fullPrompt = this.buildFullPromptString(promptLog.systemPrompt, promptLog.messages);
+
     // Save AI response
     const assistantMessage = await this.prisma.message.create({
       data: {
         conversationId: conversation.id,
         role: 'ASSISTANT',
         content: aiResponse.content,
+        mode: conversation.mode,
       },
     });
 
@@ -367,12 +452,26 @@ export class ConversationsService {
       await this.daysService.endDay(userId);
     }
 
+    // Log AI interaction
+    try {
+      await this.logsService.create(
+        userId,
+        conversation.mode,
+        fullPrompt,
+        aiResponse.content,
+        aiResponse.actionCandidates || [],
+      );
+    } catch (error) {
+      this.logger.error('Failed to log AI interaction:', error);
+    }
+
     return {
       conversationId: conversation.id,
       message: {
         id: assistantMessage.id,
         role: 'ASSISTANT' as const,
         content: assistantMessage.content,
+        mode: assistantMessage.mode,
         createdAt: assistantMessage.createdAt.toISOString(),
       },
       actions: storedActions,
@@ -483,6 +582,29 @@ export class ConversationsService {
       'reflect today',
     ];
     return triggers.some(trigger => normalized.includes(trigger));
+  }
+
+  private shouldUseInfoMode(
+    message: string,
+    requestedMode?: ConversationMode,
+    currentMode?: ConversationMode,
+  ): boolean {
+    if (requestedMode === ConversationMode.INFO || currentMode === ConversationMode.INFO) {
+      return true;
+    }
+
+    const normalized = message.trim().toLowerCase();
+    const patterns = [
+      /\bupdates?\s+on\b/,
+      /\blatest\b/,
+      /\bnews\b/,
+      /\bheadline(s)?\b/,
+      /\bwhat happened\b/,
+      /\bdigest\b/,
+      /\bbrief(ing)?\b/,
+    ];
+
+    return patterns.some(pattern => pattern.test(normalized));
   }
 
   private async buildReflectionKeyMessages(dayId: string): Promise<string[]> {
@@ -599,6 +721,23 @@ export class ConversationsService {
       systemPrompt,
       messages: llmMessages,
     };
+  }
+
+  /**
+   * Build a full prompt string from system prompt and messages for logging
+   */
+  private buildFullPromptString(
+    systemPrompt: string,
+    messages: Array<{ role: string; content: string }>,
+  ): string {
+    let prompt = '';
+    if (systemPrompt) {
+      prompt += `System: ${systemPrompt}\n\n`;
+    }
+    messages.forEach(msg => {
+      prompt += `${msg.role}: ${msg.content}\n`;
+    });
+    return prompt.trim();
   }
 
   /**

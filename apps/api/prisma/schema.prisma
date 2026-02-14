@@ -15,6 +15,21 @@ datasource db {
 // Enums
 // ================================
 
+enum Tone {
+  Neutral
+  Friendly
+  Professional
+  Casual
+  Humorous
+  Empathetic
+}
+
+enum Verbosity {
+  Short
+  Medium
+  Detailed
+}
+
 enum ConversationMode {
   MANAGER
   REFLECTION
@@ -90,6 +105,10 @@ enum MemorySource {
   ONBOARDING
 }
 
+enum DigestFrequency {
+  DAILY
+}
+
 // ================================
 // Models
 // ================================
@@ -98,6 +117,8 @@ model User {
   id           String   @id @default(uuid())
   email        String   @unique
   passwordHash String
+  refreshTokenHash String?
+  tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -109,6 +130,8 @@ model User {
   actionCandidates    ActionCandidate[]
   actionExecutionLogs ActionExecutionLog[]
   memories            Memory[]
+  digestSubscriptions DigestSubscription[]
+  aiLogs              AiLog[]
 }
 
 model UserProfile {
@@ -116,9 +139,16 @@ model UserProfile {
   userId      String @unique
   displayName String @default("User")
 
-  tone      String  @default("neutral")
-  verbosity String  @default("medium")
-  useEmoji  Boolean @default(false)
+  tone      String  @default("neutral") // 'neutral' | 'friendly' | 'professional' | 'casual' | 'humorous' | 'empathetic'
+  verbosity String  @default("normal") // 'short' | 'normal' | 'detailed'
+  useEmoji  Boolean @default(true)
+
+  // Onboarding fields
+  primaryUseCase        String?  // 'day-planning' | 'task-tracking' | 'reflection' | 'mixed'
+  helpStyle            String?  // 'active' | 'passive'
+  dayPlanningTime      String?  // 'morning' | 'evening' | 'anytime'
+  reflectionTime       String?  // 'morning' | 'evening' | 'anytime'
+  onboardingCompleted  Boolean  @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -152,11 +182,12 @@ model Conversation {
 }
 
 model Message {
-  id             String @id @default(uuid())
+  id             String            @id @default(uuid())
   conversationId String
 
   role    MessageRole
   content String
+  mode    ConversationMode @default(MANAGER)
 
   createdAt DateTime @default(now())
 
@@ -301,4 +332,44 @@ model Day {
   @@unique([userId, date])
   @@index([userId, date])
   @@index([userId, state])
+}
+
+model DigestTopic {
+  id             String   @id @default(uuid())
+  name           String
+  normalizedName String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  subscriptions DigestSubscription[]
+}
+
+model DigestSubscription {
+  id        String          @id @default(uuid())
+  userId    String
+  topicId   String
+  frequency DigestFrequency @default(DAILY)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic DigestTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+  @@index([userId, frequency])
+}
+
+model AiLog {
+  id        String            @id @default(uuid())
+  userId    String
+  mode      ConversationMode
+  prompt    String            @db.Text
+  response  String            @db.Text
+  actions   Json              // Array of action candidates
+  createdAt DateTime          @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, mode])
 }

@@ -12,9 +12,17 @@ import {
   type Memory as CoreMemory,
   type DayContext as CoreDayContext,
   type TaskContext as CoreTaskContext,
+  type InfoSearchQueryPayload,
+  type InfoDigestPayload,
+  type LlmRequest,
   ConversationMode as CoreConversationMode,
   MessageRole as CoreMessageRole,
 } from '../../../../packages/ai-core/src/index';
+import {
+  buildInfoSearchQueryPrompt,
+  buildInfoDigestSummarizationPrompt,
+} from '../../../../packages/ai-core/src/prompts/info-digest.prompts';
+import type { SearchResult } from '../search/search.types';
 
 interface Message {
   role: MessageRole;
@@ -113,6 +121,103 @@ export class AiService implements OnModuleInit {
       // Re-throw only if fallback was disabled or if there's a different error
       throw error;
     }
+  }
+
+  async generateResponseStream(
+    message: string,
+    context: Context,
+    onToken: (token: string) => Promise<void> | void,
+  ): Promise<AiResponse> {
+    try {
+      const coreContext: ConversationContext = {
+        mode: this.mapConversationMode(context.mode),
+        userProfile: context.userProfile ? this.mapUserProfile(context.userProfile) : undefined,
+        messages: context.messages.map(msg => this.mapMessage(msg)),
+        memories: context.memories.map(mem => this.mapMemory(mem)),
+        day: context.day ? this.mapDayContext(context.day) : undefined,
+        tasksToday: context.tasksToday?.map(task => this.mapTaskContext(task)),
+        backlogTasks: context.backlogTasks?.map(task => this.mapTaskContext(task)),
+        keyMessages: context.keyMessages,
+      };
+
+      return await this.coreAiService.generateResponseStream(message, coreContext, onToken);
+    } catch (error) {
+      this.logger.error('Failed to stream AI response:', error);
+      throw error;
+    }
+  }
+
+  async generateInfoSearchQuery(userMessage: string): Promise<InfoSearchQueryPayload> {
+    const request: LlmRequest = {
+      systemPrompt: buildInfoSearchQueryPrompt(),
+      messages: [
+        {
+          role: 'USER',
+          content: userMessage,
+        },
+      ],
+      temperature: 0.1,
+      maxTokens: 200,
+    };
+
+    const payload = await this.coreAiService.generateJson<InfoSearchQueryPayload>(request);
+    if (
+      payload &&
+      typeof payload.searchQuery === 'string' &&
+      payload.searchQuery.trim().length > 0 &&
+      (!payload.topic || typeof payload.topic === 'string')
+    ) {
+      return {
+        searchQuery: payload.searchQuery.trim(),
+        topic: payload.topic?.trim(),
+      };
+    }
+
+    // Fallback keeps INFO pipeline operational when JSON output fails.
+    return {
+      searchQuery: userMessage.trim(),
+      topic: undefined,
+    };
+  }
+
+  async generateInfoDigestSummary(searchResults: SearchResult[]): Promise<InfoDigestPayload> {
+    const compactResults = searchResults.slice(0, 8).map(result => ({
+      title: result.title,
+      snippet: result.snippet,
+      url: result.url,
+      publishedAt: result.publishedAt,
+    }));
+
+    const request: LlmRequest = {
+      systemPrompt: buildInfoDigestSummarizationPrompt(),
+      messages: [
+        {
+          role: 'USER',
+          content: JSON.stringify({ results: compactResults }),
+        },
+      ],
+      temperature: 0.2,
+      maxTokens: 600,
+    };
+
+    const payload = await this.coreAiService.generateJson<InfoDigestPayload>(request);
+    if (
+      payload &&
+      typeof payload.title === 'string' &&
+      Array.isArray(payload.highlights) &&
+      payload.highlights.every(item => typeof item === 'string')
+    ) {
+      return {
+        title: payload.title.trim(),
+        highlights: payload.highlights.map(item => item.trim()).filter(Boolean),
+      };
+    }
+
+    // Fallback avoids blocking INFO mode when model output is malformed.
+    return {
+      title: 'Information digest',
+      highlights: compactResults.slice(0, 3).map(result => result.snippet || result.title),
+    };
   }
 
   /**

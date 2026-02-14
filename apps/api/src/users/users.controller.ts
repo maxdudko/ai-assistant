@@ -1,17 +1,13 @@
 import { Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
 
-import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 
 import { UsersService } from './users.service';
-// import {UserProfile} from "prisma-client-d8f236ca40e9724eb6f3a08c1777d2dc5817fc2f6d21f84575bf73a1b6579381";
+import { UpdateMeDto } from './dto/update-me.dto';
 
 @Controller('users')
 export class UsersController {
-  constructor(
-    private prisma: PrismaService,
-    private usersService: UsersService,
-  ) {}
+  constructor(private usersService: UsersService) {}
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
@@ -22,14 +18,7 @@ export class UsersController {
 
   @Patch('me')
   @UseGuards(JwtAuthGuard)
-  update(
-    @Req() req,
-    @Body()
-    dto: {
-      email?: string;
-      profile?: Partial<any>;
-    },
-  ) {
+  update(@Req() req, @Body() dto: UpdateMeDto) {
     return this.usersService.update(req.user.id, dto);
   }
 }

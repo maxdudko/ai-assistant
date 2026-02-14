@@ -4,12 +4,14 @@ import type { ActionCandidate } from '@ai/shared-types';
 
 import { TasksService } from '../tasks/tasks.service';
 import { DaysService } from '../days/days.service';
+import { DigestService } from '../digest/digest.service';
 
 @Injectable()
 export class ActionExecutorService {
   constructor(
     private readonly tasksService: TasksService,
     private readonly daysService: DaysService,
+    private readonly digestService: DigestService,
   ) {}
 
   async execute(userId: string, action: ActionCandidate): Promise<void> {
@@ -67,6 +69,10 @@ export class ActionExecutorService {
 
       case 'DAY_END':
         await this.daysService.endDay(userId, this.getOptionalString(action.payload, ['date']));
+        break;
+
+      case 'SUGGEST_DIGEST_SUBSCRIPTION':
+        await this.digestService.subscribeFromSuggestion(userId, action.payload);
         break;
 
       default:

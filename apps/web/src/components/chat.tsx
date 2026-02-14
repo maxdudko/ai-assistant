@@ -4,14 +4,18 @@ import type { FC } from 'react';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
-import Editor from '@uiw/react-md-editor';
 import type { ActionCandidate } from '@ai/shared-types';
 
-import type { ConversationDto, MessageDto, ConversationMode } from '@/lib/api/types';
+import type {
+  ConversationDto,
+  MessageDto,
+  ConversationMode,
+  SendMessageResponse,
+} from '@/lib/api/types';
 import {
   getDailyConversation,
   getConversation,
-  sendMessage as sendMessageApi,
+  sendMessageStream as sendMessageStreamApi,
   switchMode as switchModeApi,
 } from '@/lib/api/conversations';
 import { confirmAction as confirmActionApi } from '@/lib/api/actions';
@@ -31,6 +35,11 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
   const [confirmingActionId, setConfirmingActionId] = useState<string | null>(null);
   const [executedActionIds, setExecutedActionIds] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const streamingMessageIdRef = useRef<string | null>(null);
+  const streamingBufferRef = useRef('');
+  const streamingDisplayedRef = useRef('');
+  const streamingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamingPendingCompleteRef = useRef<SendMessageResponse | null>(null);
 
   // Load conversation on mount or when conversationId changes
   useEffect(() => {
@@ -42,9 +51,71 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleInputChange = (value: string | undefined) => {
-    setInput(value || '');
-  };
+  const pauseStreamingAnimation = useCallback(() => {
+    if (streamingIntervalRef.current) {
+      clearInterval(streamingIntervalRef.current);
+      streamingIntervalRef.current = null;
+    }
+  }, []);
+
+  const resetStreamingAnimation = useCallback(() => {
+    pauseStreamingAnimation();
+    streamingBufferRef.current = '';
+    streamingMessageIdRef.current = null;
+    streamingDisplayedRef.current = '';
+    streamingPendingCompleteRef.current = null;
+  }, [pauseStreamingAnimation]);
+
+  const queueStreamingDelta = useCallback(
+    (delta: string) => {
+      if (!streamingMessageIdRef.current) return;
+      streamingBufferRef.current += delta;
+      if (streamingIntervalRef.current) return;
+
+      streamingIntervalRef.current = setInterval(() => {
+        const messageId = streamingMessageIdRef.current;
+        if (!messageId) {
+          resetStreamingAnimation();
+          return;
+        }
+
+        if (!streamingBufferRef.current.length) {
+          // No buffered characters right now.
+          // - If we've already received "complete", finalize the message.
+          // - Otherwise just pause the interval and wait for the next delta.
+          const pending = streamingPendingCompleteRef.current;
+          if (pending) {
+            setMessages(prev =>
+              prev.map(msg =>
+                msg.id === messageId ? { ...pending.message, actions: pending.actions || [] } : msg,
+              ),
+            );
+            resetStreamingAnimation();
+          } else {
+            pauseStreamingAnimation();
+          }
+          return;
+        }
+
+        const nextChar = streamingBufferRef.current[0];
+        streamingBufferRef.current = streamingBufferRef.current.slice(1);
+        streamingDisplayedRef.current += nextChar;
+
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === messageId ? { ...msg, content: `${msg.content}${nextChar}` } : msg,
+          ),
+        );
+      }, 12);
+    },
+    [pauseStreamingAnimation, resetStreamingAnimation],
+  );
+
+  useEffect(() => {
+    return () => {
+      resetStreamingAnimation();
+    };
+  }, [resetStreamingAnimation]);
 
   const loadConversation = async () => {
     try {
@@ -71,44 +142,80 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
       const userMessage = input.trim();
       setInput('');
       setError(null);
+      setLoading(true);
 
       // Optimistically add user message
       const tempUserMessage: MessageDto = {
         id: `temp-${Date.now()}`,
         role: 'USER',
         content: userMessage,
+        mode: conversation?.mode || 'MANAGER',
         createdAt: new Date().toISOString(),
       };
-      setMessages(prev => [...prev, tempUserMessage]);
+      const tempAssistantMessage: ChatMessage = {
+        id: `temp-assistant-${Date.now()}`,
+        role: 'ASSISTANT',
+        content: '',
+        mode: conversation?.mode || 'MANAGER',
+        createdAt: new Date().toISOString(),
+      };
+      streamingMessageIdRef.current = tempAssistantMessage.id;
+      streamingDisplayedRef.current = '';
+      streamingPendingCompleteRef.current = null;
+      setMessages(prev => [...prev, tempUserMessage, tempAssistantMessage]);
 
       try {
-        const response = await sendMessageApi({
-          message: userMessage,
-          conversationId: conversation?.id,
-        });
+        const response = await sendMessageStreamApi(
+          {
+            message: userMessage,
+            conversationId: conversation?.id,
+          },
+          {
+            onDelta: delta => queueStreamingDelta(delta),
+            onComplete: result => {
+              // Mark stream completion, but let the typing animation drain the remaining buffer.
+              streamingPendingCompleteRef.current = result;
 
-        // Update conversation and messages
-        if (response.conversationId !== conversation?.id) {
-          // New conversation created, reload it
-          await loadConversation();
-        } else {
-          // Add assistant response
-          setMessages(prev => [
-            ...prev,
-            {
-              ...response.message,
-              actions: response.actions || [],
+              const alreadyShown = streamingDisplayedRef.current;
+              const full = result.message.content || '';
+              const remaining = full.startsWith(alreadyShown)
+                ? full.slice(alreadyShown.length)
+                : full;
+
+              if (remaining.length) {
+                queueStreamingDelta(remaining);
+                return;
+              }
+
+              // Nothing left to animate: finalize immediately.
+              setMessages(prev =>
+                prev.map(msg =>
+                  msg.id === tempAssistantMessage.id
+                    ? { ...result.message, actions: result.actions || [] }
+                    : msg,
+                ),
+              );
+              resetStreamingAnimation();
             },
-          ]);
+          },
+        );
+
+        if (response.conversationId !== conversation?.id) {
+          await loadConversation();
         }
       } catch (err) {
         console.error('Failed to send message:', err);
         setError('Failed to send message');
-        // Remove optimistic message on error
-        setMessages(prev => prev.filter(msg => msg.id !== tempUserMessage.id));
+        resetStreamingAnimation();
+        // Remove optimistic messages on error
+        setMessages(prev =>
+          prev.filter(msg => msg.id !== tempUserMessage.id && msg.id !== tempAssistantMessage.id),
+        );
+      } finally {
+        setLoading(false);
       }
     },
-    [input, loading, conversation],
+    [input, loading, conversation, queueStreamingDelta, resetStreamingAnimation],
   );
 
   const handleConfirmAction = useCallback(
@@ -138,7 +245,8 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
       (typeof payload.title === 'string' && payload.title) ||
       (typeof payload.name === 'string' && payload.name) ||
       (typeof payload.taskName === 'string' && payload.taskName) ||
-      (typeof payload.task === 'string' && payload.task);
+      (typeof payload.task === 'string' && payload.task) ||
+      (typeof payload.topic === 'string' && payload.topic);
 
     switch (action.type) {
       case 'TASK_CREATE':
@@ -154,6 +262,8 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         return 'Start the day';
       case 'DAY_END':
         return 'End the day';
+      case 'SUGGEST_DIGEST_SUBSCRIPTION':
+        return `Subscribe to daily digest${title ? `: ${title}` : ''}`;
       default:
         return 'Confirm action';
     }
@@ -266,10 +376,15 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
                       : 'bg-[#212121] border border-indigo-800 text-neutral-200'
                 }`}
               >
-                <div className="font-medium mb-1 underline">
-                  {message.role === 'USER' && 'You'}
-                  {message.role === 'ASSISTANT' && 'AI Assistant'}
-                  {message.role === 'SYSTEM' && 'System'}
+                <div className="font-medium mb-1 flex items-center justify-between">
+                  <span className="underline">
+                    {message.role === 'USER' && 'You'}
+                    {message.role === 'ASSISTANT' && 'AI Assistant'}
+                    {message.role === 'SYSTEM' && 'System'}
+                  </span>
+                  <span className="text-xs font-normal opacity-70 ml-2">
+                    {getModeLabel(message.mode)}
+                  </span>
                 </div>
                 <ReactMarkdown>{message.content}</ReactMarkdown>
                 {message.role === 'ASSISTANT' && message.actions && message.actions.length > 0 && (
@@ -310,15 +425,14 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
 
       {/* Input form */}
       <form onSubmit={handleSendMessage} className="mt-4 flex gap-2">
-        {/*<textarea*/}
-        {/*  rows={5}*/}
-        {/*  value={input}*/}
-        {/*  onChange={e => setInput(e.target.value)}*/}
-        {/*  className="flex-1 rounded bg-neutral-800 p-2 text-neutral-200 placeholder:text-neutral-500"*/}
-        {/*  placeholder="Type your message..."*/}
-        {/*  disabled={loading}*/}
-        {/*/>*/}
-        <Editor className="w-full bg-neutral-900" value={input} onChange={handleInputChange} />
+        <textarea
+          rows={5}
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          className="flex-1 rounded bg-[#0d1117] p-2 text-neutral-200 placeholder:text-neutral-500"
+          placeholder="Type your message..."
+          disabled={loading}
+        />
         <button
           type="submit"
           disabled={loading || !input.trim()}

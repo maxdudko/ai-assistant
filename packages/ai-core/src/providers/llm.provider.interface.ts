@@ -14,6 +14,12 @@ export interface LlmProvider {
   generate(request: LlmRequest): Promise<LlmResponse>;
 
   /**
+   * Generate a streaming response from the LLM.
+   * Falls back to non-streaming providers via adapter methods in higher layers.
+   */
+  generateStream?(request: LlmRequest): AsyncGenerator<string>;
+
+  /**
    * Check if the provider is available/healthy
    */
   isAvailable(): Promise<boolean>;
