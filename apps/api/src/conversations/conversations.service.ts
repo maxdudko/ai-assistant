@@ -8,7 +8,6 @@ import {
   ConversationMode as CoreConversationMode,
   MessageRole as CoreMessageRole,
 } from '../../../../packages/ai-core/src/index';
-
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { ConversationState, ConversationType } from '../prisma/types';
@@ -397,16 +396,6 @@ export class ConversationsService {
     // Build full prompt string for logging
     const fullPrompt = this.buildFullPromptString(promptLog.systemPrompt, promptLog.messages);
 
-    const promptLog = this.buildPromptLog(context, message);
-    this.logger.log('mode: ' + conversation.mode);
-    this.logger.log('systemPrompt: ' + promptLog.systemPrompt);
-    this.logger.log('messages: ' + JSON.stringify(promptLog.messages));
-    this.logger.log('memories: ' + JSON.stringify(context.memories));
-    this.logger.log('response: ' + JSON.stringify(aiResponse.content));
-    this.logger.log('actions: ' + JSON.stringify(aiResponse.actionCandidates ?? []));
-    this.logger.log('memoryCandidates: ' + JSON.stringify(aiResponse.memoryCandidates ?? []));
-    this.logger.log('summary: ' + JSON.stringify(aiResponse.summary ?? []));
-
     // Save AI response
     const assistantMessage = await this.prisma.message.create({
       data: {
@@ -749,92 +738,6 @@ export class ConversationsService {
       prompt += `${msg.role}: ${msg.content}\n`;
     });
     return prompt.trim();
-  }
-
-  private validateSummary(summary?: string): string | undefined {
-    if (!summary) {
-      return undefined;
-    }
-    const trimmed = summary.trim();
-    return trimmed.length > 20 ? trimmed : undefined;
-  }
-
-  private mapMemoryCandidates(
-    candidates: Array<{
-      content: string;
-      type?: string;
-      importance: number;
-      tags?: string[];
-      confidence: number;
-    }>,
-  ): MemoryCandidateDto[] {
-    const mapped: MemoryCandidateDto[] = [];
-    for (const candidate of candidates) {
-      const typeRaw = typeof candidate.type === 'string' ? candidate.type.toUpperCase() : '';
-      const type =
-        typeRaw === 'FACTUAL'
-          ? MemoryType.FACTUAL
-          : typeRaw === 'REFLECTION'
-            ? MemoryType.REFLECTION
-            : undefined;
-
-      if (!type) {
-        continue;
-      }
-
-      mapped.push({
-        content: candidate.content,
-        type,
-        importance: candidate.importance,
-        ...(candidate.tags ? { tags: candidate.tags } : {}),
-        confidence: candidate.confidence,
-      });
-    }
-
-    return mapped;
-  }
-
-  private validateReflectionCandidates(candidates: MemoryCandidateDto[]) {
-    return candidates.filter(candidate => candidate.confidence >= 0.7 && candidate.importance >= 5);
-  }
-
-  private buildPromptLog(
-    context: Awaited<ReturnType<ConversationsService['buildContext']>>,
-    message: string,
-  ) {
-    const coreContext: ConversationContext = {
-      mode: context.mode as unknown as CoreConversationMode,
-      userProfile: context.userProfile
-        ? {
-            displayName: context.userProfile.displayName,
-            tone: context.userProfile.tone,
-            verbosity: context.userProfile.verbosity,
-            useEmoji: context.userProfile.useEmoji,
-          }
-        : undefined,
-      messages: context.messages.map(msg => ({
-        role: msg.role as unknown as CoreMessageRole,
-        content: msg.content,
-      })),
-      memories: context.memories.map(memory => ({
-        content: memory.content,
-        importance: memory.importance,
-        tags: memory.tags,
-      })),
-      day: context.day,
-      tasksToday: context.tasksToday,
-      backlogTasks: context.backlogTasks,
-      keyMessages: context.keyMessages,
-    };
-
-    const systemPrompt = buildSystemPrompt(coreContext);
-    const llmMessages = messagesToLlmFormat(coreContext.messages);
-    llmMessages.push({ role: 'USER', content: message });
-
-    return {
-      systemPrompt,
-      messages: llmMessages,
-    };
   }
 
   /**

@@ -1,5 +1,6 @@
 import { IsEmail, IsOptional, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+
 import { UpdateProfileDto } from './update-profile.dto';
 
 export class UpdateMeDto {
