@@ -6,7 +6,12 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import type { ActionCandidate } from '@ai/shared-types';
 
-import type { ConversationDto, MessageDto, ConversationMode } from '@/lib/api/types';
+import type {
+  ConversationDto,
+  MessageDto,
+  ConversationMode,
+  SendMessageResponse,
+} from '@/lib/api/types';
 import {
   getDailyConversation,
   getConversation,
@@ -32,7 +37,9 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
   const streamingBufferRef = useRef('');
+  const streamingDisplayedRef = useRef('');
   const streamingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamingPendingCompleteRef = useRef<SendMessageResponse | null>(null);
 
   // Load conversation on mount or when conversationId changes
   useEffect(() => {
@@ -44,14 +51,20 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const stopStreamingAnimation = useCallback(() => {
+  const pauseStreamingAnimation = useCallback(() => {
     if (streamingIntervalRef.current) {
       clearInterval(streamingIntervalRef.current);
       streamingIntervalRef.current = null;
     }
+  }, []);
+
+  const resetStreamingAnimation = useCallback(() => {
+    pauseStreamingAnimation();
     streamingBufferRef.current = '';
     streamingMessageIdRef.current = null;
-  }, []);
+    streamingDisplayedRef.current = '';
+    streamingPendingCompleteRef.current = null;
+  }, [pauseStreamingAnimation]);
 
   const queueStreamingDelta = useCallback((delta: string) => {
     if (!streamingMessageIdRef.current) return;
@@ -61,17 +74,31 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
     streamingIntervalRef.current = setInterval(() => {
       const messageId = streamingMessageIdRef.current;
       if (!messageId) {
-        stopStreamingAnimation();
+        resetStreamingAnimation();
         return;
       }
 
       if (!streamingBufferRef.current.length) {
-        stopStreamingAnimation();
+        // No buffered characters right now.
+        // - If we've already received "complete", finalize the message.
+        // - Otherwise just pause the interval and wait for the next delta.
+        const pending = streamingPendingCompleteRef.current;
+        if (pending) {
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === messageId ? { ...pending.message, actions: pending.actions || [] } : msg,
+            ),
+          );
+          resetStreamingAnimation();
+        } else {
+          pauseStreamingAnimation();
+        }
         return;
       }
 
       const nextChar = streamingBufferRef.current[0];
       streamingBufferRef.current = streamingBufferRef.current.slice(1);
+      streamingDisplayedRef.current += nextChar;
 
       setMessages(prev =>
         prev.map(msg =>
@@ -79,13 +106,13 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         ),
       );
     }, 12);
-  }, []);
+  }, [pauseStreamingAnimation, resetStreamingAnimation]);
 
   useEffect(() => {
     return () => {
-      stopStreamingAnimation();
+      resetStreamingAnimation();
     };
-  }, [stopStreamingAnimation]);
+  }, [resetStreamingAnimation]);
 
   const loadConversation = async () => {
     try {
@@ -130,6 +157,8 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         createdAt: new Date().toISOString(),
       };
       streamingMessageIdRef.current = tempAssistantMessage.id;
+      streamingDisplayedRef.current = '';
+      streamingPendingCompleteRef.current = null;
       setMessages(prev => [...prev, tempUserMessage, tempAssistantMessage]);
 
       try {
@@ -141,7 +170,19 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
           {
             onDelta: delta => queueStreamingDelta(delta),
             onComplete: result => {
-              stopStreamingAnimation();
+              // Mark stream completion, but let the typing animation drain the remaining buffer.
+              streamingPendingCompleteRef.current = result;
+
+              const alreadyShown = streamingDisplayedRef.current;
+              const full = result.message.content || '';
+              const remaining = full.startsWith(alreadyShown) ? full.slice(alreadyShown.length) : full;
+
+              if (remaining.length) {
+                queueStreamingDelta(remaining);
+                return;
+              }
+
+              // Nothing left to animate: finalize immediately.
               setMessages(prev =>
                 prev.map(msg =>
                   msg.id === tempAssistantMessage.id
@@ -149,6 +190,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
                     : msg,
                 ),
               );
+              resetStreamingAnimation();
             },
           },
         );
@@ -159,7 +201,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
       } catch (err) {
         console.error('Failed to send message:', err);
         setError('Failed to send message');
-        stopStreamingAnimation();
+        resetStreamingAnimation();
         // Remove optimistic messages on error
         setMessages(prev =>
           prev.filter(msg => msg.id !== tempUserMessage.id && msg.id !== tempAssistantMessage.id),
@@ -168,7 +210,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         setLoading(false);
       }
     },
-    [input, loading, conversation, queueStreamingDelta, stopStreamingAnimation],
+    [input, loading, conversation, queueStreamingDelta, resetStreamingAnimation],
   );
 
   const handleConfirmAction = useCallback(
