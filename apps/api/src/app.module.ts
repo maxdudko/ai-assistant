@@ -13,6 +13,7 @@ import { ActionsModule } from './actions/actions.module';
 import { IntentsModule } from './intents/intents.module';
 import { SearchModule } from './search/search.module';
 import { DigestModule } from './digest/digest.module';
+import { MemoryModule } from './memory/memory.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { DigestModule } from './digest/digest.module';
     IntentsModule,
     SearchModule,
     DigestModule,
+    MemoryModule,
   ],
 })
 export class AppModule {}

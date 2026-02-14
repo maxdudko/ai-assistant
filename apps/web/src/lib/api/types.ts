@@ -246,3 +246,19 @@ export interface DaySummaryDto {
     updatedAt: string;
   }>;
 }
+
+export type MemoryType = 'FACTUAL' | 'REFLECTION';
+export type MemorySource = 'CONVERSATION' | 'REFLECTION' | 'ONBOARDING';
+
+export interface MemoryDto {
+  id: string;
+  type: MemoryType;
+  content: string;
+  importance: number;
+  tags: string[];
+  source: MemorySource;
+  dayId: string | null;
+  conversationId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

@@ -16,6 +16,7 @@ const Navbar: FC = () => {
         <Link href="/me/chat">Chat</Link>
         <Link href="/me/goals">Goals</Link>
         <Link href="/me/tasks">Tasks</Link>
+        <Link href="/me/memory">Memory</Link>
         <Link href="/me/info-digests">Info Digests</Link>
         <Link href="/me/profile">Profile</Link>
       </nav>
