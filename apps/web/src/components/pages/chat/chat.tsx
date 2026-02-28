@@ -308,7 +308,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
   };
 
   return (
-    <div className="flex h-full max-w-full flex-col 2xl:max-w-2/3">
+    <div className="flex h-full max-w-full flex-col">
       {/* Header */}
       {conversation && (
         <Container className="mb-4 p-3">

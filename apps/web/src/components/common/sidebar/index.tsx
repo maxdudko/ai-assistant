@@ -27,7 +27,7 @@ const NavItem: FC<{ href: string; label: string }> = ({ href, label }) => (
   </Link>
 );
 
-const Navbar: FC = () => {
+const Sidebar: FC = () => {
   const router = useRouter();
 
   return (
@@ -54,4 +54,4 @@ const Navbar: FC = () => {
   );
 };
 
-export default Navbar;
+export default Sidebar;

@@ -10,7 +10,8 @@ import type { EventInput } from '@fullcalendar/core';
 import { getTasks, deleteTask, getTask } from '@/lib/api/tasks';
 import type { TaskDto } from '@/lib/api/types';
 import TaskModal from '@/components/pages/tasks/task-modal';
-import Chat from "@/components/pages/chat/chat";
+import Chat from '@/components/pages/chat/chat';
+import Container from "@/components/common/container";
 
 function getEventColor(task: TaskDto): string {
   if (task.status === 'DONE') {
@@ -99,6 +100,24 @@ export default function Dashboard() {
   return (
     <main className="flex min-h-screen p-4 md:p-8">
       <div className="flex-1 rounded-lg shadow-lg p-4">
+        <Container className="mb-10 p-4">
+          <b className="text-2xl">Main priority:</b>
+          <ul>
+            <li className="ml-4 list-disc">
+              Focus on what matters most to you, while I takes care of the details and keeps you on
+              track
+            </li>
+            <li className="ml-4 list-disc">
+              I&#39;m here to help you stay organized, manage your time, and achieve your goals
+              efficiently
+            </li>
+            <li className="ml-4 list-disc">
+              With me, you can relax knowing that your tasks and goals are being managed
+              effectively, allowing you to enjoy more free time and less stress
+            </li>
+            <li className="ml-4 list-disc">Keep calm and let me handle the rest</li>
+          </ul>
+        </Container>
         <FullCalendar
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
@@ -143,6 +162,9 @@ export default function Dashboard() {
           }}
         />
       )}
+      <div className="flex-1">
+        <Chat />
+      </div>
     </main>
   );
 }

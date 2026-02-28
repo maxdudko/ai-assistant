@@ -108,8 +108,8 @@ const TaskModal: FC<TaskModalProps> = ({ task, onClose, onDelete, onUpdate }) =>
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <Container className="w-full max-w-2xl rounded-lg border border-neutral-800 bg-neutral-900 p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+      <Container className="w-full max-w-2xl rounded-lg border p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-2xl font-semibold">Task Details</h2>
           <div className="flex items-center gap-2">
