@@ -11,7 +11,7 @@ type ParticlesGlobal = {
 };
 
 const TAG_ID = 'particles';
-const PATH_CONFIG_JSON = './particles.json';
+const PATH_CONFIG_JSON = '/particles.json';
 
 const Particles: FC = () => {
   useEffect(() => {
