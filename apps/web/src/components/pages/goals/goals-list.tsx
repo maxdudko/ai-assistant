@@ -7,6 +7,8 @@ import GoalModal from './goal-modal';
 
 import type { GoalDto, GoalType, GoalPriority } from '@/lib/api/types';
 import { getGoals, createGoal, deleteGoal } from '@/lib/api/goals';
+import Container from '@/components/common/container';
+import Button from '@/components/common/button';
 
 const GoalsList: FC = () => {
   const [goals, setGoals] = useState<GoalDto[]>([]);
@@ -139,13 +141,12 @@ const GoalsList: FC = () => {
     <div className="flex h-full flex-col">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Goals</h1>
-        <button
+        <Button
+          type="button"
           onClick={handleCreateNew}
           disabled={isCreating}
-          className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-        >
-          {isCreating ? 'Creating...' : '+ New Goal'}
-        </button>
+          content={isCreating ? 'Creating...' : '+ New Goal'}
+        />
       </div>
 
       {error && (
@@ -171,61 +172,58 @@ const GoalsList: FC = () => {
         <div className="flex-1 overflow-y-auto">
           <div className="space-y-2">
             {goals.map(goal => (
-              <div
-                key={goal.id}
-                onClick={() => handleGoalClick(goal)}
-                className={`block rounded-lg border p-4 transition-colors hover:border-neutral-700 hover:bg-neutral-800 cursor-pointer ${
-                  goal.isAchieved
-                    ? 'border-green-600/50 bg-green-900/10'
-                    : 'border-neutral-800 bg-neutral-900'
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="mb-2 flex items-center gap-2 flex-wrap">
-                      <span
-                        className={`rounded border px-2 py-0.5 text-xs font-medium ${getTypeBadgeColor(
-                          goal.type,
-                        )}`}
-                      >
-                        {goal.type}
-                      </span>
-                      <span
-                        className={`rounded border px-2 py-0.5 text-xs font-medium ${getPriorityBadgeColor(
-                          goal.priority,
-                        )}`}
-                      >
-                        {goal.priority}
-                      </span>
-                      {goal.isAchieved && (
-                        <span className="rounded border px-2 py-0.5 text-xs font-medium bg-green-600/20 text-green-400 border-green-600/50">
-                          Achieved ✓
+              <Container key={goal.id}>
+                <div
+                  onClick={() => handleGoalClick(goal)}
+                  className="block rounded-lg p-4 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="mb-2 flex items-center gap-2 flex-wrap">
+                        <span
+                          className={`rounded border px-2 py-0.5 text-xs font-medium ${getTypeBadgeColor(
+                            goal.type,
+                          )}`}
+                        >
+                          {goal.type}
                         </span>
-                      )}
-                      {goal.source === 'CHAT' && (
-                        <span className="rounded border px-2 py-0.5 text-xs font-medium bg-purple-600/20 text-purple-400 border-purple-600/50">
-                          From Chat
+                        <span
+                          className={`rounded border px-2 py-0.5 text-xs font-medium ${getPriorityBadgeColor(
+                            goal.priority,
+                          )}`}
+                        >
+                          {goal.priority}
                         </span>
+                        {goal.isAchieved && (
+                          <span className="rounded border px-2 py-0.5 text-xs font-medium bg-green-600/20 text-green-400 border-green-600/50">
+                            Achieved ✓
+                          </span>
+                        )}
+                        {goal.source === 'CHAT' && (
+                          <span className="rounded border px-2 py-0.5 text-xs font-medium bg-purple-600/20 text-purple-400 border-purple-600/50">
+                            From Chat
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="mb-1 text-lg font-medium text-neutral-200">{goal.name}</h3>
+                      {goal.description && (
+                        <p className="mb-2 text-sm text-neutral-400 line-clamp-2">
+                          {goal.description}
+                        </p>
                       )}
-                    </div>
-                    <h3 className="mb-1 text-lg font-medium text-neutral-200">{goal.name}</h3>
-                    {goal.description && (
-                      <p className="mb-2 text-sm text-neutral-400 line-clamp-2">
-                        {goal.description}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-4 text-xs text-neutral-500">
-                      <span>Created: {formatDate(goal.createdAt)}</span>
-                      {goal.subgoals && goal.subgoals.length > 0 && (
-                        <span>{goal.subgoals.length} subgoal(s)</span>
-                      )}
-                      {goal.tasks && goal.tasks.length > 0 && (
-                        <span>{goal.tasks.length} task(s)</span>
-                      )}
+                      <div className="flex items-center gap-4 text-xs text-neutral-500">
+                        <span>Created: {formatDate(goal.createdAt)}</span>
+                        {goal.subgoals && goal.subgoals.length > 0 && (
+                          <span>{goal.subgoals.length} subgoal(s)</span>
+                        )}
+                        {goal.tasks && goal.tasks.length > 0 && (
+                          <span>{goal.tasks.length} task(s)</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </Container>
             ))}
           </div>
         </div>

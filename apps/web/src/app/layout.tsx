@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { AuthProvider } from '@/lib/api/AuthContext';
-import Particles from '@/components/particles';
+import Particles from '@/components/common/particles';
 import './globals.css';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

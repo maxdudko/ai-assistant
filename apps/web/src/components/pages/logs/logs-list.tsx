@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 
 import type { AiLogDto, ConversationMode } from '@/lib/api/types';
 import { logsApi } from '@/lib/api/logs';
+import Container from '@/components/common/container';
 
 const LogsList: FC = () => {
   const [logs, setLogs] = useState<AiLogDto[]>([]);
@@ -109,7 +110,7 @@ const LogsList: FC = () => {
         ) : (
           <div className="flex flex-col gap-4">
             {logs.map(log => (
-              <div key={log.id} className="rounded-lg border border-neutral-700 bg-neutral-800 p-4">
+              <Container key={log.id}>
                 <div className="mb-2 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="rounded bg-neutral-700 px-2 py-1 text-xs font-semibold">
@@ -150,7 +151,7 @@ const LogsList: FC = () => {
                     </div>
                   </div>
                 )}
-              </div>
+              </Container>
             ))}
           </div>
         )}

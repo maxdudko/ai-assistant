@@ -1,4 +1,4 @@
-import MemoryList from '@/components/memory-list';
+import MemoryList from '@/components/pages/memory/memory-list';
 
 export default function MemoryPage() {
   return (

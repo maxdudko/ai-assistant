@@ -46,7 +46,7 @@ PMA (Personal Manager Assistant) is a **stateful, context-aware AI assistant** d
 │                    PRESENTATION LAYER                       │
 │              Next.js 16 (React 19 + App Router)             │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │ Auth Pages   │  │ Chat UI      │  │ Management   │       │
+│  │ Auth Pages   │  │ Index UI      │  │ Management   │       │
 │  │ (SSR)        │  │ (Streaming)  │  │ (Tasks/Goals)│       │
 │  └──────────────┘  └──────────────┘  └──────────────┘       │
 └────────────────────────────┬────────────────────────────────┘
@@ -116,7 +116,7 @@ PMA (Personal Manager Assistant) is a **stateful, context-aware AI assistant** d
 
 | Component      | File                                       | Purpose                                      |
 | -------------- | ------------------------------------------ | -------------------------------------------- |
-| Chat UI        | `src/components/chat.tsx`                  | Real-time streaming chat with action buttons |
+| Index UI       | `src/components/profile.tsx`               | Real-time streaming chat with action buttons |
 | Task List      | `src/components/tasks-list.tsx`            | Task management interface                    |
 | Goal List      | `src/components/goals-list.tsx`            | Goal tracking interface                      |
 | Memory Browser | `src/components/memory-list.tsx`           | View stored memories                         |
@@ -174,7 +174,7 @@ src/
 │   ├── users.service.ts             # CRUD operations
 │   └── dto/                         # Update profile DTOs
 │
-├── conversations/                   # Chat orchestration (PRIMARY ORCHESTRATOR)
+├── conversations/                   # Index orchestration (PRIMARY ORCHESTRATOR)
 │   ├── conversations.service.ts     # 812 lines - handles full message lifecycle
 │   ├── conversations.controller.ts
 │   └── (orchestrates 9 services)
@@ -323,18 +323,18 @@ interface AiResponse {
 
 ## Data Flow Patterns
 
-### Flow 1: User Sends Chat Message
+### Flow 1: User Sends Index Message
 
 **Step-by-Step Flow**:
 
 ```
 1. USER INTERACTION
-   Browser → Chat Component (chat.tsx)
+   Browser → Index Component (profile.tsx)
    - User types message
    - Clicks send button
 
 2. FRONTEND API CALL
-   Chat Component → API Client (lib/api/conversations.ts)
+   Index Component → API Client (lib/api/conversations.ts)
    - sendMessageStream(message, conversationId?)
    - Opens EventSource for SSE
 
@@ -415,7 +415,7 @@ interface AiResponse {
    - Each token flows back through the chain
    - Controller emits: { type: 'delta', delta: token }
    - Frontend receives SSE event
-   - Chat component appends character-by-character
+   - Index component appends character-by-character
 
 10. RESPONSE PARSING
     After streaming completes:
@@ -463,7 +463,7 @@ interface AiResponse {
     }
 
 13. FRONTEND UPDATE
-    Chat Component receives 'complete' event:
+    Index Component receives 'complete' event:
     - Finalize message rendering
     - Display action buttons (if actions present)
     - Scroll to bottom
@@ -476,7 +476,7 @@ interface AiResponse {
 
 ```
 1. USER CLICKS "CONFIRM"
-   Chat Component → confirmAction(actionId)
+   Index Component → confirmAction(actionId)
 
 2. HTTP REQUEST
    POST /api/actions/confirm
@@ -748,7 +748,7 @@ Use PostgreSQL + pgvector extension instead of dedicated vector DB:
 
 ---
 
-### Decision 6: Streaming-First Chat
+### Decision 6: Streaming-First Index
 
 **Rationale**:
 Stream LLM tokens character-by-character instead of waiting for full response:
@@ -939,7 +939,7 @@ app.enableCors({
 [Role Definition]
 You are a personal assistant helping with [MODE-SPECIFIC PURPOSE].
 
-[User Profile Adaptation]
+[User Index Adaptation]
 - Communication tone: [friendly/professional/casual]
 - Response style: [short/medium/detailed]
 - Use emoji: [yes/no]

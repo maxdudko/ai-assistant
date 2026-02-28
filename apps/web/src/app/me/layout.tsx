@@ -4,7 +4,7 @@ import React from 'react';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-import Navbar from '@/components/navbar';
+import Navbar from '@/components/common/navbar';
 import { useAuth } from '@/lib/api/AuthContext';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

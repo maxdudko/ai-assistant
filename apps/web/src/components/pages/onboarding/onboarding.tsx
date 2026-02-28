@@ -13,6 +13,8 @@ import type {
   ToneOption,
   VerbosityOption,
 } from '@/lib/api/types';
+import Container from '@/components/common/container';
+import Button from '@/components/common/button';
 
 type Step = 1 | 2 | 3;
 
@@ -92,12 +94,7 @@ const Onboarding: FC = () => {
         <li>• I will help you stay on track and achieve your goals.</li>
         <li>• I will help you stay motivated and inspired.</li>
       </ul>
-      <button
-        onClick={handleNext}
-        className="w-full rounded bg-indigo-600 px-4 py-2 font-medium hover:bg-indigo-700 cursor-pointer"
-      >
-        Next
-      </button>
+      <Button type="button" onClick={handleNext} content="Next" className="w-full" />
     </div>
   );
 
@@ -268,12 +265,7 @@ const Onboarding: FC = () => {
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
-      <button
-        onClick={handleNext}
-        className="w-full rounded bg-indigo-600 px-4 py-2 font-medium hover:bg-indigo-700 cursor-pointer"
-      >
-        Next
-      </button>
+      <Button type="button" onClick={handleNext} content="Next" className="w-full" />
     </div>
   );
 
@@ -288,22 +280,22 @@ const Onboarding: FC = () => {
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
-      <button
+      <Button
+        type="button"
         onClick={handleComplete}
         disabled={loading}
-        className="w-full rounded bg-indigo-600 px-4 py-2 font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-      >
-        {loading ? 'Saving...' : 'Start'}
-      </button>
+        content={loading ? 'Saving...' : 'Start'}
+        className="w-full"
+      />
     </div>
   );
 
   return (
-    <div className="w-full max-w-2xl space-y-4 rounded-xl bg-neutral-900 p-6">
+    <Container className="w-full max-w-2xl space-y-4 rounded-xl bg-neutral-900 p-6">
       {step === 1 && renderStep1()}
       {step === 2 && renderStep2()}
       {step === 3 && renderStep3()}
-    </div>
+    </Container>
   );
 };
 

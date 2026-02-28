@@ -7,6 +7,8 @@ import TaskModal from './task-modal';
 
 import type { TaskDto, TaskStatus, TaskPriority } from '@/lib/api/types';
 import { getTasks, createTask, deleteTask } from '@/lib/api/tasks';
+import Container from '@/components/common/container';
+import Button from '@/components/common/button';
 
 const TasksList: FC = () => {
   const [tasks, setTasks] = useState<TaskDto[]>([]);
@@ -143,13 +145,12 @@ const TasksList: FC = () => {
     <div className="flex h-full flex-col">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Tasks</h1>
-        <button
+        <Button
+          type="button"
           onClick={handleCreateNew}
           disabled={isCreating}
-          className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-        >
-          {isCreating ? 'Creating...' : '+ New Task'}
-        </button>
+          content={isCreating ? 'Creating...' : '+ New Task'}
+        />
       </div>
 
       {error && (
@@ -165,7 +166,7 @@ const TasksList: FC = () => {
             <button
               onClick={handleCreateNew}
               disabled={isCreating}
-              className="text-indigo-400 hover:text-indigo-300 underline disabled:opacity-50"
+              className="text-indigo-400 hover:text-indigo-300 underline disabled:opacity-50 cursor-pointer"
             >
               Create your first task
             </button>
@@ -175,57 +176,59 @@ const TasksList: FC = () => {
         <div className="flex-1 overflow-y-auto">
           <div className="space-y-2">
             {tasks.map(task => (
-              <div
-                key={task.id}
-                onClick={() => handleTaskClick(task)}
-                className="block rounded-lg border border-neutral-800 bg-neutral-900 p-4 transition-colors hover:border-neutral-700 hover:bg-neutral-800 cursor-pointer"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="mb-2 flex items-center gap-2 flex-wrap">
-                      <span
-                        className={`rounded border px-2 py-0.5 text-xs font-medium ${getStatusBadgeColor(
-                          task.status,
-                        )}`}
-                      >
-                        {task.status.replace('_', ' ')}
-                      </span>
-                      <span
-                        className={`rounded border px-2 py-0.5 text-xs font-medium ${getPriorityBadgeColor(
-                          task.priority,
-                        )}`}
-                      >
-                        {task.priority}
-                      </span>
-                      {task.source === 'CHAT' && (
-                        <span className="rounded border px-2 py-0.5 text-xs font-medium bg-purple-600/20 text-purple-400 border-purple-600/50">
-                          From Chat
-                        </span>
-                      )}
-                    </div>
-                    <h3 className="mb-1 text-lg font-medium text-neutral-200">{task.name}</h3>
-                    {task.description && (
-                      <p className="mb-2 text-sm text-neutral-400 line-clamp-2">
-                        {task.description}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-4 text-xs text-neutral-500">
-                      {task.deadline && (
+              <Container key={task.id}>
+                <div
+                  key={task.id}
+                  onClick={() => handleTaskClick(task)}
+                  className="block rounded-lg p-4 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="mb-2 flex items-center gap-2 flex-wrap">
                         <span
-                          className={isOverdue(task.deadline) ? 'text-red-400 font-medium' : ''}
+                          className={`rounded border px-2 py-0.5 text-xs font-medium ${getStatusBadgeColor(
+                            task.status,
+                          )}`}
                         >
-                          Deadline: {formatDate(task.deadline)}
-                          {isOverdue(task.deadline) && ' (Overdue)'}
+                          {task.status.replace('_', ' ')}
                         </span>
+                        <span
+                          className={`rounded border px-2 py-0.5 text-xs font-medium ${getPriorityBadgeColor(
+                            task.priority,
+                          )}`}
+                        >
+                          {task.priority}
+                        </span>
+                        {task.source === 'CHAT' && (
+                          <span className="rounded border px-2 py-0.5 text-xs font-medium bg-purple-600/20 text-purple-400 border-purple-600/50">
+                            From Chat
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="mb-1 text-lg font-medium text-neutral-200">{task.name}</h3>
+                      {task.description && (
+                        <p className="mb-2 text-sm text-neutral-400 line-clamp-2">
+                          {task.description}
+                        </p>
                       )}
-                      <span>Created: {formatDate(task.createdAt)}</span>
-                      {task.subtasks && task.subtasks.length > 0 && (
-                        <span>{task.subtasks.length} subtask(s)</span>
-                      )}
+                      <div className="flex items-center gap-4 text-xs text-neutral-500">
+                        {task.deadline && (
+                          <span
+                            className={isOverdue(task.deadline) ? 'text-red-400 font-medium' : ''}
+                          >
+                            Deadline: {formatDate(task.deadline)}
+                            {isOverdue(task.deadline) && ' (Overdue)'}
+                          </span>
+                        )}
+                        <span>Created: {formatDate(task.createdAt)}</span>
+                        {task.subtasks && task.subtasks.length > 0 && (
+                          <span>{task.subtasks.length} subtask(s)</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </Container>
             ))}
           </div>
         </div>

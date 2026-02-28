@@ -76,7 +76,7 @@ Functionality:
 
 Result:
 
-- User Profile generation
+- User Index generation
 - Initial memory filling (Memory)
 
 ---
@@ -197,7 +197,7 @@ DB + Vector Storage
 - Auth (login/register)
 - Onboarding
 - Dashboard
-- Chat (main screen)
+- Index (main screen)
 
 ---
 
@@ -214,7 +214,7 @@ DB + Vector Storage
 **Core Modules:**
 
 - Auth
-- Users / Profile
+- Users / Index
 - Tasks
 - Goals
 - Conversations

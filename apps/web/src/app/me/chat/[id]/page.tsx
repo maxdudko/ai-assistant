@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 
-import Chat from '@/components/chat';
+import Index from '@/components/pages/chat/chat';
 
 export default function ChatWithIdPage() {
   const params = useParams();
@@ -10,7 +10,7 @@ export default function ChatWithIdPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <Chat conversationId={conversationId} />
+      <Index conversationId={conversationId} />
     </div>
   );
 }

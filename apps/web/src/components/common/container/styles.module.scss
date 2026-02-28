@@ -1,0 +1,16 @@
+@mixin container($bg-color, $border-color) {
+  background: $bg-color;
+  border: 1px solid $border-color;
+  border-radius: 16px;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.container_default {
+  @include container(rgba(0, 0, 0, 0.1), rgba(99, 102, 241, 0.2));
+}
+
+.container_default:hover {
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}

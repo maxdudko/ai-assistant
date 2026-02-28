@@ -40,7 +40,7 @@ ai-assistant/
 │   ├── api/                    # NestJS backend API
 │   │   ├── src/
 │   │   │   ├── auth/          # JWT authentication
-│   │   │   ├── conversations/ # Chat orchestration
+│   │   │   ├── conversations/ # Index orchestration
 │   │   │   ├── ai/            # AI service adapter
 │   │   │   ├── memory/        # RAG memory system
 │   │   │   ├── tasks/         # Task management
@@ -399,7 +399,7 @@ AI suggests action → Store as ActionCandidate (PENDING)
 
 - **User** - User accounts
 - **UserProfile** - Personalization settings (tone, verbosity, emoji)
-- **Conversation** - Chat sessions (DAILY or AD_HOC)
+- **Conversation** - Index sessions (DAILY or AD_HOC)
 - **Message** - Individual messages with role (USER/ASSISTANT/SYSTEM)
 - **Memory** - Long-term facts with vector embeddings (pgvector)
 - **Task** - User tasks with status, priority, deadline

@@ -1,4 +1,4 @@
-import ConversationsList from '@/components/conversations-list';
+import ConversationsList from '@/components/pages/conversations/conversations-list';
 
 export default function ConversationsPage() {
   return (

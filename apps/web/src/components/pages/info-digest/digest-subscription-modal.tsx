@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 
 import type { DigestSubscriptionDto } from '@/lib/api/digest';
 import { subscribeDigest, unsubscribeDigest } from '@/lib/api/digest';
+import Container from '@/components/common/container';
 
 interface DigestSubscriptionModalProps {
   subscription: DigestSubscriptionDto | null;
@@ -99,7 +100,7 @@ const DigestSubscriptionModal: FC<DigestSubscriptionModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-2xl rounded-lg border border-neutral-800 bg-neutral-900 p-6 shadow-xl">
+      <Container className="w-full max-w-2xl rounded-lg border border-neutral-800 bg-neutral-900 p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-2xl font-semibold">
             {subscription ? 'Digest Subscription' : 'New Digest Subscription'}
@@ -233,7 +234,7 @@ const DigestSubscriptionModal: FC<DigestSubscriptionModalProps> = ({
             </>
           )}
         </div>
-      </div>
+      </Container>
     </div>
   );
 };

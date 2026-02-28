@@ -12,6 +12,8 @@ import type {
   ToneOption,
   VerbosityOption,
 } from '@/lib/api/types';
+import Container from '@/components/common/container';
+import Button from '@/components/common/button';
 
 const Profile: FC = () => {
   const { user, refresh } = useAuth();
@@ -64,7 +66,7 @@ const Profile: FC = () => {
       <h2 className="text-2xl font-semibold">Profile</h2>
 
       <div className="grid grid-cols-2 gap-4">
-        <section className="space-y-4 rounded-xl bg-neutral-900 p-4">
+        <Container className="space-y-4 p-4">
           <h3 className="text-lg font-medium">Account</h3>
           <div>
             <label htmlFor="email" className="mb-2 block text-sm font-medium text-neutral-300">
@@ -80,9 +82,9 @@ const Profile: FC = () => {
               placeholder="Email"
             />
           </div>
-        </section>
+        </Container>
 
-        <section className="space-y-4 rounded-xl bg-neutral-900 p-4">
+        <Container className="space-y-4 p-4">
           <h3 className="text-lg font-medium">Personal Information</h3>
 
           <div>
@@ -101,11 +103,11 @@ const Profile: FC = () => {
               placeholder="Display name"
             />
           </div>
-        </section>
+        </Container>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <section className="space-y-4 rounded-xl bg-neutral-900 p-4">
+        <Container className="space-y-4 p-4">
           <h3 className="text-lg font-medium">Assistant Preferences</h3>
 
           <div>
@@ -188,9 +190,9 @@ const Profile: FC = () => {
               Use emoji in responses
             </label>
           </div>
-        </section>
+        </Container>
 
-        <section className="space-y-4 rounded-xl bg-neutral-900 p-4">
+        <Container className="space-y-4 p-4">
           <h3 className="text-lg font-medium">Usage Preferences</h3>
 
           <div>
@@ -264,15 +266,10 @@ const Profile: FC = () => {
               ))}
             </div>
           </div>
-        </section>
+        </Container>
       </div>
 
-      <button
-        onClick={onSave}
-        className="rounded bg-indigo-600 px-4 py-2 font-medium hover:bg-indigo-700 cursor-pointer"
-      >
-        Save changes
-      </button>
+      <Button type="button" onClick={onSave} content="Save changes" />
     </div>
   );
 };

@@ -7,6 +7,8 @@ import DigestSubscriptionModal from './digest-subscription-modal';
 
 import type { DigestSubscriptionDto } from '@/lib/api/digest';
 import { getDigestSubscriptions, unsubscribeDigest } from '@/lib/api/digest';
+import Container from '@/components/common/container';
+import Button from '@/components/common/button';
 
 const DigestSubscriptionsList: FC = () => {
   const [subscriptions, setSubscriptions] = useState<DigestSubscriptionDto[]>([]);
@@ -109,13 +111,12 @@ const DigestSubscriptionsList: FC = () => {
             Manage your daily information digest subscriptions
           </p>
         </div>
-        <button
+        <Button
+          type="button"
           onClick={handleCreateNew}
           disabled={isCreating}
-          className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-        >
-          {isCreating ? 'Creating...' : '+ New Subscription'}
-        </button>
+          content={isCreating ? 'Creating...' : '+ New Subscription'}
+        />
       </div>
 
       {error && (
@@ -144,36 +145,37 @@ const DigestSubscriptionsList: FC = () => {
         <div className="flex-1 overflow-y-auto">
           <div className="space-y-2">
             {subscriptions.map(subscription => (
-              <div
-                key={subscription.id}
-                onClick={() => handleSubscriptionClick(subscription)}
-                className="block rounded-lg border border-neutral-800 bg-neutral-900 p-4 transition-colors hover:border-neutral-700 hover:bg-neutral-800 cursor-pointer"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="mb-2 flex items-center gap-2 flex-wrap">
-                      <span
-                        className={`rounded border px-2 py-0.5 text-xs font-medium ${getFrequencyBadgeColor(
-                          subscription.frequency,
-                        )}`}
-                      >
-                        {subscription.frequency.charAt(0).toUpperCase() +
-                          subscription.frequency.slice(1)}
-                      </span>
-                    </div>
-                    <h3 className="mb-1 text-lg font-medium text-neutral-200">
-                      {subscription.topic}
-                    </h3>
-                    <p className="mb-2 text-sm text-neutral-400">
-                      Daily information digests about this topic
-                    </p>
-                    <div className="flex items-center gap-4 text-xs text-neutral-500">
-                      <span>Created: {formatDate(subscription.createdAt)}</span>
-                      <span>Updated: {formatDate(subscription.updatedAt)}</span>
+              <Container key={subscription.id}>
+                <div
+                  onClick={() => handleSubscriptionClick(subscription)}
+                  className="block rounded-lg p-4 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="mb-2 flex items-center gap-2 flex-wrap">
+                        <span
+                          className={`rounded border px-2 py-0.5 text-xs font-medium ${getFrequencyBadgeColor(
+                            subscription.frequency,
+                          )}`}
+                        >
+                          {subscription.frequency.charAt(0).toUpperCase() +
+                            subscription.frequency.slice(1)}
+                        </span>
+                      </div>
+                      <h3 className="mb-1 text-lg font-medium text-neutral-200">
+                        {subscription.topic}
+                      </h3>
+                      <p className="mb-2 text-sm text-neutral-400">
+                        Daily information digests about this topic
+                      </p>
+                      <div className="flex items-center gap-4 text-xs text-neutral-500">
+                        <span>Created: {formatDate(subscription.createdAt)}</span>
+                        <span>Updated: {formatDate(subscription.updatedAt)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </Container>
             ))}
           </div>
         </div>

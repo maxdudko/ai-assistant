@@ -33,16 +33,16 @@ To create a minimum viable personal AI assistant that:
 
 ### 🔹 Core Functionality
 
-#### Onboarding & Profile
+#### Onboarding & Index
 
 - Dialog onboarding (5-7 questions)
-- User Profile creation
+- User Index creation
 - Settings:
   - Communication style
   - Response brevity
   - Tone
 
-#### Chat (Core UI)
+#### Index (Core UI)
 
 - One main screen — chat
 - Dialog history
@@ -94,13 +94,13 @@ To create a minimum viable personal AI assistant that:
 **Frontend**
 
 - Next.js (App Router)
-- Chat UI
+- Index UI
 - Onboarding flow
 
 **Backend**
 
 - Auth (JWT)
-- Users / Profile
+- Users / Index
 - Tasks / Goals
 - Conversations
 - Memory

@@ -19,6 +19,7 @@ import {
   switchMode as switchModeApi,
 } from '@/lib/api/conversations';
 import { confirmAction as confirmActionApi } from '@/lib/api/actions';
+import Container from '@/components/common/container';
 
 interface ChatProps {
   conversationId?: string;
@@ -310,7 +311,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
     <div className="flex h-full max-w-full flex-col 2xl:max-w-2/3">
       {/* Header */}
       {conversation && (
-        <div className="mb-4 flex items-center justify-between rounded bg-[#0D1117] p-3">
+        <Container className="mb-4 p-3">
           <div className="flex items-center gap-3">
             <Link
               href="/me/conversations"
@@ -332,12 +333,12 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
               {conversation.state}
             </span>
           </div>
-        </div>
+        </Container>
       )}
 
       {/* Mode selector */}
       {conversation && (
-        <div className="mb-4 flex gap-2 rounded bg-[#0D1117] p-2">
+        <Container className="mb-4 flex gap-2 p-2">
           <span className="text-sm text-neutral-400">Mode:</span>
           {(['MANAGER', 'REFLECTION', 'COMPANION', 'INFO'] as ConversationMode[]).map(mode => (
             <button
@@ -352,11 +353,11 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
               {getModeLabel(mode)}
             </button>
           ))}
-        </div>
+        </Container>
       )}
 
       {/* Messages */}
-      <div className="flex-1 space-y-2 overflow-y-auto rounded bg-[#0D1117] p-4">
+      <Container className="flex-1 space-y-2 overflow-y-auto p-4">
         {messages.length === 0 ? (
           <ReactMarkdown>
             PMA: How can I help you today? Start by planning your day or asking a question.
@@ -418,29 +419,31 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
           ))
         )}
         <div ref={messagesEndRef} />
-      </div>
+      </Container>
 
       {/* Error message */}
       {error && <div className="mt-2 rounded bg-red-900/50 p-2 text-sm text-red-300">{error}</div>}
 
       {/* Input form */}
-      <form onSubmit={handleSendMessage} className="mt-4 flex gap-2">
-        <textarea
-          rows={5}
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          className="flex-1 rounded bg-[#0d1117] p-2 text-neutral-200 placeholder:text-neutral-500"
-          placeholder="Type your message..."
-          disabled={loading}
-        />
-        <button
-          type="submit"
-          disabled={loading || !input.trim()}
-          className="rounded bg-indigo-600 px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-        >
-          {loading ? 'Sending...' : 'Send'}
-        </button>
-      </form>
+      <Container className="mt-2">
+        <form onSubmit={handleSendMessage} className="flex gap-2">
+          <textarea
+            rows={5}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            className="flex-1 rounded  p-2 text-neutral-200 placeholder:text-neutral-500"
+            placeholder="Type your message..."
+            disabled={loading}
+          />
+          <button
+            type="submit"
+            disabled={loading || !input.trim()}
+            className="rounded bg-indigo-600 px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {loading ? 'Sending...' : 'Send'}
+          </button>
+        </form>
+      </Container>
     </div>
   );
 };
