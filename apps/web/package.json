@@ -12,6 +12,7 @@
     "@ai/shared-types": "workspace:*",
     "@uiw/react-md-editor": "^4.0.11",
     "next": "16.1.1",
+    "particles.js": "^2.0.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-markdown": "^10.1.0"
