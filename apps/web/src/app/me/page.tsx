@@ -11,7 +11,7 @@ import { getTasks, deleteTask, getTask } from '@/lib/api/tasks';
 import type { TaskDto } from '@/lib/api/types';
 import TaskModal from '@/components/pages/tasks/task-modal';
 import Chat from '@/components/pages/chat/chat';
-import Container from "@/components/common/container";
+import Container from '@/components/common/container';
 
 function getEventColor(task: TaskDto): string {
   if (task.status === 'DONE') {
@@ -98,9 +98,34 @@ export default function Dashboard() {
   }
 
   return (
-    <main className="flex min-h-screen p-4 md:p-8">
+    <main className="xl:flex min-h-screen p-4 md:p-8">
+      <div className="flex-1 p-4">
+        <Chat />
+      </div>
       <div className="flex-1 rounded-lg shadow-lg p-4">
-        <Container className="mb-10 p-4">
+        <Container className="p-4">
+          <FullCalendar
+            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+            initialView="dayGridMonth"
+            headerToolbar={{
+              left: 'prev,next today',
+              center: 'title',
+              right: 'dayGridMonth,timeGridWeek,timeGridDay',
+            }}
+            events={events}
+            height="auto"
+            eventClick={info => {
+              const eventId = info.event.id;
+              const task = tasks.find(t => t.id === eventId);
+              if (task) {
+                setSelectedTask(task);
+              }
+            }}
+            editable={false}
+            selectable={false}
+          />
+        </Container>
+        <Container className="mt-6 p-4">
           <b className="text-2xl">Main priority:</b>
           <ul>
             <li className="ml-4 list-disc">
@@ -118,26 +143,58 @@ export default function Dashboard() {
             <li className="ml-4 list-disc">Keep calm and let me handle the rest</li>
           </ul>
         </Container>
-        <FullCalendar
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-          initialView="dayGridMonth"
-          headerToolbar={{
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay',
-          }}
-          events={events}
-          height="auto"
-          eventClick={info => {
-            const eventId = info.event.id;
-            const task = tasks.find(t => t.id === eventId);
-            if (task) {
-              setSelectedTask(task);
-            }
-          }}
-          editable={false}
-          selectable={false}
-        />
+        <Container className="mt-6 p-4">
+          <b className="text-2xl">Performance charts:</b>
+          <div className="mt-4">
+            <h3 className="text-lg font-semibold mb-4">Task Status Distribution</h3>
+            <div className="space-y-4">
+              {(() => {
+                const statusCounts = tasks.reduce(
+                  (acc, task) => {
+                    acc[task.status] = (acc[task.status] || 0) + 1;
+                    return acc;
+                  },
+                  {} as Record<string, number>,
+                );
+                const total = tasks.length;
+                const statuses: Array<{ status: string; label: string; color: string }> = [
+                  { status: 'TODO', label: 'To Do', color: 'bg-blue-500' },
+                  { status: 'IN_PROGRESS', label: 'In Progress', color: 'bg-yellow-500' },
+                  { status: 'DONE', label: 'Done', color: 'bg-green-500' },
+                ];
+
+                return statuses.map(({ status, label, color }) => {
+                  const count = statusCounts[status] || 0;
+                  const percentage = total > 0 ? (count / total) * 100 : 0;
+
+                  return (
+                    <div key={status} className="w-full">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-sm font-medium text-gray-700">{label}</span>
+                        <span className="text-sm text-gray-600">
+                          {count} ({percentage.toFixed(1)}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-6 overflow-hidden">
+                        <div
+                          className={`${color} h-6 rounded-full transition-all duration-300 flex items-center justify-end pr-2`}
+                          style={{ width: `${percentage}%` }}
+                        >
+                          {percentage > 10 && (
+                            <span className="text-white text-xs font-medium">{count}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+            {tasks.length === 0 && (
+              <p className="text-gray-500 text-sm mt-4">No tasks available to display.</p>
+            )}
+          </div>
+        </Container>
       </div>
 
       {selectedTask && (
@@ -162,9 +219,6 @@ export default function Dashboard() {
           }}
         />
       )}
-      <div className="flex-1">
-        <Chat />
-      </div>
     </main>
   );
 }
