@@ -125,27 +125,50 @@ export default function Dashboard() {
             selectable={false}
           />
         </Container>
-        <Container className="mt-6 p-4">
-          <b className="text-2xl">Main priority:</b>
+        <Container className="p-4 my-4">
+          <b className="text-2xl p-4">Priorities:</b>
           <ul>
+            {/*  Generate something like main priorities according current tasks className="ml-4 list-disc*/}
             <li className="ml-4 list-disc">
-              Focus on what matters most to you, while I takes care of the details and keeps you on
-              track
+              Your main priority is completing your awesome super AI Assistant project MVP and
+              release it to the world.
             </li>
             <li className="ml-4 list-disc">
-              I&#39;m here to help you stay organized, manage your time, and achieve your goals
-              efficiently
+              Don&#39;t forget for your main job and your project that give you money and stability.
             </li>
             <li className="ml-4 list-disc">
-              With me, you can relax knowing that your tasks and goals are being managed
-              effectively, allowing you to enjoy more free time and less stress
+              Research and planning for your next big project, you need to paperer plans and to
+              execute them.
             </li>
-            <li className="ml-4 list-disc">Keep calm and let me handle the rest</li>
+          </ul>
+        </Container>
+        <Container className="p-4 my-4">
+          <b className="text-2xl p-4">Advices:</b>
+          <ul>
+            {/*  Generate something like advise from AI guru className="ml-4 list-disc*/}
+            <li className="ml-4 list-disc">
+              Prioritize tasks based on their impact and urgency, not just deadlines. Focus on
+              high-impact tasks that align with your long-term goals, even if they don&#39;t have
+              immediate deadlines.
+            </li>
+            <li className="ml-4 list-disc">
+              Use time blocking to dedicate focused periods for deep work on important tasks,
+              minimizing distractions and maximizing productivity.
+            </li>
+            <li className="ml-4 list-disc">
+              Don&#39;t forget to take regular breaks to recharge your energy and maintain mental
+              clarity. Short breaks can boost creativity and prevent burnout, helping you stay
+              productive in the long run.
+            </li>
+            <li className="ml-4 list-disc">
+              Also don&#39;t forget about your personal life and family, they are important for your
+              well-being and happiness, and they can also provide support and motivation for your work.
+            </li>
           </ul>
         </Container>
         <Container className="mt-6 p-4">
           <b className="text-2xl">Performance charts:</b>
-          <div className="mt-4">
+          <Container className="mt-4 p-4">
             <h3 className="text-lg font-semibold mb-4">Task Status Distribution</h3>
             <div className="space-y-4">
               {(() => {
@@ -158,9 +181,9 @@ export default function Dashboard() {
                 );
                 const total = tasks.length;
                 const statuses: Array<{ status: string; label: string; color: string }> = [
-                  { status: 'TODO', label: 'To Do', color: 'bg-blue-500' },
-                  { status: 'IN_PROGRESS', label: 'In Progress', color: 'bg-yellow-500' },
-                  { status: 'DONE', label: 'Done', color: 'bg-green-500' },
+                  { status: 'TODO', label: 'To Do', color: 'bg-[#3fb950]' },
+                  { status: 'IN_PROGRESS', label: 'In Progress', color: 'bg-[#db6d28]' },
+                  { status: 'DONE', label: 'Done', color: 'bg-[#ab7df8]' },
                 ];
 
                 return statuses.map(({ status, label, color }) => {
@@ -193,7 +216,7 @@ export default function Dashboard() {
             {tasks.length === 0 && (
               <p className="text-gray-500 text-sm mt-4">No tasks available to display.</p>
             )}
-          </div>
+          </Container>
         </Container>
       </div>
 

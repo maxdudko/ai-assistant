@@ -75,11 +75,11 @@ const TaskModal: FC<TaskModalProps> = ({ task, onClose, onDelete, onUpdate }) =>
   const getStatusBadgeColor = (status: TaskStatus): string => {
     switch (status) {
       case 'TODO':
-        return 'bg-neutral-600/20 text-neutral-400 border-neutral-600/50';
+        return 'bg-[#3fb950]/20 text-[#3fb950] border-[#3fb950]/50';
       case 'IN_PROGRESS':
-        return 'bg-blue-600/20 text-blue-400 border-blue-600/50';
+        return 'bg-[#db6d28]/20 text-[#db6d28] border-[#db6d28]/50';
       case 'DONE':
-        return 'bg-green-600/20 text-green-400 border-green-600/50';
+        return 'bg-[#ab7df8]/20 text-[#ab7df8] border-green-[#ab7df8]/50';
       default:
         return 'bg-neutral-600/20 text-neutral-400 border-neutral-600/50';
     }
