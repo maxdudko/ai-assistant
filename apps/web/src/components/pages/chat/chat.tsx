@@ -311,7 +311,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
     <div className="flex h-full max-w-full flex-col">
       {/* Header */}
       {conversation && (
-        <Container className="mb-4 p-3">
+        <Container className="mb-4 p-3 shrink-0">
           <div className="flex items-center gap-3">
             <Link
               href="/me/conversations"
@@ -338,7 +338,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
 
       {/* Mode selector */}
       {conversation && (
-        <Container className="mb-4 flex gap-2 p-2">
+        <Container className="mb-4 flex gap-2 p-2 flex-shrink-0">
           <span className="text-sm text-neutral-400">Mode:</span>
           {(['MANAGER', 'REFLECTION', 'COMPANION', 'INFO'] as ConversationMode[]).map(mode => (
             <button
@@ -357,7 +357,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
       )}
 
       {/* Messages */}
-      <Container className="flex-1 space-y-2 overflow-y-auto p-4">
+      <Container className="flex-1 space-y-2 overflow-y-auto p-4 min-h-0">
         {messages.length === 0 ? (
           <ReactMarkdown>
             PMA: How can I help you today? Start by planning your day or asking a question.
@@ -422,10 +422,14 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
       </Container>
 
       {/* Error message */}
-      {error && <div className="mt-2 rounded bg-red-900/50 p-2 text-sm text-red-300">{error}</div>}
+      {error && (
+        <div className="mt-2 rounded bg-red-900/50 p-2 text-sm text-red-300 flex-shrink-0">
+          {error}
+        </div>
+      )}
 
       {/* Input form */}
-      <Container className="mt-2">
+      <Container className="mt-2 flex-shrink-0">
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <textarea
             rows={5}

@@ -98,11 +98,11 @@ export default function Dashboard() {
   }
 
   return (
-    <main className="xl:flex min-h-screen p-4 md:p-8">
-      <div className="flex-1 p-4">
+    <main className="xl:flex xl:h-screen xl:overflow-hidden min-h-screen p-4 md:p-8">
+      <div className="flex-1 p-4 xl:h-full xl:overflow-hidden xl:flex xl:flex-col">
         <Chat />
       </div>
-      <div className="flex-1 rounded-lg shadow-lg p-4">
+      <div className="flex-1 rounded-lg shadow-lg p-4 xl:h-full xl:overflow-y-auto">
         <Container className="p-4">
           <FullCalendar
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
