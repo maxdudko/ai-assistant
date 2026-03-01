@@ -1,5 +1,3 @@
-import React from 'react';
-import Link from 'next/link';
 import Button from '@/components/button';
 import Container from '@/components/common/container';
 
@@ -9,9 +7,9 @@ export default function Home() {
       <Container className="max-w-3xl w-full space-y-8 text-center p-4">
         {/* Hero Section */}
         <div className="space-y-4">
-          <h1 className="text-5xl md:text-6xl font-bold text-white-900">PMA</h1>
+          <h1 className="text-2xl md:text-4xl font-bold text-white-900">Personal AI Assistant</h1>
           <p className="text-xl md:text-2xl text-white-600 font-medium">
-            Personal Manager Assistant
+            v0.1 — Personal Daily Manager
           </p>
           <p className="text-lg text-white-500 max-w-2xl mx-auto">
             Your AI-powered assistant for managing daily life, reducing cognitive load, and thinking
@@ -22,8 +20,8 @@ export default function Home() {
         {/* Main Value Proposition */}
         <div className="py-8 space-y-6">
           <p className="text-base md:text-lg text-white-700 leading-relaxed max-w-2xl mx-auto">
-            PMA is a <strong>stateful personal AI agent</strong> that understands your context
-            through long-term memory. Unlike generic chatbots, PMA remembers your preferences,
+            This is a <strong>stateful personal AI agent</strong> that understands your context
+            through long-term memory. Unlike generic chatbots, it remembers your preferences,
             patterns, and habits, making interactions increasingly relevant and personalized.
           </p>
 
