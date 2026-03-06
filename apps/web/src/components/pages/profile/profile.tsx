@@ -1,10 +1,11 @@
 'use client';
 
 import type { FC } from 'react';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
 import { useAuth } from '@/lib/api/AuthContext';
 import { userApi } from '@/lib/api/user';
+import { authApi } from '@/lib/api/auth';
 import type {
   HelpStyleOption,
   PrimaryUseCaseOption,
@@ -14,6 +15,7 @@ import type {
 } from '@/lib/api/types';
 import Container from '@/components/common/container';
 import Button from '@/components/common/button';
+import PasswordInput from '@/components/common/password-input';
 
 const Profile: FC = () => {
   const { user, refresh } = useAuth();
@@ -27,6 +29,13 @@ const Profile: FC = () => {
   const [helpStyle, setHelpStyle] = useState<HelpStyleOption>('passive');
   const [dayPlanningTime, setDayPlanningTime] = useState<TimePreferenceOption>('anytime');
   const [reflectionTime, setReflectionTime] = useState<TimePreferenceOption>('anytime');
+
+  const [isChangePasswordFormVisible, setIsChangePasswordFormVisible] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -59,6 +68,37 @@ const Profile: FC = () => {
     await refresh();
   }
 
+  const onChangePassword = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setPasswordError(null);
+      setPasswordSuccess(false);
+      if (newPassword.length < 8) {
+        setPasswordError('New password must be at least 8 characters');
+        return;
+      }
+      if (newPassword !== confirmNewPassword) {
+        setPasswordError('New passwords do not match');
+        return;
+      }
+      try {
+        await authApi.changePassword({
+          currentPassword,
+          newPassword,
+        });
+        setPasswordSuccess(true);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmNewPassword('');
+        setIsChangePasswordFormVisible(false);
+      } catch (err) {
+        console.error('Change password failed:', err);
+        setPasswordError('Current password is incorrect or something went wrong.');
+      }
+    },
+    [currentPassword, newPassword, confirmNewPassword],
+  );
+
   if (!user) return null;
 
   return (
@@ -82,6 +122,81 @@ const Profile: FC = () => {
               placeholder="Email"
             />
           </div>
+          {isChangePasswordFormVisible ? (
+            <Container className="space-y-4 p-4">
+              <h3 className="text-lg font-medium">Change password</h3>
+              <form onSubmit={onChangePassword} className="space-y-4">
+                <div>
+                  <label
+                    htmlFor="currentPassword"
+                    className="mb-2 block text-sm font-medium text-neutral-300"
+                  >
+                    Current password
+                  </label>
+                  <PasswordInput
+                    id="currentPassword"
+                    value={currentPassword}
+                    onChange={e => setCurrentPassword(e.target.value)}
+                    placeholder="Current password"
+                    required
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="newPassword"
+                    className="mb-2 block text-sm font-medium text-neutral-300"
+                  >
+                    New password
+                  </label>
+                  <PasswordInput
+                    id="newPassword"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    placeholder="New password (min 8 characters)"
+                    minLength={8}
+                    required
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="confirmNewPassword"
+                    className="mb-2 block text-sm font-medium text-neutral-300"
+                  >
+                    Confirm new password
+                  </label>
+                  <PasswordInput
+                    id="confirmNewPassword"
+                    value={confirmNewPassword}
+                    onChange={e => setConfirmNewPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    minLength={8}
+                    required
+                  />
+                </div>
+                {passwordError && <p className="text-red-500 text-sm">{passwordError}</p>}
+                {passwordSuccess && (
+                  <p className="text-green-500 text-sm">Password updated successfully.</p>
+                )}
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    content="Cancel"
+                    onClick={() => setIsChangePasswordFormVisible(false)}
+                    className="mr-2"
+                  />
+                  <Button type="submit" content="Update password" />
+                </div>
+              </form>
+            </Container>
+          ) : (
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                content="Change password"
+                onClick={() => setIsChangePasswordFormVisible(true)}
+              />
+            </div>
+          )}
         </Container>
 
         <Container className="space-y-4 p-4">
@@ -269,7 +384,9 @@ const Profile: FC = () => {
         </Container>
       </div>
 
-      <Button type="button" onClick={onSave} content="Save changes" />
+      <div className="flex justify-end">
+        <Button type="button" onClick={onSave} content="Save changes" />
+      </div>
     </div>
   );
 };

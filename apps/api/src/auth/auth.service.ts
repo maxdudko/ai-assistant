@@ -1,6 +1,7 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import { randomBytes } from 'crypto';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -132,5 +133,93 @@ export class AuthService {
 
   getRefreshTokenMaxAgeMs() {
     return AuthService.REFRESH_TOKEN_TTL_SECONDS * 1000;
+  }
+
+  private static readonly PASSWORD_RESET_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+
+  async requestPasswordReset(email: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      // Do not reveal whether the email exists
+      return;
+    }
+
+    const token = randomBytes(32).toString('hex');
+    const tokenHash = await bcrypt.hash(token, 10);
+    const expiresAt = new Date(Date.now() + AuthService.PASSWORD_RESET_EXPIRY_MS);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: tokenHash,
+        passwordResetExpires: expiresAt,
+      },
+    });
+
+    const baseUrl = process.env.FRONTEND_URL ?? process.env.CORS_ORIGIN ?? 'http://localhost:3000';
+    const resetLink = `${baseUrl}/auth/reset-password?token=${token}`;
+
+    // In development, log the link so it can be used for testing. In production, send via email.
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.log('[Password reset] Link for', email, ':', resetLink);
+    }
+    // TODO: In production, send resetLink via your email provider (e.g. Nodemailer, Resend).
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    if (!token || !newPassword) {
+      throw new BadRequestException('Token and new password are required');
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        passwordResetToken: { not: null },
+        passwordResetExpires: { gt: new Date() },
+      },
+    });
+
+    let matchedUser: (typeof users)[0] | null = null;
+    for (const u of users) {
+      if (u.passwordResetToken && (await bcrypt.compare(token, u.passwordResetToken))) {
+        matchedUser = u;
+        break;
+      }
+    }
+
+    if (!matchedUser) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: matchedUser.id },
+      data: {
+        passwordHash,
+        passwordResetToken: null,
+        passwordResetExpires: null,
+      },
+    });
+  }
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { passwordHash: true },
+    });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isValid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
   }
 }

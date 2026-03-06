@@ -3,7 +3,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 let refreshRequest: Promise<boolean> | null = null;
 
 function shouldRedirectOnUnauthorized(path: string) {
-  if (['/api/auth/login', '/api/auth/register', '/api/auth/refresh'].includes(path)) {
+  if (['/api/auth/login', '/api/auth/register', '/api/auth/refresh', '/api/auth/forgot-password', '/api/auth/reset-password'].includes(path)) {
     return false;
   }
 

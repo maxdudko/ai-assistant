@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/api/AuthContext';
 import { authApi } from '@/lib/api/auth';
 import Container from '@/components/common/container';
 import Button from '@/components/common/button';
+import PasswordInput from '@/components/common/password-input';
 
 const Login: FC = () => {
   const router = useRouter();
@@ -42,14 +43,17 @@ const Login: FC = () => {
           className="w-full rounded bg-neutral-800 p-2"
           placeholder="Email"
         />
-        <input
+        <PasswordInput
           value={password}
           onChange={e => setPassword(e.target.value)}
-          className="w-full rounded bg-neutral-800 p-2"
-          type="password"
           placeholder="Password"
         />
         {error && <p className="text-red-500 text-sm">{error}</p>}
+        <div className="text-right text-sm">
+          <a href="/auth/forgot-password" className="underline">
+            Forgot password?
+          </a>
+        </div>
         <Button type="submit" className="w-full" content="Sign in" />
         <div className="text-right">
           Don&#39;t have an account?{' '}

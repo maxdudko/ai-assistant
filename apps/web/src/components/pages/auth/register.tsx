@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/api/AuthContext';
 import { authApi } from '@/lib/api/auth';
 import Container from '@/components/common/container';
 import Button from '@/components/common/button';
+import PasswordInput from '@/components/common/password-input';
 
 const Register: FC = () => {
   const router = useRouter();
@@ -51,20 +52,16 @@ const Register: FC = () => {
           type="email"
           required
         />
-        <input
+        <PasswordInput
           value={password}
           onChange={e => setPassword(e.target.value)}
-          className="w-full rounded bg-neutral-800 p-2"
-          type="password"
           placeholder="Password"
           required
           minLength={6}
         />
-        <input
+        <PasswordInput
           value={confirmPassword}
           onChange={e => setConfirmPassword(e.target.value)}
-          className="w-full rounded bg-neutral-800 p-2"
-          type="password"
           placeholder="Confirm Password"
           required
           minLength={6}

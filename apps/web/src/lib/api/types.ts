@@ -52,6 +52,20 @@ export interface RegisterRequest {
   password: string;
 }
 
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export type ConversationMode = 'MANAGER' | 'REFLECTION' | 'COMPANION' | 'INFO';
 export type ConversationState = 'CREATED' | 'ACTIVE' | 'ARCHIVED';
 export type ConversationType = 'DAILY' | 'AD_HOC';
