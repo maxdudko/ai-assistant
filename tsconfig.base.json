@@ -8,7 +8,6 @@
     "paths": {
       "@shared-types/*": ["packages/shared-types/src/*"],
       "@ai-core/*": ["packages/ai-core/src/*"],
-      "@utils/*": ["packages/utils/src/*"]
     }
   }
 }
