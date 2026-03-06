@@ -42,6 +42,8 @@ const Onboarding: FC = () => {
       if (!name.trim()) {
         setError('Please enter your name');
         return;
+      } else {
+        setError(null);
       }
       setStep(3);
     }
@@ -86,13 +88,13 @@ const Onboarding: FC = () => {
 
   const renderStep1 = () => (
     <div className="space-y-6">
-      <h2 className="text-2xl font-semibold">Welcome!</h2>
-      <p className="text-lg">I am PMA, your personal manager assistant:</p>
-      <ul className="space-y-3 text-neutral-300">
-        <li>• I will help you manage your daily tasks and goals.</li>
-        <li>• I will help you stay organized and focused.</li>
-        <li>• I will help you stay on track and achieve your goals.</li>
-        <li>• I will help you stay motivated and inspired.</li>
+      <h2 className="text-2xl font-semibold">Welcome 👋</h2>
+      <p className="text-lg">I am your personal AI Assistant, I will help you:</p>
+      <ul className="space-y-2 text-neutral-300">
+        <li>✅ Manage your daily tasks and goals.</li>
+        <li>✅ Stay organized and focused.</li>
+        <li>✅ Stay on track and achieve your goals.</li>
+        <li>✅ Stay motivated and inspired.</li>
       </ul>
       <Button type="button" onClick={handleNext} content="Next" className="w-full" />
     </div>
@@ -271,12 +273,12 @@ const Onboarding: FC = () => {
 
   const renderStep3 = () => (
     <div className="space-y-6">
-      <h2 className="text-2xl font-semibold">Congratulations!</h2>
-      <p className="text-lg">Your profile and preferences are successfully configured.</p>
+      <h2 className="text-2xl font-semibold">Congratulations 🎉</h2>
+      <p className="text-lg">Your profile and preferences are successfully configured ⚙️</p>
       <p className="text-lg">
-        Nice to meet you, <span className="font-semibold">{name || 'there'}</span>!
+        Nice to meet you, <span className="font-semibold">{name || 'there'}</span> 🤗
       </p>
-      <p className="text-lg">Let&apos;s start your journey with PMA!</p>
+      <p className="text-lg">Let&apos;s start your journey! 🚀</p>
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
