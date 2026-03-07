@@ -1,3 +1,5 @@
+import { randomBytes } from 'crypto';
+
 import {
   Injectable,
   UnauthorizedException,
@@ -6,7 +8,6 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
-import { randomBytes } from 'crypto';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -166,7 +167,6 @@ export class AuthService {
 
     // In development, log the link so it can be used for testing. In production, send via email.
     if (process.env.NODE_ENV !== 'production') {
-      // eslint-disable-next-line no-console
       console.log('[Password reset] Link for', email, ':', resetLink);
     }
     // TODO: In production, send resetLink via your email provider (e.g. Nodemailer, Resend).
