@@ -976,7 +976,7 @@ You can suggest actions by returning JSON with this structure:
 
 ```typescript
 export const MODE_INSTRUCTIONS = {
-   MANAGER: `
+  MANAGER: `
     Focus on productivity and task management.
     Help the user:
     - Break down goals into actionable tasks
@@ -984,7 +984,7 @@ export const MODE_INSTRUCTIONS = {
     - Stay organized and on track
   `,
 
-   REFLECTION: `
+  REFLECTION: `
     Help the user reflect on their day.
     Focus on:
     - What went well
@@ -993,7 +993,7 @@ export const MODE_INSTRUCTIONS = {
     - Emotional processing
   `,
 
-   COMPANION: `
+  COMPANION: `
     Be a supportive, empathetic conversation partner.
     Listen actively and:
     - Provide emotional support
@@ -1001,7 +1001,7 @@ export const MODE_INSTRUCTIONS = {
     - Offer encouragement
   `,
 
-   INFO: `
+  INFO: `
     Provide concise, factual information.
     Focus on:
     - Summarizing search results
@@ -1019,28 +1019,28 @@ export const MODE_INSTRUCTIONS = {
 
 ```typescript
 export function extractMemoryCandidates(
-        userMessage: string,
-        assistantResponse: string,
-        mode: ConversationMode,
-        existingMemories: Memory[],
+  userMessage: string,
+  assistantResponse: string,
+  mode: ConversationMode,
+  existingMemories: Memory[],
 ): MemoryCandidate[] {
-   const candidates: MemoryCandidate[] = [];
+  const candidates: MemoryCandidate[] = [];
 
-   // Pattern 1: Explicit statements ("I prefer...", "I usually...")
-   const preferencePatterns = [/I prefer (.*)/i, /I usually (.*)/i, /I like to (.*)/i];
+  // Pattern 1: Explicit statements ("I prefer...", "I usually...")
+  const preferencePatterns = [/I prefer (.*)/i, /I usually (.*)/i, /I like to (.*)/i];
 
-   // Pattern 2: REFLECTION mode insights
-   if (mode === ConversationMode.REFLECTION) {
-      // Extract insights from assistant's summary
-   }
+  // Pattern 2: REFLECTION mode insights
+  if (mode === ConversationMode.REFLECTION) {
+    // Extract insights from assistant's summary
+  }
 
-   // Pattern 3: Factual statements from user
-   const factPatterns = [/My (.*) is (.*)/i, /I work (.*)/i];
+  // Pattern 3: Factual statements from user
+  const factPatterns = [/My (.*) is (.*)/i, /I work (.*)/i];
 
-   // Assign importance scores (1-10)
-   // Assign confidence scores (0-1)
+  // Assign importance scores (1-10)
+  // Assign confidence scores (0-1)
 
-   return candidates;
+  return candidates;
 }
 ```
 
@@ -1048,16 +1048,16 @@ export function extractMemoryCandidates(
 
 ```json
 {
-   "text": "I've noted your preference...",
-   "memoryCandidates": [
-      {
-         "content": "User prefers meetings in the morning",
-         "type": "FACTUAL",
-         "importance": 8,
-         "tags": ["preference", "schedule", "meetings"],
-         "confidence": 0.95
-      }
-   ]
+  "text": "I've noted your preference...",
+  "memoryCandidates": [
+    {
+      "content": "User prefers meetings in the morning",
+      "type": "FACTUAL",
+      "importance": 8,
+      "tags": ["preference", "schedule", "meetings"],
+      "confidence": 0.95
+    }
+  ]
 }
 ```
 
@@ -1065,7 +1065,7 @@ export function extractMemoryCandidates(
 
 ```typescript
 const curated = candidates.filter(
-        c => c.confidence >= 0.7 && c.importance >= 5 && c.content.length > 10,
+  c => c.confidence >= 0.7 && c.importance >= 5 && c.content.length > 10,
 );
 ```
 

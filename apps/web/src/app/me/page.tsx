@@ -162,7 +162,8 @@ export default function Dashboard() {
             </li>
             <li className="ml-4 list-disc">
               Also don&#39;t forget about your personal life and family, they are important for your
-              well-being and happiness, and they can also provide support and motivation for your work.
+              well-being and happiness, and they can also provide support and motivation for your
+              work.
             </li>
           </ul>
         </Container>

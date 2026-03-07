@@ -33,8 +33,8 @@ const ForgotPassword: FC = () => {
         <div className="w-full max-w-sm space-y-4 p-6">
           <h2 className="text-xl font-medium">Check your email</h2>
           <p className="text-neutral-300 text-sm">
-            If an account exists with <strong>{email}</strong>, you will receive a link to reset your
-            password. The link expires in 1 hour.
+            If an account exists with <strong>{email}</strong>, you will receive a link to reset
+            your password. The link expires in 1 hour.
           </p>
           <p className="text-neutral-400 text-sm">
             In development, the reset link is printed in the API server console.
