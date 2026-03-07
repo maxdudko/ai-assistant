@@ -46,7 +46,7 @@ PMA (Personal Manager Assistant) is a **stateful, context-aware AI assistant** d
 │                    PRESENTATION LAYER                       │
 │              Next.js 16 (React 19 + App Router)             │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │ Auth Pages   │  │ Index UI      │  │ Management   │       │
+│  │ Auth Pages   │  │ Chat UI      │  │ Management   │       │
 │  │ (SSR)        │  │ (Streaming)  │  │ (Tasks/Goals)│       │
 │  └──────────────┘  └──────────────┘  └──────────────┘       │
 └────────────────────────────┬────────────────────────────────┘
@@ -116,7 +116,7 @@ PMA (Personal Manager Assistant) is a **stateful, context-aware AI assistant** d
 
 | Component      | File                                       | Purpose                                      |
 | -------------- | ------------------------------------------ | -------------------------------------------- |
-| Index UI       | `src/components/profile.tsx`               | Real-time streaming chat with action buttons |
+| Chat UI        | `src/components/chat.tsx`                  | Real-time streaming chat with action buttons |
 | Task List      | `src/components/tasks-list.tsx`            | Task management interface                    |
 | Goal List      | `src/components/goals-list.tsx`            | Goal tracking interface                      |
 | Memory Browser | `src/components/memory-list.tsx`           | View stored memories                         |
@@ -174,7 +174,7 @@ src/
 │   ├── users.service.ts             # CRUD operations
 │   └── dto/                         # Update profile DTOs
 │
-├── conversations/                   # Index orchestration (PRIMARY ORCHESTRATOR)
+├── conversations/                   # Chat orchestration (PRIMARY ORCHESTRATOR)
 │   ├── conversations.service.ts     # 812 lines - handles full message lifecycle
 │   ├── conversations.controller.ts
 │   └── (orchestrates 9 services)
@@ -323,18 +323,18 @@ interface AiResponse {
 
 ## Data Flow Patterns
 
-### Flow 1: User Sends Index Message
+### Flow 1: User Sends Chat Message
 
 **Step-by-Step Flow**:
 
 ```
 1. USER INTERACTION
-   Browser → Index Component (profile.tsx)
+   Browser → Chat Component (chat.tsx)
    - User types message
    - Clicks send button
 
 2. FRONTEND API CALL
-   Index Component → API Client (lib/api/conversations.ts)
+   Chat Component → API Client (lib/api/conversations.ts)
    - sendMessageStream(message, conversationId?)
    - Opens EventSource for SSE
 
@@ -415,7 +415,7 @@ interface AiResponse {
    - Each token flows back through the chain
    - Controller emits: { type: 'delta', delta: token }
    - Frontend receives SSE event
-   - Index component appends character-by-character
+   - Chat component appends character-by-character
 
 10. RESPONSE PARSING
     After streaming completes:
@@ -463,7 +463,7 @@ interface AiResponse {
     }
 
 13. FRONTEND UPDATE
-    Index Component receives 'complete' event:
+    Chat Component receives 'complete' event:
     - Finalize message rendering
     - Display action buttons (if actions present)
     - Scroll to bottom
@@ -476,7 +476,7 @@ interface AiResponse {
 
 ```
 1. USER CLICKS "CONFIRM"
-   Index Component → confirmAction(actionId)
+   Chat Component → confirmAction(actionId)
 
 2. HTTP REQUEST
    POST /api/actions/confirm
@@ -748,7 +748,7 @@ Use PostgreSQL + pgvector extension instead of dedicated vector DB:
 
 ---
 
-### Decision 6: Streaming-First Index
+### Decision 6: Streaming-First Chat
 
 **Rationale**:
 Stream LLM tokens character-by-character instead of waiting for full response:
@@ -939,7 +939,7 @@ app.enableCors({
 [Role Definition]
 You are a personal assistant helping with [MODE-SPECIFIC PURPOSE].
 
-[User Index Adaptation]
+[User Profile Adaptation]
 - Communication tone: [friendly/professional/casual]
 - Response style: [short/medium/detailed]
 - Use emoji: [yes/no]
@@ -976,7 +976,7 @@ You can suggest actions by returning JSON with this structure:
 
 ```typescript
 export const MODE_INSTRUCTIONS = {
-  MANAGER: `
+   MANAGER: `
     Focus on productivity and task management.
     Help the user:
     - Break down goals into actionable tasks
@@ -984,7 +984,7 @@ export const MODE_INSTRUCTIONS = {
     - Stay organized and on track
   `,
 
-  REFLECTION: `
+   REFLECTION: `
     Help the user reflect on their day.
     Focus on:
     - What went well
@@ -993,7 +993,7 @@ export const MODE_INSTRUCTIONS = {
     - Emotional processing
   `,
 
-  COMPANION: `
+   COMPANION: `
     Be a supportive, empathetic conversation partner.
     Listen actively and:
     - Provide emotional support
@@ -1001,7 +1001,7 @@ export const MODE_INSTRUCTIONS = {
     - Offer encouragement
   `,
 
-  INFO: `
+   INFO: `
     Provide concise, factual information.
     Focus on:
     - Summarizing search results
@@ -1019,28 +1019,28 @@ export const MODE_INSTRUCTIONS = {
 
 ```typescript
 export function extractMemoryCandidates(
-  userMessage: string,
-  assistantResponse: string,
-  mode: ConversationMode,
-  existingMemories: Memory[],
+        userMessage: string,
+        assistantResponse: string,
+        mode: ConversationMode,
+        existingMemories: Memory[],
 ): MemoryCandidate[] {
-  const candidates: MemoryCandidate[] = [];
+   const candidates: MemoryCandidate[] = [];
 
-  // Pattern 1: Explicit statements ("I prefer...", "I usually...")
-  const preferencePatterns = [/I prefer (.*)/i, /I usually (.*)/i, /I like to (.*)/i];
+   // Pattern 1: Explicit statements ("I prefer...", "I usually...")
+   const preferencePatterns = [/I prefer (.*)/i, /I usually (.*)/i, /I like to (.*)/i];
 
-  // Pattern 2: REFLECTION mode insights
-  if (mode === ConversationMode.REFLECTION) {
-    // Extract insights from assistant's summary
-  }
+   // Pattern 2: REFLECTION mode insights
+   if (mode === ConversationMode.REFLECTION) {
+      // Extract insights from assistant's summary
+   }
 
-  // Pattern 3: Factual statements from user
-  const factPatterns = [/My (.*) is (.*)/i, /I work (.*)/i];
+   // Pattern 3: Factual statements from user
+   const factPatterns = [/My (.*) is (.*)/i, /I work (.*)/i];
 
-  // Assign importance scores (1-10)
-  // Assign confidence scores (0-1)
+   // Assign importance scores (1-10)
+   // Assign confidence scores (0-1)
 
-  return candidates;
+   return candidates;
 }
 ```
 
@@ -1048,16 +1048,16 @@ export function extractMemoryCandidates(
 
 ```json
 {
-  "text": "I've noted your preference...",
-  "memoryCandidates": [
-    {
-      "content": "User prefers meetings in the morning",
-      "type": "FACTUAL",
-      "importance": 8,
-      "tags": ["preference", "schedule", "meetings"],
-      "confidence": 0.95
-    }
-  ]
+   "text": "I've noted your preference...",
+   "memoryCandidates": [
+      {
+         "content": "User prefers meetings in the morning",
+         "type": "FACTUAL",
+         "importance": 8,
+         "tags": ["preference", "schedule", "meetings"],
+         "confidence": 0.95
+      }
+   ]
 }
 ```
 
@@ -1065,7 +1065,7 @@ export function extractMemoryCandidates(
 
 ```typescript
 const curated = candidates.filter(
-  c => c.confidence >= 0.7 && c.importance >= 5 && c.content.length > 10,
+        c => c.confidence >= 0.7 && c.importance >= 5 && c.content.length > 10,
 );
 ```
 
@@ -1209,8 +1209,8 @@ Event format: newline-delimited JSON
 ```typescript
 // apps/api/src/conversations/conversations.service.ts:4-10
 import {
-  buildSystemPrompt,
-  ...
+   buildSystemPrompt,
+...
 } from '../../../../packages/ai-core/src/index';
 ```
 
