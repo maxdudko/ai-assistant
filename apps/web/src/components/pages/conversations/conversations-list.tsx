@@ -168,9 +168,9 @@ const ConversationsList: FC = () => {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 md:flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Conversations</h1>
-        <div className="flex items-center gap-4">
+        <div className="sm:flex items-center gap-4">
           <label className="flex items-center gap-2 text-sm text-neutral-400 cursor-pointer">
             <input
               type="checkbox"

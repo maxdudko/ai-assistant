@@ -105,7 +105,7 @@ const Profile: FC = () => {
     <div className="space-y-6 max-w-full 2xl:max-w-2/3">
       <h2 className="text-2xl font-semibold">Profile</h2>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-2 gap-4">
         <Container className="space-y-4 p-4">
           <h3 className="text-lg font-medium">Account</h3>
           <div>
@@ -221,7 +221,7 @@ const Profile: FC = () => {
         </Container>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-2 gap-4">
         <Container className="space-y-4 p-4">
           <h3 className="text-lg font-medium">Assistant Preferences</h3>
 

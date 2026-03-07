@@ -104,7 +104,7 @@ const DigestSubscriptionsList: FC = () => {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 md:flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Info Digest Subscriptions</h1>
           <p className="mt-1 text-sm text-neutral-400">
