@@ -31,7 +31,7 @@ export class ActionExecutorService {
         await this.tasksService.updateStatus(
           userId,
           this.getRequiredString(action.payload, ['task_id', 'taskId']),
-          this.getTaskStatus(action.payload),
+          this.getTaskStatus(action.payload, TaskStatus.DONE),
         );
         break;
 
@@ -101,8 +101,19 @@ export class ActionExecutorService {
     return undefined;
   }
 
-  private getTaskStatus(payload: Record<string, unknown>): TaskStatus {
-    const status = this.getRequiredString(payload, ['status']).toUpperCase();
+  private getTaskStatus(
+    payload: Record<string, unknown>,
+    fallbackStatus?: TaskStatus,
+  ): TaskStatus {
+    const rawStatus = this.getOptionalString(payload, ['status', 'state']);
+    if (!rawStatus) {
+      if (fallbackStatus) {
+        return fallbackStatus;
+      }
+      throw new BadRequestException('Missing required field: status');
+    }
+
+    const status = rawStatus.toUpperCase();
     if (status === TaskStatus.TODO) return TaskStatus.TODO;
     if (status === TaskStatus.IN_PROGRESS) return TaskStatus.IN_PROGRESS;
     if (status === TaskStatus.DONE) return TaskStatus.DONE;

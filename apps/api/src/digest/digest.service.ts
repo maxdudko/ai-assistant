@@ -62,6 +62,31 @@ export class DigestService {
     }
     const frequency = this.mapFrequency(dto.frequency);
 
+    // MVP scope: a user can subscribe to at most 2 digest topics.
+    const alreadySubscribed = await this.prisma.digestSubscription.findFirst({
+      where: {
+        userId,
+        topic: {
+          normalizedName,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!alreadySubscribed) {
+      const subscriptionsCount = await this.prisma.digestSubscription.count({
+        where: {
+          userId,
+        },
+      });
+
+      if (subscriptionsCount >= 2) {
+        throw new BadRequestException('MVP supports up to 2 digest topics per user.');
+      }
+    }
+
     const topic = await this.prisma.digestTopic.upsert({
       where: { normalizedName },
       create: {

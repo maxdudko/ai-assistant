@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/api/AuthContext';
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const onboardingCompleted = Boolean(user?.profile?.onboardingCompleted);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -17,7 +18,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [loading, user, router]);
 
-  if (loading || !user) {
+  useEffect(() => {
+    if (!loading && user && !onboardingCompleted) {
+      router.replace('/auth/onboarding');
+    }
+  }, [loading, user, onboardingCompleted, router]);
+
+  if (loading || !user || !onboardingCompleted) {
     return <main className="flex-1 p-6" />;
   }
 

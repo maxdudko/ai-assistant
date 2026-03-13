@@ -261,6 +261,28 @@ export interface DaySummaryDto {
   }>;
 }
 
+export interface MorningBriefingDto {
+  day: {
+    id: string;
+    date: string;
+    state: DayState;
+  };
+  tasks: Array<{
+    id: string;
+    name: string;
+    status: TaskStatus;
+    priority: TaskPriority;
+    deadline: string | null;
+  }>;
+  priorities: Array<{
+    id: string;
+    name: string;
+    priority: TaskPriority;
+    deadline: string | null;
+    reason: string;
+  }>;
+}
+
 export type MemoryType = 'FACTUAL' | 'REFLECTION';
 export type MemorySource = 'CONVERSATION' | 'REFLECTION' | 'ONBOARDING';
 

@@ -1,7 +1,7 @@
 'use client';
 
 import type { FC } from 'react';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { useAuth } from '@/lib/api/AuthContext';
@@ -20,7 +20,7 @@ type Step = 1 | 2 | 3;
 
 const Onboarding: FC = () => {
   const router = useRouter();
-  const { refresh, user } = useAuth();
+  const { refresh, user, loading: authLoading } = useAuth();
   const [step, setStep] = useState<Step>(1);
 
   // Step 2 form state
@@ -33,6 +33,19 @@ const Onboarding: FC = () => {
   const [reflectionTime, setReflectionTime] = useState<TimePreferenceOption>('anytime');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!user) {
+      router.replace('/auth/login');
+      return;
+    }
+
+    if (user.profile?.onboardingCompleted) {
+      router.replace('/me');
+    }
+  }, [authLoading, user, router]);
 
   const handleNext = useCallback(() => {
     if (step === 1) {
@@ -85,6 +98,10 @@ const Onboarding: FC = () => {
     refresh,
     router,
   ]);
+
+  if (authLoading || !user || user.profile?.onboardingCompleted) {
+    return <Container className="w-full max-w-2xl rounded-xl bg-neutral-900 p-6" />;
+  }
 
   const renderStep1 = () => (
     <div className="space-y-6">

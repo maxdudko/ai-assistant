@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 
 import { useAuth } from '@/lib/api/AuthContext';
 import { authApi } from '@/lib/api/auth';
+import { userApi } from '@/lib/api/user';
 import Container from '@/components/common/container';
 import Button from '@/components/common/button';
 import PasswordInput from '@/components/common/password-input';
@@ -23,8 +24,13 @@ const Login: FC = () => {
       setError(null);
       try {
         await authApi.login({ email, password });
+        const me = await userApi.me();
         await refresh();
-        router.push('/me');
+        if (me.profile?.onboardingCompleted) {
+          router.push('/me');
+        } else {
+          router.push('/auth/onboarding');
+        }
       } catch (error) {
         console.error('Login failed:', error);
         setError('Invalid email or password');

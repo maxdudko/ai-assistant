@@ -11,6 +11,7 @@ import Container from '@/components/common/container';
 import Button from '@/components/common/button';
 
 const DigestSubscriptionsList: FC = () => {
+  const maxSubscriptions = 2;
   const [subscriptions, setSubscriptions] = useState<DigestSubscriptionDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +51,10 @@ const DigestSubscriptionsList: FC = () => {
   };
 
   const handleCreateNew = () => {
+    if (subscriptions.length >= maxSubscriptions) {
+      setError('MVP allows up to 2 digest topics.');
+      return;
+    }
     setSelectedSubscription(null);
     setIsModalOpen(true);
   };
@@ -86,6 +91,15 @@ const DigestSubscriptionsList: FC = () => {
     });
   };
 
+  const limitReached = subscriptions.length >= maxSubscriptions;
+  let newSubscriptionButtonLabel = '+ New Subscription';
+  if (isCreating) {
+    newSubscriptionButtonLabel = 'Creating...';
+  }
+  if (limitReached) {
+    newSubscriptionButtonLabel = 'Limit reached (2 topics)';
+  }
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -114,10 +128,13 @@ const DigestSubscriptionsList: FC = () => {
         <Button
           type="button"
           onClick={handleCreateNew}
-          disabled={isCreating}
-          content={isCreating ? 'Creating...' : '+ New Subscription'}
+          disabled={isCreating || limitReached}
+          content={newSubscriptionButtonLabel}
         />
       </div>
+      <p className="mb-3 text-xs text-neutral-500">
+        MVP limit: up to {maxSubscriptions} topics.
+      </p>
 
       {error && (
         <div className="mb-4 rounded bg-red-600/20 border border-red-600/50 px-4 py-2 text-sm text-red-400">

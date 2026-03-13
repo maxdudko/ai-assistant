@@ -8,7 +8,8 @@ import interactionPlugin from '@fullcalendar/interaction';
 import type { EventInput } from '@fullcalendar/core';
 
 import { getTasks, deleteTask, getTask } from '@/lib/api/tasks';
-import type { TaskDto } from '@/lib/api/types';
+import { getMorningBriefing } from '@/lib/api/days';
+import type { MorningBriefingDto, TaskDto } from '@/lib/api/types';
 import TaskModal from '@/components/pages/tasks/task-modal';
 import Chat from '@/components/pages/chat/chat';
 import Container from '@/components/common/container';
@@ -57,6 +58,7 @@ function transformTasksToEvents(tasks: TaskDto[]): EventInput[] {
 export default function Dashboard() {
   const [events, setEvents] = useState<EventInput[]>([]);
   const [tasks, setTasks] = useState<TaskDto[]>([]);
+  const [morningBriefing, setMorningBriefing] = useState<MorningBriefingDto | null>(null);
   const [selectedTask, setSelectedTask] = useState<TaskDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,10 +66,26 @@ export default function Dashboard() {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const fetchedTasks = await getTasks();
+      const [tasksResult, morningBriefingResult] = await Promise.allSettled([
+        getTasks(),
+        getMorningBriefing(),
+      ]);
+
+      if (tasksResult.status === 'rejected') {
+        throw tasksResult.reason;
+      }
+
+      const fetchedTasks = tasksResult.value;
       setTasks(fetchedTasks);
-      const calendarEvents = transformTasksToEvents(fetchedTasks);
-      setEvents(calendarEvents);
+      setEvents(transformTasksToEvents(fetchedTasks));
+
+      if (morningBriefingResult.status === 'fulfilled') {
+        setMorningBriefing(morningBriefingResult.value);
+      } else {
+        setMorningBriefing(null);
+        console.error('Failed to fetch morning briefing:', morningBriefingResult.reason);
+      }
+
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load tasks');
@@ -98,11 +116,11 @@ export default function Dashboard() {
   }
 
   return (
-    <main className="xl:flex xl:h-screen xl:overflow-hidden min-h-screen md:p-8">
-      <div className="flex-1 md:p-4 xl:h-full xl:overflow-hidden xl:flex xl:flex-col">
+    <main className="xl:flex xl:h-screen xl:overflow-hidden min-h-screen">
+      <div className="flex-1 xl:p-4 xl:h-full xl:overflow-hidden xl:flex xl:flex-col">
         <Chat />
       </div>
-      <div className="flex-1 rounded-lg shadow-lg md:p-4 xl:h-full xl:overflow-y-auto">
+      <div className="flex-1 rounded-lg shadow-lg xl:p-4 xl:h-full xl:overflow-y-auto">
         <Container className="p-4">
           <FullCalendar
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -126,21 +144,55 @@ export default function Dashboard() {
           />
         </Container>
         <Container className="p-4 my-4">
-          <b className="text-2xl p-4">Priorities:</b>
-          <ul>
-            {/*  Generate something like main priorities according current tasks className="ml-4 list-disc*/}
-            <li className="ml-4 list-disc">
-              Your main priority is completing your awesome super AI Assistant project MVP and
-              release it to the world.
-            </li>
-            <li className="ml-4 list-disc">
-              Don&#39;t forget for your main job and your project that give you money and stability.
-            </li>
-            <li className="ml-4 list-disc">
-              Research and planning for your next big project, you need to paperer plans and to
-              execute them.
-            </li>
-          </ul>
+          <div className="flex items-center justify-between gap-4">
+            <b className="text-2xl">Morning briefing</b>
+            <button
+              type="button"
+              onClick={fetchTasks}
+              className="rounded bg-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-700 cursor-pointer"
+            >
+              Refresh
+            </button>
+          </div>
+          {morningBriefing ? (
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="text-sm text-neutral-400">Daily tasks</p>
+                {morningBriefing.tasks.length > 0 ? (
+                  <ul className="mt-2 space-y-1">
+                    {morningBriefing.tasks.map(task => (
+                      <li key={task.id} className="text-sm">
+                        - {task.name} ({task.status}, {task.priority})
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-sm text-neutral-500">No tasks planned for today yet.</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-sm text-neutral-400">Top priorities (1-2)</p>
+                {morningBriefing.priorities.length > 0 ? (
+                  <ul className="mt-2 space-y-1">
+                    {morningBriefing.priorities.map(priority => (
+                      <li key={priority.id} className="text-sm">
+                        - {priority.name} ({priority.priority}) - {priority.reason}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-sm text-neutral-500">
+                    No active priorities right now. You can add a task to start planning.
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-neutral-500">
+              Morning briefing is unavailable right now.
+            </p>
+          )}
         </Container>
         <Container className="p-4 my-4">
           <b className="text-2xl p-4">Advices:</b>
