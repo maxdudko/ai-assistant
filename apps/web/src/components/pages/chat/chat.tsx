@@ -380,7 +380,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
                 }`}
               >
                 <div className="font-medium mb-1 flex items-center justify-between">
-                  <span className="bold">
+                  <span className="font-bold">
                     {message.role === 'USER' && '✨ ' + (user?.profile?.displayName || 'You')}
                     {message.role === 'ASSISTANT' && '💕 Mira'}
                     {message.role === 'SYSTEM' && 'System'}
