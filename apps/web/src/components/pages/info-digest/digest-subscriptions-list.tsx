@@ -132,9 +132,7 @@ const DigestSubscriptionsList: FC = () => {
           content={newSubscriptionButtonLabel}
         />
       </div>
-      <p className="mb-3 text-xs text-neutral-500">
-        MVP limit: up to {maxSubscriptions} topics.
-      </p>
+      <p className="mb-3 text-xs text-neutral-500">MVP limit: up to {maxSubscriptions} topics.</p>
 
       {error && (
         <div className="mb-4 rounded bg-red-600/20 border border-red-600/50 px-4 py-2 text-sm text-red-400">

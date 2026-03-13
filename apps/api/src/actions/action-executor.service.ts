@@ -101,10 +101,7 @@ export class ActionExecutorService {
     return undefined;
   }
 
-  private getTaskStatus(
-    payload: Record<string, unknown>,
-    fallbackStatus?: TaskStatus,
-  ): TaskStatus {
+  private getTaskStatus(payload: Record<string, unknown>, fallbackStatus?: TaskStatus): TaskStatus {
     const rawStatus = this.getOptionalString(payload, ['status', 'state']);
     if (!rawStatus) {
       if (fallbackStatus) {
