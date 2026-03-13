@@ -1,7 +1,7 @@
 'use client';
 
 import type { FC } from 'react';
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 
 import TaskModal from './task-modal';
 
@@ -10,13 +10,51 @@ import { getTasks, createTask, deleteTask } from '@/lib/api/tasks';
 import Container from '@/components/common/container';
 import Button from '@/components/common/button';
 
+function getTaskDayKey(task: TaskDto): string {
+  const source = task.day?.date || task.deadline || task.createdAt;
+  return source.split('T')[0];
+}
+
+function formatDayLabel(dayKey: string): string {
+  const todayKey = new Date().toISOString().split('T')[0];
+  if (dayKey === todayKey) {
+    return 'Today';
+  }
+
+  const date = new Date(`${dayKey}T00:00:00`);
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
 const TasksList: FC = () => {
+  const todayKey = new Date().toISOString().split('T')[0];
   const [tasks, setTasks] = useState<TaskDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<TaskDto | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [selectedDayKey, setSelectedDayKey] = useState(todayKey);
+
+  const dayKeys = useMemo(() => {
+    const uniqueKeys = new Set<string>(tasks.map(getTaskDayKey));
+    uniqueKeys.add(todayKey);
+    return Array.from(uniqueKeys).sort((a, b) => b.localeCompare(a));
+  }, [tasks, todayKey]);
+
+  const selectedDayIndex = useMemo(
+    () => dayKeys.findIndex(dayKey => dayKey === selectedDayKey),
+    [dayKeys, selectedDayKey],
+  );
+
+  const visibleTasks = useMemo(
+    () => tasks.filter(task => getTaskDayKey(task) === selectedDayKey),
+    [tasks, selectedDayKey],
+  );
 
   useEffect(() => {
     loadTasks();
@@ -83,6 +121,16 @@ const TasksList: FC = () => {
       console.error('Failed to delete task:', err);
       setError('Failed to delete task');
     }
+  };
+
+  const goToOlderDay = () => {
+    if (selectedDayIndex === -1 || selectedDayIndex >= dayKeys.length - 1) return;
+    setSelectedDayKey(dayKeys[selectedDayIndex + 1]);
+  };
+
+  const goToNewerDay = () => {
+    if (selectedDayIndex <= 0) return;
+    setSelectedDayKey(dayKeys[selectedDayIndex - 1]);
   };
 
   const getStatusBadgeColor = (status: TaskStatus): string => {
@@ -153,29 +201,70 @@ const TasksList: FC = () => {
         />
       </div>
 
+      <Container className="mb-4 p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={goToOlderDay}
+            disabled={selectedDayIndex === -1 || selectedDayIndex >= dayKeys.length - 1}
+            className="rounded bg-neutral-800 px-3 py-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            Older
+          </button>
+          <button
+            type="button"
+            onClick={goToNewerDay}
+            disabled={selectedDayIndex <= 0}
+            className="rounded bg-neutral-800 px-3 py-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            Newer
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedDayKey(todayKey)}
+            className="rounded bg-indigo-600/80 px-3 py-1 text-sm cursor-pointer"
+          >
+            Today
+          </button>
+          <span className="ml-2 text-sm text-neutral-300">
+            Showing: {formatDayLabel(selectedDayKey)} ({visibleTasks.length})
+          </span>
+        </div>
+      </Container>
+
       {error && (
         <div className="mb-4 rounded bg-red-600/20 border border-red-600/50 px-4 py-2 text-sm text-red-400">
           {error}
         </div>
       )}
 
-      {tasks.length === 0 ? (
+      {visibleTasks.length === 0 ? (
         <div className="flex h-full items-center justify-center">
           <div className="text-center text-neutral-400">
-            <p className="mb-2">No tasks yet</p>
-            <button
-              onClick={handleCreateNew}
-              disabled={isCreating}
-              className="text-indigo-400 hover:text-indigo-300 underline disabled:opacity-50 cursor-pointer"
-            >
-              Create your first task
-            </button>
+            <p className="mb-2">No tasks for {formatDayLabel(selectedDayKey).toLowerCase()}</p>
+            {selectedDayKey === todayKey ? (
+              <button
+                onClick={handleCreateNew}
+                disabled={isCreating}
+                className="text-indigo-400 hover:text-indigo-300 underline disabled:opacity-50 cursor-pointer"
+              >
+                Create your first task
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSelectedDayKey(todayKey)}
+                className="text-indigo-400 hover:text-indigo-300 underline cursor-pointer"
+              >
+                Back to today
+              </button>
+            )}
           </div>
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">
           <div className="space-y-2">
-            {tasks.map(task => (
+            {visibleTasks.map(task => (
               <Container key={task.id}>
                 <div
                   key={task.id}
