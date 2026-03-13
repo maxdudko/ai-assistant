@@ -1,4 +1,4 @@
-# Personal Manager Assistant (PMA)
+# Personal Manager Assistant (MIRA)
 
 **Version:** v0.1 (MVP)
 
@@ -30,7 +30,7 @@ Existing tools (task managers, calendars, notes, chatbots):
 
 ### 1.2. Solution
 
-**PMA (Personal Manager Assistant)** is a personal AI assistant that:
+**MIRA** is a personal AI assistant that:
 
 - understands the user's context
 - helps manage daily life
@@ -38,7 +38,7 @@ Existing tools (task managers, calendars, notes, chatbots):
 - interacts through dialogue
 - reduces cognitive and emotional load
 
-PMA does not replace the user,
+MIRA does not replace the user,
 but **works alongside them** as:
 
 - personal manager
@@ -51,7 +51,7 @@ but **works alongside them** as:
 
 > **"One person - one personal AI context"**
 
-PMA is not just a chat with LLM, but a **long-lived personal agent** that becomes increasingly personalized over time.
+MIRA is not just a chat with LLM, but a **long-lived personal agent** that becomes increasingly personalized over time.
 
 ---
 
@@ -133,7 +133,7 @@ Features:
 
 ### 2.5. Memory (RAG)
 
-PMA has a long-term memory.
+MIRA has a long-term memory.
 
 Memory types:
 
@@ -157,7 +157,7 @@ Features:
 MVP version:
 
 - the user selects topics
-- PMA produces brief, neutral summaries
+- MIRA produces brief, neutral summaries
 - without emotional coloring or manipulation
 
 ---
@@ -256,7 +256,7 @@ DB + Vector Storage
 
 ## 4. Long-Term Vision
 
-PMA is seen as:
+MIRA is seen as:
 
 - the foundation for personal AI
 - a personal digital twin

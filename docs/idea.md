@@ -6,7 +6,7 @@
 
 ### 🔹 Project idea:
 
-**PMA is a personal AI assistant that helps people manage their lives:
+**MIRA is a personal AI assistant that helps people manage their lives:
 it plans their day, tracks tasks and goals, filters information, reminds them of important things, maintains memory, and maintains a 24/7 dialogue—like a personal manager, assistant, and companion.
 It does not replace humans. It removes routine, reduces chaos, and restores control.**
 
@@ -22,7 +22,7 @@ It does not replace humans. It removes routine, reduces chaos, and restores cont
 
 ---
 
-### 🔹 PMA functionality (core)
+### 🔹 MIRA functionality (core)
 
 #### 🧩 1. Personal initialization
 
@@ -56,7 +56,7 @@ It does not replace humans. It removes routine, reduces chaos, and restores cont
 
 #### 🧩 4. Continuous Memory (RAG)
 
-- PMA remembers:
+- MIRA remembers:
   - what you said
   - what's important to you
   - what you hate
@@ -72,7 +72,7 @@ It does not replace humans. It removes routine, reduces chaos, and restores cont
 - alerts
 - NEVER spam
 
-👉 PMA is non-irritating
+👉 MIRA is non-irritating
 
 #### 🧩 6. Personal Info Digest (Lite TruthLens)
 
@@ -81,7 +81,7 @@ It does not replace humans. It removes routine, reduces chaos, and restores cont
   - technology
   - work
   - hobbies
-- PMA gives a short, rational summary
+- MIRA gives a short, rational summary
 - No news feed, just digest
 
 👉 The first step to TruthLens (Personal information analyst with critical thinking)
@@ -97,7 +97,7 @@ It does not replace humans. It removes routine, reduces chaos, and restores cont
 
 ---
 
-### 🔹 UX: One day with PMA
+### 🔹 UX: One day with MIRA
 
 - Morning:
   - "Good morning. Today I have 3 key tasks. Would you like to start with the most difficult one?"

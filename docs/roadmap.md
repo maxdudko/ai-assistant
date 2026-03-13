@@ -1,4 +1,4 @@
-# PMA — Product Roadmap
+# MIRA — Product Roadmap
 
 Version: **v0.1 → v1.0**
 
@@ -12,11 +12,11 @@ This roadmap answers three key questions:
 
 1. **What are we building initially?** (MVP, v0.1)
 2. **How ​​do we validate product value?** (v0.2–v0.3)
-3. **What can PMA evolve into?** (v0.4+)
+3. **What can MIRA evolve into?** (v0.4+)
 
 Principle:
 
-> **Each version reinforces the feeling: "PMA understands me and helps me think more clearly."**
+> **Each version reinforces the feeling: "MIRA understands me and helps me think more clearly."**
 
 ---
 
@@ -188,7 +188,7 @@ Create a sustainable personal AI agent.
 ### Capabilities
 
 - Long-term user model
-- Predictability of PMA behavior
+- Predictability of MIRA behavior
 - Context across days and weeks
 
 ⚠️ Still:
@@ -201,7 +201,7 @@ Create a sustainable personal AI agent.
 ## 🌱 v1.0 — Personal AI Platform
 
 **Vision:**
-PMA as a personal interface between humans and the digital world.
+MIRA as a personal interface between humans and the digital world.
 
 ### Possible Directions
 

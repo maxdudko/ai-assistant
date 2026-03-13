@@ -105,13 +105,17 @@ const Onboarding: FC = () => {
 
   const renderStep1 = () => (
     <div className="space-y-6">
-      <h2 className="text-2xl font-semibold">Welcome 👋</h2>
-      <p className="text-lg">I am your personal AI Assistant, I will help you:</p>
+      <h2 className="text-2xl font-semibold mb-2">👋 Welcome! My name is Mira 💕</h2>
+      <p className="text-lg mb-2">
+        I am your thoughtful personal companion for thinking, planning and reflection.
+      </p>
+      <p className="text-lg mb-2">I will help you:</p>
       <ul className="space-y-2 text-neutral-300">
-        <li>✅ Manage your daily tasks and goals.</li>
-        <li>✅ Stay organized and focused.</li>
-        <li>✅ Stay on track and achieve your goals.</li>
-        <li>✅ Stay motivated and inspired.</li>
+        <li>✅ Manage your daily tasks and goals;</li>
+        <li>🧠 Reflect on your day and learn from your experiences;</li>
+        <li>⏰ Plan your day effectively and mindfully;</li>
+        <li>🎯 Stay focused on what matters most to you;</li>
+        <li>💡 And much more, tailored to your needs and preferences!</li>
       </ul>
       <Button type="button" onClick={handleNext} content="Next" className="w-full" />
     </div>

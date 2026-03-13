@@ -20,6 +20,7 @@ import {
 } from '@/lib/api/conversations';
 import { confirmAction as confirmActionApi } from '@/lib/api/actions';
 import Container from '@/components/common/container';
+import { useAuth } from '@/lib/api/AuthContext';
 
 interface ChatProps {
   conversationId?: string;
@@ -28,6 +29,7 @@ interface ChatProps {
 type ChatMessage = MessageDto & { actions?: ActionCandidate[] };
 
 const Chat: FC<ChatProps> = ({ conversationId }) => {
+  const { user } = useAuth();
   const [conversation, setConversation] = useState<ConversationDto | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -360,7 +362,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
       <Container className="flex-1 space-y-2 overflow-y-auto p-4 min-h-0">
         {messages.length === 0 ? (
           <ReactMarkdown>
-            PMA: How can I help you today? Start by planning your day or asking a question.
+            Mira: How can I help you today? Start by planning your day or asking a question.
           </ReactMarkdown>
         ) : (
           messages.map(message => (
@@ -379,8 +381,8 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
               >
                 <div className="font-medium mb-1 flex items-center justify-between">
                   <span className="underline">
-                    {message.role === 'USER' && 'You'}
-                    {message.role === 'ASSISTANT' && 'AI Assistant'}
+                    {message.role === 'USER' && (user?.profile?.displayName || 'You')}
+                    {message.role === 'ASSISTANT' && 'Mira'}
                     {message.role === 'SYSTEM' && 'System'}
                   </span>
                   <span className="text-xs font-normal opacity-70 ml-2">

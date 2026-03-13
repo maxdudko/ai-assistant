@@ -1,6 +1,6 @@
 # @ai/ai-core
 
-AI Core package for PMA (Personal Manager Assistant)
+AI Core package for MIRA
 
 This package provides a framework-agnostic AI service layer with:
 

@@ -1,14 +1,14 @@
-# PMA — Personal Manager Assistant
+# MIRA — Personal AI Assistant
 
-**PMA** is a personal AI-powered assistant designed to help individuals manage their daily life, reduce cognitive load, and think more clearly in an information-saturated world.
+**MIRA** is a personal AI-powered assistant designed to help individuals manage their daily life, reduce cognitive load, and think more clearly in an information-saturated world.
 
 This project is about **augmenting individual autonomy, clarity, and control** — not replacing humans with AI.
 
 ---
 
-## 🎯 What is PMA?
+## 🎯 What is MIRA?
 
-PMA is a **stateful personal AI agent** that:
+MIRA is a **stateful personal AI agent** that:
 
 - Understands user context through long-term memory
 - Remembers preferences, patterns, and habits
@@ -16,7 +16,7 @@ PMA is a **stateful personal AI agent** that:
 - Provides rational, calm support across different modes
 - Grows and adapts with the user over time
 
-Unlike generic chatbots, PMA maintains **persistent personal context**, making interactions increasingly relevant and personalized through vector-based memory retrieval (RAG).
+Unlike generic chatbots, MIRA maintains **persistent personal context**, making interactions increasingly relevant and personalized through vector-based memory retrieval (RAG).
 
 ---
 
@@ -282,7 +282,7 @@ Easily extensible for Anthropic, Google, etc.
 
 #### 2. Conversation Modes
 
-PMA adapts its behavior based on the current mode:
+MIRA adapts its behavior based on the current mode:
 
 | Mode           | Purpose                     | System Prompt Focus            |
 | -------------- | --------------------------- | ------------------------------ |
@@ -603,6 +603,6 @@ To be defined.
 
 ---
 
-**PMA is about empowering individuals — not automating them away.**
+**MIRA is about empowering individuals — not automating them away.**
 
 For questions or support, please open an issue on GitHub.

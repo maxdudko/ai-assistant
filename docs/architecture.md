@@ -19,7 +19,7 @@
 
 ### Purpose
 
-PMA (Personal Manager Assistant) is a **stateful, context-aware AI assistant** designed to help individuals manage their daily life through:
+MIRA is a **stateful, context-aware AI assistant** designed to help individuals manage their daily life through:
 
 - Intelligent task and goal management
 - Long-term memory using vector embeddings (RAG)
@@ -1295,4 +1295,4 @@ import {
 
 **Document Version**: 1.0  
 **Last Updated**: 2026-02-14  
-**Maintainer**: PMA Development Team
+**Maintainer**: MIRA Development Team
