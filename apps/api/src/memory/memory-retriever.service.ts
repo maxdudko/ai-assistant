@@ -60,11 +60,11 @@ export class MemoryRetrieverService {
         content,
         importance,
         tags,
-        embedding <-> $2::vector(1536) AS distance
+        embedding <-> $2::vector AS distance
       FROM "Memory"
       WHERE "userId" = $1
         AND embedding IS NOT NULL
-      ORDER BY embedding <-> $2::vector(1536)
+      ORDER BY embedding <-> $2::vector
       LIMIT $3
       `,
       userId,

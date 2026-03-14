@@ -16,7 +16,7 @@ export class OllamaEmbeddingsService implements EmbeddingsService {
       'OLLAMA_EMBED_MODEL',
       this.configService.get<string>('OLLAMA_MODEL', 'nomic-embed-text'),
     );
-    this.dimension = Number(this.configService.get<string>('EMBEDDING_DIM', '1536'));
+    this.dimension = Number(this.configService.get<string>('EMBEDDING_DIM', '3072'));
 
     // Warn if using a model that likely doesn't support embeddings
     const commonChatModels = ['gemma', 'llama', 'mistral', 'phi', 'qwen'];

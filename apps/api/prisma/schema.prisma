@@ -209,7 +209,7 @@ model Memory {
   dayId          String?
   conversationId String?
 
-  embedding Unsupported("vector(1536)")?
+  embedding Unsupported("vector(3072)")?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
