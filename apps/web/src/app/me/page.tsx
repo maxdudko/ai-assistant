@@ -121,7 +121,7 @@ export default function Dashboard() {
         <Chat />
       </div>
       <div className="flex-1 rounded-lg shadow-lg xl:p-4 xl:h-full xl:overflow-y-auto">
-        <Container className="p-4">
+        <Container className="p-4 min-w-0 overflow-x-auto">
           <FullCalendar
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
             initialView="dayGridMonth"
@@ -132,6 +132,11 @@ export default function Dashboard() {
             }}
             events={events}
             height="auto"
+            dayMaxEventRows={3}
+            moreLinkClick="popover"
+            eventDidMount={info => {
+              info.el.setAttribute('title', info.event.title ?? '');
+            }}
             eventClick={info => {
               const eventId = info.event.id;
               const task = tasks.find(t => t.id === eventId);
