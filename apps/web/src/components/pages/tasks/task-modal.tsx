@@ -108,7 +108,11 @@ const TaskModal: FC<TaskModalProps> = ({ task, onClose, onDelete, onUpdate }) =>
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events,jsx-a11y/no-static-element-interactions
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+      onClick={onClose}
+    >
       <Container className="w-full max-w-2xl rounded-lg border p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-2xl font-semibold">Task Details</h2>
