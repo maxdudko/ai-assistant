@@ -10,18 +10,42 @@ import { getTasks, createTask, deleteTask } from '@/lib/api/tasks';
 import Container from '@/components/common/container';
 import Button from '@/components/common/button';
 
+function formatLocalDayKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function toDayKey(value: string | Date): string {
+  if (value instanceof Date) {
+    return formatLocalDayKey(value);
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value.split('T')[0];
+  }
+
+  return formatLocalDayKey(parsed);
+}
+
 function getTaskDayKey(task: TaskDto): string {
   const source = task.day?.date || task.deadline || task.createdAt;
-  return source.split('T')[0];
+  return toDayKey(source);
 }
 
 function formatDayLabel(dayKey: string): string {
-  const todayKey = new Date().toISOString().split('T')[0];
+  const todayKey = toDayKey(new Date());
   if (dayKey === todayKey) {
     return 'Today';
   }
 
-  const date = new Date(`${dayKey}T00:00:00`);
+  const date = new Date(`${dayKey}T12:00:00`);
   return date.toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
@@ -31,7 +55,7 @@ function formatDayLabel(dayKey: string): string {
 }
 
 const TasksList: FC = () => {
-  const todayKey = new Date().toISOString().split('T')[0];
+  const todayKey = toDayKey(new Date());
   const [tasks, setTasks] = useState<TaskDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
