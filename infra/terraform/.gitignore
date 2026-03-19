@@ -1,0 +1,22 @@
+# Secret variable values
+*.tfvars
+!terraform.tfvars.example
+
+# Terraform working directory
+.terraform/
+.terraform.lock.hcl
+
+# State files (use remote backend for teams)
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

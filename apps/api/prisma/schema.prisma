@@ -7,8 +7,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Pooled URL (PgBouncer) — used by the running app
+  url       = env("DATABASE_URL")
+  // Direct URL — used by prisma migrate deploy (DDL requires a direct connection)
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 // ================================
