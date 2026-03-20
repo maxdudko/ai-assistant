@@ -1,6 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConversationMode, TaskStatus } from '@prisma/client';
-
 import {
   buildSystemPrompt,
   messagesToLlmFormat,
@@ -8,6 +7,7 @@ import {
   ConversationMode as CoreConversationMode,
   MessageRole as CoreMessageRole,
 } from '@ai/ai-core';
+
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { ConversationState, ConversationType } from '../prisma/types';

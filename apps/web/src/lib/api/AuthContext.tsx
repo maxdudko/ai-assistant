@@ -3,8 +3,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 import type { UserDto } from '../api/types';
-import { ACCESS_TOKEN_TTL_MS, refreshSession } from './client';
 import { userApi } from '../api/user';
+
+import { ACCESS_TOKEN_TTL_MS, refreshSession } from './client';
 
 interface AuthState {
   user: UserDto | null;

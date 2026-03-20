@@ -187,9 +187,7 @@ export class DailyFlowScheduler {
     const lines: string[] = [`Good morning, ${name}!`];
 
     if (pending.length === 0) {
-      lines.push(
-        `Your day is clear — no tasks pending. What would you like to focus on today?`,
-      );
+      lines.push(`Your day is clear — no tasks pending. What would you like to focus on today?`);
     } else {
       lines.push(
         `You have **${pending.length} task${pending.length !== 1 ? 's' : ''}** pending today.`,
