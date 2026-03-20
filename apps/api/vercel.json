@@ -20,5 +20,15 @@
       "src": "/(.*)",
       "dest": "/api/index.ts"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/scheduler/morning-briefing",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/scheduler/evening-reflection",
+      "schedule": "0 20 * * *"
+    }
   ]
 }

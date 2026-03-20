@@ -329,6 +329,9 @@ model Day {
   endedAt   DateTime?
   createdAt DateTime  @default(now())
 
+  morningBriefingSentAt   DateTime?
+  eveningReflectionSentAt DateTime?
+
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   tasks         Task[]
   conversations Conversation[]
