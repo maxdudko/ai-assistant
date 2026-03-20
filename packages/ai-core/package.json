@@ -2,7 +2,7 @@
   "name": "@ai/ai-core",
   "version": "0.1.0",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json --clean && tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch"
   },
   "main": "./dist/index.js",
