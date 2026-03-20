@@ -4,7 +4,7 @@ import Container from '@/components/common/container';
 export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
-      <Container className="max-w-3xl w-full space-y-8 text-center p-4">
+      <Container className="max-w-3xl w-full space-y-8 text-center p-4 md:p-8">
         {/* Hero Section */}
         <div className="space-y-4">
           <h1 className="text-2xl md:text-4xl font-bold text-white-900">Personal AI Assistant</h1>
@@ -59,13 +59,13 @@ export default function Home() {
             type="link"
             href="/auth/register"
             content="Get Started"
-            // className="w-full sm:w-auto px-8 py-3 bg-white-900 text-white font-semibold rounded-lg hover:bg-gray-800 transition-colors duration-200 shadow-md hover:shadow-lg"
+            className="min-w-38 w-full sm:w-auto px-8 py-3 bg-white-900 text-white font-semibold rounded-lg hover:bg-gray-800 transition-colors duration-200 shadow-md hover:shadow-lg"
           ></Button>
           <Button
             type="link"
             href="/auth/login"
             content="Login"
-            // className="w-full sm:w-auto px-8 py-3 bg-white text-white-900 font-semibold rounded-lg border-2 border-gray-300 hover:border-gray-400 transition-colors duration-200 shadow-sm hover:shadow-md"
+            className="min-w-38 w-full sm:w-auto px-8 py-3 text-white-900 font-semibold rounded-lg border-2 border-gray-300 hover:border-gray-400 transition-colors duration-200 shadow-sm hover:shadow-md"
           ></Button>
         </div>
       </Container>
