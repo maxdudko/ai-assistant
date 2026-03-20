@@ -4,7 +4,7 @@ import Container from '@/components/common/container';
 export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
-      <Container className="max-w-3xl w-full space-y-8 text-center p-4 md:p-8">
+      <Container className="max-w-4xl w-full space-y-8 text-center p-4 md:p-8">
         {/* Hero Section */}
         <div className="space-y-4">
           <h1 className="text-2xl md:text-4xl font-bold text-white-900">Personal AI Assistant</h1>
