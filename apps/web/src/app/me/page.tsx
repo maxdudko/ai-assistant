@@ -117,7 +117,7 @@ export default function Dashboard() {
 
   return (
     <main className="xl:flex xl:h-screen xl:overflow-hidden min-h-screen">
-      <div className="flex-1 xl:p-4 xl:h-full xl:overflow-hidden xl:flex xl:flex-col">
+      <div className="flex-1 xl:p-4 xl:h-[90vh] xl:overflow-hidden xl:flex xl:flex-col">
         <Chat />
       </div>
       <div className="flex-1 rounded-lg shadow-lg xl:p-4 xl:h-full xl:overflow-y-auto">
