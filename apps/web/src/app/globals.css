@@ -37,7 +37,7 @@ body {
 .fc-theme-standard .fc-popover-header {
   background: rgba(0, 0, 0, 0.8);
 }
-  /* FullCalendar responsive header – scale down with screen width */
+/* FullCalendar responsive header – scale down with screen width */
 .fc .fc-toolbar {
   flex-wrap: wrap;
   gap: 0.5rem;

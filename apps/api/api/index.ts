@@ -13,10 +13,11 @@
  */
 
 import 'reflect-metadata';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
-import type { IncomingMessage, ServerResponse } from 'node:http';
 
 type ExpressHandler = (req: IncomingMessage, res: ServerResponse) => void;
 
@@ -25,7 +26,6 @@ let cachedHandler: ExpressHandler | null = null;
 async function bootstrap(): Promise<ExpressHandler> {
   if (cachedHandler) return cachedHandler;
 
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { AppModule } = require('../dist/app.module') as {
     AppModule: new () => unknown;
   };
@@ -51,17 +51,12 @@ async function bootstrap(): Promise<ExpressHandler> {
 
   await app.init();
 
-  cachedHandler = app
-    .getHttpAdapter()
-    .getInstance() as ExpressHandler;
+  cachedHandler = app.getHttpAdapter().getInstance() as ExpressHandler;
 
   return cachedHandler;
 }
 
-export default async function handler(
-  req: IncomingMessage,
-  res: ServerResponse,
-): Promise<void> {
+export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const server = await bootstrap();
   server(req, res);
 }

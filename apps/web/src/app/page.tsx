@@ -1,4 +1,4 @@
-import Button from '@/components/button';
+import Button from '@/components/common/button';
 import Container from '@/components/common/container';
 
 export default function Home() {
