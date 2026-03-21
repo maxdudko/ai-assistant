@@ -28,4 +28,9 @@ export class DaysController {
   getSummary(@Req() req) {
     return this.daysService.getSummary(req.user.id);
   }
+
+  @Get('morning-briefing')
+  getMorningBriefing(@Req() req) {
+    return this.daysService.getMorningBriefing(req.user.id);
+  }
 }

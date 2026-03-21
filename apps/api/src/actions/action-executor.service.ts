@@ -30,15 +30,15 @@ export class ActionExecutorService {
       case 'TASK_UPDATE_STATUS':
         await this.tasksService.updateStatus(
           userId,
-          this.getRequiredString(action.payload, ['task_id']),
-          this.getTaskStatus(action.payload),
+          this.getRequiredString(action.payload, ['task_id', 'taskId']),
+          this.getTaskStatus(action.payload, TaskStatus.DONE),
         );
         break;
 
       case 'TASK_COMPLETE':
         await this.tasksService.updateStatus(
           userId,
-          this.getRequiredString(action.payload, ['task_id']),
+          this.getRequiredString(action.payload, ['task_id', 'taskId']),
           TaskStatus.DONE,
         );
         break;
@@ -46,7 +46,7 @@ export class ActionExecutorService {
       case 'TASK_SET_PRIORITY':
         await this.tasksService.update(
           userId,
-          this.getRequiredString(action.payload, ['task_id']),
+          this.getRequiredString(action.payload, ['task_id', 'taskId']),
           {
             priority: this.getRequiredTaskPriority(action.payload, ['priority']),
           },
@@ -56,7 +56,7 @@ export class ActionExecutorService {
       case 'TASK_SET_DUE_DATE':
         await this.tasksService.update(
           userId,
-          this.getRequiredString(action.payload, ['task_id']),
+          this.getRequiredString(action.payload, ['task_id', 'taskId']),
           {
             deadline: this.getRequiredString(action.payload, ['dueDate', 'deadline']),
           },
@@ -81,8 +81,6 @@ export class ActionExecutorService {
   }
 
   private getRequiredString(payload: Record<string, unknown>, keys: string[]): string {
-    console.log(payload, keys);
-    // TODO: status field in payload ???
     for (const key of keys) {
       const value = payload[key];
       // if (typeof value === 'string' && value.trim().length > 0) {
@@ -103,8 +101,16 @@ export class ActionExecutorService {
     return undefined;
   }
 
-  private getTaskStatus(payload: Record<string, unknown>): TaskStatus {
-    const status = this.getRequiredString(payload, ['status']).toUpperCase();
+  private getTaskStatus(payload: Record<string, unknown>, fallbackStatus?: TaskStatus): TaskStatus {
+    const rawStatus = this.getOptionalString(payload, ['status', 'state']);
+    if (!rawStatus) {
+      if (fallbackStatus) {
+        return fallbackStatus;
+      }
+      throw new BadRequestException('Missing required field: status');
+    }
+
+    const status = rawStatus.toUpperCase();
     if (status === TaskStatus.TODO) return TaskStatus.TODO;
     if (status === TaskStatus.IN_PROGRESS) return TaskStatus.IN_PROGRESS;
     if (status === TaskStatus.DONE) return TaskStatus.DONE;

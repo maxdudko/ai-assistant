@@ -49,7 +49,7 @@ export class MemoryIngestionService {
           ${c.importance},
           ${c.tags ?? []}::text[],
           ${source}::"MemorySource",
-          ${JSON.stringify(embedding)}::vector(1536),
+          ${JSON.stringify(embedding)}::vector,
           ${context.dayId ?? null}::uuid,
           ${context.conversationId ?? null}::uuid,
           NOW(),

@@ -1,7 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ConversationMode, MessageRole } from '@prisma/client';
-
 import {
   AiService as CoreAiService,
   OllamaProvider,
@@ -17,11 +16,10 @@ import {
   type LlmRequest,
   ConversationMode as CoreConversationMode,
   MessageRole as CoreMessageRole,
-} from '../../../../packages/ai-core/src/index';
-import {
   buildInfoSearchQueryPrompt,
   buildInfoDigestSummarizationPrompt,
-} from '../../../../packages/ai-core/src/prompts/info-digest.prompts';
+} from '@ai/ai-core';
+
 import type { SearchResult } from '../search/search.types';
 
 interface Message {

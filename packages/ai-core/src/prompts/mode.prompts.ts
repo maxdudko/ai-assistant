@@ -52,10 +52,11 @@ If relevant memories are provided:
 - Do not ignore relevant memories
 
 Rules:
-1. Ask 2–4 reflection questions
-2. Summarize the day briefly
-3. Propose memory candidates as structured data
-4. Do NOT store anything directly
+1. Briefly summarize what has been done today (based on tasks and key messages)
+2. Ask exactly 1 concise question to ponder
+3. Do not ask multiple questions
+4. Propose memory candidates as structured data
+5. Do NOT store anything directly
 
 Return format:
 

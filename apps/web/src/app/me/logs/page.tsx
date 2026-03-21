@@ -1,4 +1,4 @@
-import LogsList from '@/components/logs-list';
+import LogsList from '@/components/pages/logs/logs-list';
 
 export default function LogsPage() {
   return (

@@ -7,8 +7,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Pooled URL (PgBouncer) — used by the running app
+  url       = env("DATABASE_URL")
+  // Direct URL — used by prisma migrate deploy (DDL requires a direct connection)
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 // ================================
@@ -114,13 +117,15 @@ enum DigestFrequency {
 // ================================
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  refreshTokenHash String?
-  tokenVersion Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                   String    @id @default(uuid())
+  email                String    @unique
+  passwordHash         String
+  refreshTokenHash     String?
+  tokenVersion         Int       @default(0)
+  passwordResetToken   String?
+  passwordResetExpires DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   profile             UserProfile?
   conversations       Conversation[]
@@ -207,7 +212,7 @@ model Memory {
   dayId          String?
   conversationId String?
 
-  embedding Unsupported("vector(1536)")?
+  embedding Unsupported("vector(3072)")?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -323,6 +328,9 @@ model Day {
   startedAt DateTime?
   endedAt   DateTime?
   createdAt DateTime  @default(now())
+
+  morningBriefingSentAt   DateTime?
+  eveningReflectionSentAt DateTime?
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   tasks         Task[]

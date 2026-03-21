@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, fetchWithAuth, redirectToLoginIfUnauthorized } from './client';
 import type {
   ConversationDto,
   SendMessageRequest,
@@ -6,8 +6,6 @@ import type {
   SendMessageStreamEvent,
   SwitchModeRequest,
 } from './types';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 export async function getDailyConversation(): Promise<ConversationDto> {
   return apiFetch<ConversationDto>('/api/conversations/daily');
@@ -36,16 +34,13 @@ export async function sendMessageStream(
     onComplete?: (result: SendMessageResponse) => void;
   },
 ): Promise<SendMessageResponse> {
-  const response = await fetch(`${API_URL}/api/conversations/message/stream`, {
+  const response = await fetchWithAuth('/api/conversations/message/stream', {
     method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify(request),
   });
 
   if (!response.ok) {
+    redirectToLoginIfUnauthorized('/api/conversations/message/stream', response.status);
     throw new Error(await response.text());
   }
 

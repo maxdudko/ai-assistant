@@ -52,6 +52,20 @@ export interface RegisterRequest {
   password: string;
 }
 
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export type ConversationMode = 'MANAGER' | 'REFLECTION' | 'COMPANION' | 'INFO';
 export type ConversationState = 'CREATED' | 'ACTIVE' | 'ARCHIVED';
 export type ConversationType = 'DAILY' | 'AD_HOC';
@@ -244,6 +258,28 @@ export interface DaySummaryDto {
     } | null;
     createdAt: string;
     updatedAt: string;
+  }>;
+}
+
+export interface MorningBriefingDto {
+  day: {
+    id: string;
+    date: string;
+    state: DayState;
+  };
+  tasks: Array<{
+    id: string;
+    name: string;
+    status: TaskStatus;
+    priority: TaskPriority;
+    deadline: string | null;
+  }>;
+  priorities: Array<{
+    id: string;
+    name: string;
+    priority: TaskPriority;
+    deadline: string | null;
+    reason: string;
   }>;
 }
 

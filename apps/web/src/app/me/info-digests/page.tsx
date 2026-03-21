@@ -1,4 +1,4 @@
-import DigestSubscriptionsList from '@/components/digest-subscriptions-list';
+import DigestSubscriptionsList from '@/components/pages/info-digest/digest-subscriptions-list';
 
 export default function InfoDigestsPage() {
   return (

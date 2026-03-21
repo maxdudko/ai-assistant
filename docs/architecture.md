@@ -19,7 +19,7 @@
 
 ### Purpose
 
-PMA (Personal Manager Assistant) is a **stateful, context-aware AI assistant** designed to help individuals manage their daily life through:
+MIRA is a **stateful, context-aware AI assistant** designed to help individuals manage their daily life through:
 
 - Intelligent task and goal management
 - Long-term memory using vector embeddings (RAG)
@@ -45,48 +45,48 @@ PMA (Personal Manager Assistant) is a **stateful, context-aware AI assistant** d
 ┌─────────────────────────────────────────────────────────────┐
 │                    PRESENTATION LAYER                       │
 │              Next.js 16 (React 19 + App Router)             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Auth Pages   │  │ Chat UI      │  │ Management   │     │
-│  │ (SSR)        │  │ (Streaming)  │  │ (Tasks/Goals)│     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │ Auth Pages   │  │ Chat UI      │  │ Management   │       │
+│  │ (SSR)        │  │ (Streaming)  │  │ (Tasks/Goals)│       │
+│  └──────────────┘  └──────────────┘  └──────────────┘       │
 └────────────────────────────┬────────────────────────────────┘
                              │ REST API + SSE
                              ↓
-┌─────────────────────────────────────────────────────────────┐
-│                   APPLICATION LAYER                         │
-│                  NestJS (Node.js Backend)                   │
+┌────────────────────────────────────────────────────────────┐
+│                   APPLICATION LAYER                        │
+│                  NestJS (Node.js Backend)                  │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │               Controllers (HTTP Handlers)             │  │
+│  │               Controllers (HTTP Handlers)            │  │
 │  │  Authentication | Conversations | Tasks | etc.       │  │
 │  └──────────────────────┬───────────────────────────────┘  │
-│                         │                                   │
+│                         │                                  │
 │  ┌──────────────────────▼───────────────────────────────┐  │
 │  │              Services (Business Logic)               │  │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌───────────┐  │  │
-│  │  │Conversations │  │    Memory    │  │  Actions  │  │  │
-│  │  │Orchestrator  │  │ (RAG System) │  │ Executor  │  │  │
-│  │  └──────┬───────┘  └──────┬───────┘  └─────┬─────┘  │  │
-│  │         │                  │                │        │  │
-│  │  ┌──────▼──────┐   ┌──────▼───────┐  ┌────▼─────┐  │  │
-│  │  │ AI Adapter  │   │  Embeddings  │  │  Tasks   │  │  │
-│  │  │ (Type Map)  │   │   Service    │  │  Service │  │  │
-│  │  └──────┬──────┘   └──────────────┘  └──────────┘  │  │
-│  └─────────┼─────────────────────────────────────────────┘  │
-└────────────┼────────────────────────────────────────────────┘
+│  │  ┌──────────────┐  ┌──────────────┐  ┌───────────┐   │  │
+│  │  │Conversations │  │    Memory    │  │  Actions  │   │  │
+│  │  │Orchestrator  │  │ (RAG System) │  │ Executor  │   │  │
+│  │  └──────┬───────┘  └──────┬───────┘  └────┬──────┘   │  │
+│  │         │                 │               │          │  │
+│  │  ┌──────▼──────┐   ┌──────▼───────┐  ┌────▼─────┐    │  │
+│  │  │ AI Adapter  │   │  Embeddings  │  │  Tasks   │    │  │
+│  │  │ (Type Map)  │   │   Service    │  │  Service │    │  │
+│  │  └──────┬──────┘   └──────────────┘  └──────────┘    │  │
+│  └─────────┼────────────────────────────────────────────┘  │
+└────────────┼───────────────────────────────────────────────┘
              │
              ↓
-┌─────────────────────────────────────────────────────────────┐
-│                    AI CORE LAYER                            │
-│          Framework-Agnostic AI Logic (@ai/ai-core)          │
+┌────────────────────────────────────────────────────────────┐
+│                    AI CORE LAYER                           │
+│          Framework-Agnostic AI Logic (@ai/ai-core)         │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │              AiService (Orchestrator)                 │  │
-│  └────┬──────────────┬──────────────┬───────────────────┘  │
-│       │              │              │                       │
-│  ┌────▼────┐  ┌──────▼──────┐  ┌───▼──────┐               │
-│  │ Prompts │  │  Providers  │  │  Memory  │               │
-│  │ Builder │  │  (Ollama/   │  │ Extractor│               │
-│  │         │  │   OpenAI)   │  │          │               │
-│  └─────────┘  └──────┬──────┘  └──────────┘               │
+│  │              AiService (Orchestrator)                │  │
+│  └────┬──────────────┬─────────────┬────────────────────┘  │
+│       │              │             │                       │
+│  ┌────▼────┐  ┌──────▼──────┐  ┌───▼──────┐                │
+│  │ Prompts │  │  Providers  │  │  Memory  │                │
+│  │ Builder │  │  (Ollama/   │  │ Extractor│                │
+│  │         │  │   OpenAI)   │  │          │                │
+│  └─────────┘  └───────┬─────┘  └──────────┘                │
 └───────────────────────┼────────────────────────────────────┘
                         │ HTTP/API
                         ↓
@@ -95,13 +95,13 @@ PMA (Personal Manager Assistant) is a **stateful, context-aware AI assistant** d
               │  (Ollama/OpenAI)   │
               └────────────────────┘
 
-┌─────────────────────────────────────────────────────────────┐
-│                  PERSISTENCE LAYER                          │
+┌───────────────────────────────────────────────────────────┐
+│                  PERSISTENCE LAYER                        │
 │  ┌──────────────────────┐  ┌───────────────────────────┐  │
 │  │   PostgreSQL         │  │    pgvector Extension     │  │
 │  │   (Relational Data)  │  │  (Vector Embeddings)      │  │
 │  └──────────────────────┘  └───────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+└───────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -126,7 +126,7 @@ PMA (Personal Manager Assistant) is a **stateful, context-aware AI assistant** d
 **Routing Structure**:
 
 ```
-/                          # Landing page
+/                         # Landing page
 /auth/login               # Login page
 /auth/register            # Registration page
 /auth/onboarding          # Initial setup wizard
@@ -165,69 +165,69 @@ PMA (Personal Manager Assistant) is a **stateful, context-aware AI assistant** d
 
 ```
 src/
-├── auth/              # Authentication & authorization
-│   ├── auth.service.ts        # Login, register, token management
-│   ├── jwt.strategy.ts        # JWT validation strategy
-│   └── jwt.guard.ts           # Route protection
+├── auth/                            # Authentication & authorization
+│   ├── auth.service.ts              # Login, register, token management
+│   ├── jwt.strategy.ts              # JWT validation strategy
+│   └── jwt.guard.ts                 # Route protection
 │
-├── users/             # User management
-│   ├── users.service.ts       # CRUD operations
-│   └── dto/                   # Update profile DTOs
+├── users/                           # User management
+│   ├── users.service.ts             # CRUD operations
+│   └── dto/                         # Update profile DTOs
 │
-├── conversations/     # Chat orchestration (PRIMARY ORCHESTRATOR)
-│   ├── conversations.service.ts  # 812 lines - handles full message lifecycle
+├── conversations/                   # Chat orchestration (PRIMARY ORCHESTRATOR)
+│   ├── conversations.service.ts     # 812 lines - handles full message lifecycle
 │   ├── conversations.controller.ts
 │   └── (orchestrates 9 services)
 │
-├── ai/                # AI service adapter
-│   ├── ai.service.ts          # Type mapping layer (Prisma → ai-core)
+├── ai/                              # AI service adapter
+│   ├── ai.service.ts                # Type mapping layer (Prisma → ai-core)
 │   └── ai.module.ts
 │
-├── memory/            # RAG memory system
-│   ├── memory.service.ts          # CRUD operations
+├── memory/                          # RAG memory system
+│   ├── memory.service.ts            # CRUD operations
 │   ├── memory-ingestion.service.ts  # Store memories with embeddings
 │   ├── memory-retriever.service.ts  # Vector search
 │   └── dto/memory-candidate.dto.ts
 │
-├── embeddings/        # Vector embedding generation
-│   ├── embeddings.service.ts  # Stub implementation (returns zeros)
+├── embeddings/                      # Vector embedding generation
+│   ├── embeddings.service.ts        # Stub implementation (returns zeros)
 │   └── embeddings.interface.ts
 │
-├── actions/           # AI action system
-│   ├── actions.service.ts         # Store & confirm actions
-│   ├── action-executor.service.ts # Execute confirmed actions
+├── actions/                         # AI action system
+│   ├── actions.service.ts           # Store & confirm actions
+│   ├── action-executor.service.ts   # Execute confirmed actions
 │   └── dto/confirm-action.dto.ts
 │
-├── intents/           # Fallback intent detection
-│   └── intent-detector.service.ts # Pattern-based action detection
+├── intents/                         # Fallback intent detection
+│   └── intent-detector.service.ts   # Pattern-based action detection
 │
-├── tasks/             # Task management
+├── tasks/                           # Task management
 │   ├── tasks.service.ts
 │   ├── tasks.controller.ts
-│   └── dto/                   # Create/Update DTOs
+│   └── dto/                         # Create/Update DTOs
 │
-├── goals/             # Goal management
+├── goals/                           # Goal management
 │   ├── goals.service.ts
 │   └── dto/
 │
-├── days/              # Daily lifecycle
-│   └── days.service.ts        # Start/end day, get summary
+├── days/                            # Daily lifecycle
+│   └── days.service.ts              # Start/end day, get summary
 │
-├── digest/            # Information digest subscriptions
+├── digest/                          # Information digest subscriptions
 │   └── digest.service.ts
 │
-├── search/            # External search integration
-│   └── search.service.ts      # For INFO mode
+├── search/                          # External search integration
+│   └── search.service.ts            # For INFO mode
 │
-├── reflection/        # End-of-day reflections
+├── reflection/                      # End-of-day reflections
 │   └── reflection.service.ts
 │
-├── logs/              # AI interaction logging
+├── logs/                            # AI interaction logging
 │   └── logs.service.ts
 │
-└── prisma/            # Database access
-    ├── prisma.service.ts      # Prisma client wrapper
-    └── types.ts               # Custom types
+└── prisma/                          # Database access
+    ├── prisma.service.ts            # Prisma client wrapper
+    └── types.ts                     # Custom types
 ```
 
 #### Service Responsibilities
@@ -262,10 +262,10 @@ src/
 ```typescript
 // packages/ai-core/src/
 
-ai.service.ts              // Main orchestrator
-  ├─→ buildSystemPrompt()  // Mode + profile + memories + context
-  ├─→ generateResponse()   // Synchronous generation
-  ├─→ generateResponseStream()  // Token streaming
+ai.service.ts                    // Main orchestrator
+  ├─→ buildSystemPrompt()        // Mode + profile + memories + context
+  ├─→ generateResponse()         // Synchronous generation
+  ├─→ generateResponseStream()   // Token streaming
   └─→ parseStructuredResponse()  // Extract actions/memories
 
 providers/
@@ -274,16 +274,16 @@ providers/
   └─→ openai.provider.ts         // Cloud LLM
 
 prompts/
-  ├─→ system.prompt.ts          // Context-aware prompt builder
-  ├─→ mode.prompts.ts           // Mode-specific instructions
-  ├─→ info-digest.prompts.ts    // INFO mode prompts
-  └─→ message.formatter.ts      // Format conversation history
+  ├─→ system.prompt.ts           // Context-aware prompt builder
+  ├─→ mode.prompts.ts            // Mode-specific instructions
+  ├─→ info-digest.prompts.ts     // INFO mode prompts
+  └─→ message.formatter.ts       // Format conversation history
 
 memory/
-  └─→ extractor.ts              // Heuristic memory extraction
+  └─→ extractor.ts               // Heuristic memory extraction
 
 types/
-  └─→ index.ts                  // Core types (ConversationContext, etc.)
+  └─→ index.ts                   // Core types (ConversationContext, etc.)
 ```
 
 **Key Abstractions**:
@@ -1209,8 +1209,8 @@ Event format: newline-delimited JSON
 ```typescript
 // apps/api/src/conversations/conversations.service.ts:4-10
 import {
-  buildSystemPrompt,
-  ...
+   buildSystemPrompt,
+...
 } from '../../../../packages/ai-core/src/index';
 ```
 
@@ -1295,4 +1295,4 @@ import {
 
 **Document Version**: 1.0  
 **Last Updated**: 2026-02-14  
-**Maintainer**: PMA Development Team
+**Maintainer**: MIRA Development Team

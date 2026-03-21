@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DayState } from '@prisma/client';
+import { DayState, TaskPriority, TaskStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -316,6 +316,44 @@ export class DaysService {
     };
   }
 
+  /**
+   * Build a lightweight morning briefing:
+   * - today's tasks
+   * - top 1-2 priorities for the day
+   */
+  async getMorningBriefing(userId: string) {
+    const day = await this.getToday(userId);
+    const tasks = day.tasks ?? [];
+
+    const priorities = tasks
+      .filter(task => task.status !== TaskStatus.DONE)
+      .sort((a, b) => this.compareTasksForPriority(a, b))
+      .slice(0, 2)
+      .map(task => ({
+        id: task.id,
+        name: task.name,
+        priority: task.priority,
+        deadline: task.deadline,
+        reason: this.getPriorityReason(task.priority, task.deadline),
+      }));
+
+    return {
+      day: {
+        id: day.id,
+        date: day.date,
+        state: day.state,
+      },
+      tasks: tasks.map(task => ({
+        id: task.id,
+        name: task.name,
+        status: task.status,
+        priority: task.priority,
+        deadline: task.deadline,
+      })),
+      priorities,
+    };
+  }
+
   async startDay(userId: string, date?: string) {
     const parsed = date ? new Date(date) : undefined;
     return this.start(userId, parsed);
@@ -324,5 +362,53 @@ export class DaysService {
   async endDay(userId: string, date?: string) {
     const parsed = date ? new Date(date) : undefined;
     return this.end(userId, parsed);
+  }
+
+  private compareTasksForPriority(
+    a: { priority: TaskPriority; deadline: Date | null; createdAt: Date },
+    b: { priority: TaskPriority; deadline: Date | null; createdAt: Date },
+  ): number {
+    const priorityDiff = this.getPriorityWeight(b.priority) - this.getPriorityWeight(a.priority);
+    if (priorityDiff !== 0) {
+      return priorityDiff;
+    }
+
+    if (a.deadline && b.deadline) {
+      return a.deadline.getTime() - b.deadline.getTime();
+    }
+
+    if (a.deadline && !b.deadline) {
+      return -1;
+    }
+
+    if (!a.deadline && b.deadline) {
+      return 1;
+    }
+
+    return a.createdAt.getTime() - b.createdAt.getTime();
+  }
+
+  private getPriorityWeight(priority: TaskPriority): number {
+    switch (priority) {
+      case TaskPriority.HIGH:
+        return 3;
+      case TaskPriority.MEDIUM:
+        return 2;
+      case TaskPriority.LOW:
+      default:
+        return 1;
+    }
+  }
+
+  private getPriorityReason(priority: TaskPriority, deadline: Date | null): string {
+    if (priority === TaskPriority.HIGH) {
+      return 'High priority task';
+    }
+
+    if (deadline) {
+      return 'Upcoming deadline';
+    }
+
+    return 'Important next step for today';
   }
 }

@@ -147,19 +147,22 @@ export class AiService {
 
       if (!this.provider.generateStream) {
         const llmResponse = await this.provider.generate(llmRequest);
-        for (const char of llmResponse.content) {
+        const aiResponse = this.buildAiResponseFromContent(message, context, llmResponse.content);
+        for (const char of aiResponse.content) {
           await onToken(char);
         }
-        return this.buildAiResponseFromContent(message, context, llmResponse.content);
+        return aiResponse;
       }
 
       let content = '';
       for await (const token of this.provider.generateStream(llmRequest)) {
         content += token;
-        await onToken(token);
       }
-
-      return this.buildAiResponseFromContent(message, context, content);
+      const aiResponse = this.buildAiResponseFromContent(message, context, content);
+      for (const char of aiResponse.content) {
+        await onToken(char);
+      }
+      return aiResponse;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       if (this.enableStubFallback) {
@@ -295,15 +298,80 @@ function looksLikeJson(content: string): boolean {
 function parseJsonPayload<T>(content: string): T | null {
   const jsonPayload = stripJsonFence(content.trim());
 
-  if (!looksLikeJson(jsonPayload)) {
+  const directParsed = tryParseJson<T>(jsonPayload);
+  if (directParsed) {
+    return directParsed;
+  }
+
+  const extractedJson = extractFirstJsonObject(jsonPayload);
+  if (extractedJson) {
+    return tryParseJson<T>(extractedJson);
+  }
+
+  return null;
+}
+
+function tryParseJson<T>(content: string): T | null {
+  if (!looksLikeJson(content)) {
     return null;
   }
 
   try {
-    return JSON.parse(jsonPayload) as T;
+    return JSON.parse(content) as T;
   } catch {
     return null;
   }
+}
+
+function extractFirstJsonObject(content: string): string | null {
+  const start = content.indexOf('{');
+  if (start === -1) {
+    return null;
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < content.length; i += 1) {
+    const ch = content[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === '{') {
+      depth += 1;
+      continue;
+    }
+
+    if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return content.slice(start, i + 1).trim();
+      }
+    }
+  }
+
+  return null;
 }
 
 function generateUUID() {
