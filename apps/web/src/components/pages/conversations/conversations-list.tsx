@@ -1,9 +1,10 @@
 'use client';
 
 import type { FC } from 'react';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { ConversationDto, ConversationMode, ConversationType } from '@/lib/api/types';
 import {
@@ -13,33 +14,26 @@ import {
 } from '@/lib/api/conversations';
 import Container from '@/components/common/container';
 import Button from '@/components/common/button';
+import { queryKeys } from '@/lib/query-keys';
 
 const ConversationsList: FC = () => {
   const router = useRouter();
-  const [conversations, setConversations] = useState<ConversationDto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [includeArchived, setIncludeArchived] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    loadConversations();
-  }, [includeArchived]);
+  const {
+    data: conversations = [],
+    isPending: loading,
+    isError: loadError,
+  } = useQuery({
+    queryKey: queryKeys.conversations(includeArchived),
+    queryFn: () => getConversations(includeArchived),
+  });
+  const [error, setError] = useState<string | null>(null);
 
-  const loadConversations = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getConversations(includeArchived);
-      setConversations(data);
-    } catch (err) {
-      console.error('Failed to load conversations:', err);
-      setError('Failed to load conversations');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetchError = loadError ? 'Failed to load conversations' : null;
 
   const handleArchive = async (e: React.MouseEvent, conversationId: string) => {
     e.stopPropagation();
@@ -48,7 +42,7 @@ const ConversationsList: FC = () => {
     try {
       setArchivingId(conversationId);
       await archiveConversation(conversationId);
-      await loadConversations();
+      await queryClient.invalidateQueries({ queryKey: ['conversations'] });
     } catch (err) {
       console.error('Failed to archive conversation:', err);
       setError('Failed to archive conversation');
@@ -158,10 +152,10 @@ const ConversationsList: FC = () => {
     );
   }
 
-  if (error) {
+  if (fetchError || error) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="text-red-400">{error}</div>
+        <div className="text-red-400">{fetchError || error}</div>
       </div>
     );
   }

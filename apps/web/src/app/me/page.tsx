@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { EventInput } from '@fullcalendar/core';
 
 import { getTasks, deleteTask, getTask } from '@/lib/api/tasks';
 import { getMorningBriefing } from '@/lib/api/days';
-import type { MorningBriefingDto, TaskDto } from '@/lib/api/types';
+import type { TaskDto } from '@/lib/api/types';
 import Container from '@/components/common/container';
+import { queryKeys } from '@/lib/query-keys';
 
 const Chat = dynamic(() => import('@/components/pages/chat/chat'), {
   loading: () => (
@@ -65,48 +67,34 @@ function transformTasksToEvents(tasks: TaskDto[]): EventInput[] {
 }
 
 export default function Dashboard() {
-  const [events, setEvents] = useState<EventInput[]>([]);
-  const [tasks, setTasks] = useState<TaskDto[]>([]);
-  const [morningBriefing, setMorningBriefing] = useState<MorningBriefingDto | null>(null);
+  const queryClient = useQueryClient();
   const [selectedTask, setSelectedTask] = useState<TaskDto | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchTasks = async () => {
-    try {
-      setLoading(true);
-      const [tasksResult, morningBriefingResult] = await Promise.allSettled([
-        getTasks(),
-        getMorningBriefing(),
-      ]);
+  const {
+    data: tasks = [],
+    isPending: loading,
+    isError: tasksError,
+    error: tasksErrorObj,
+  } = useQuery({ queryKey: queryKeys.tasks, queryFn: getTasks });
 
-      if (tasksResult.status === 'rejected') {
-        throw tasksResult.reason;
-      }
+  const { data: morningBriefing, isPending: briefingPending } = useQuery({
+    queryKey: queryKeys.morningBriefing,
+    queryFn: getMorningBriefing,
+    retry: false,
+  });
 
-      const fetchedTasks = tasksResult.value;
-      setTasks(fetchedTasks);
-      setEvents(transformTasksToEvents(fetchedTasks));
+  const events = useMemo(() => transformTasksToEvents(tasks), [tasks]);
 
-      if (morningBriefingResult.status === 'fulfilled') {
-        setMorningBriefing(morningBriefingResult.value);
-      } else {
-        setMorningBriefing(null);
-        console.error('Failed to fetch morning briefing:', morningBriefingResult.reason);
-      }
+  const error = tasksError
+    ? tasksErrorObj instanceof Error
+      ? tasksErrorObj.message
+      : 'Failed to load tasks'
+    : null;
 
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load tasks');
-      console.error('Error fetching tasks:', err);
-    } finally {
-      setLoading(false);
-    }
+  const refreshDashboard = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.morningBriefing });
   };
-
-  useEffect(() => {
-    void fetchTasks();
-  }, []);
 
   if (loading) {
     return (
@@ -138,13 +126,15 @@ export default function Dashboard() {
             <b className="text-2xl">Morning briefing</b>
             <button
               type="button"
-              onClick={() => void fetchTasks()}
+              onClick={refreshDashboard}
               className="rounded bg-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-700 cursor-pointer"
             >
               Refresh
             </button>
           </div>
-          {morningBriefing ? (
+          {briefingPending ? (
+            <p className="mt-4 text-sm text-neutral-500">Loading briefing…</p>
+          ) : morningBriefing ? (
             <div className="mt-4 space-y-4">
               <div>
                 <p className="text-sm text-neutral-400">Daily tasks</p>
@@ -269,17 +259,15 @@ export default function Dashboard() {
           onClose={() => setSelectedTask(null)}
           onDelete={async (taskId: string) => {
             await deleteTask(taskId);
-            await fetchTasks();
+            await queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
           }}
           onUpdate={async () => {
-            await fetchTasks();
-            // Refresh the selected task to show updated data
+            await queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
             try {
               const updatedTask = await getTask(selectedTask.id);
               setSelectedTask(updatedTask);
             } catch (err) {
               console.error('Failed to refresh task:', err);
-              // If task was deleted or not found, close the modal
               setSelectedTask(null);
             }
           }}

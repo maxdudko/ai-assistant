@@ -1,9 +1,10 @@
 'use client';
 
 import type { FC } from 'react';
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ActionCandidate } from '@ai/shared-types';
 
 import type {
@@ -21,6 +22,7 @@ import {
 import { confirmAction as confirmActionApi } from '@/lib/api/actions';
 import Container from '@/components/common/container';
 import { useAuth } from '@/lib/api/AuthContext';
+import { queryKeys } from '@/lib/query-keys';
 
 interface ChatProps {
   conversationId?: string;
@@ -28,106 +30,142 @@ interface ChatProps {
 
 type ChatMessage = MessageDto & { actions?: ActionCandidate[] };
 
+const STREAM_CHUNK_CHARS = 16;
+
+function MessageBody({
+  message,
+  streamingMessageId,
+}: {
+  message: ChatMessage;
+  streamingMessageId: string | null;
+}) {
+  if (message.role === 'ASSISTANT' && message.id === streamingMessageId) {
+    return (
+      <div className="whitespace-pre-wrap break-words" dir="auto">
+        {message.content}
+      </div>
+    );
+  }
+
+  if (!message.content) {
+    return null;
+  }
+
+  return <ReactMarkdown>{message.content}</ReactMarkdown>;
+}
+
 const Chat: FC<ChatProps> = ({ conversationId }) => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const convIdKey = conversationId ?? 'daily';
   const [conversation, setConversation] = useState<ConversationDto | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmingActionId, setConfirmingActionId] = useState<string | null>(null);
   const [executedActionIds, setExecutedActionIds] = useState<string[]>([]);
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
   const streamingBufferRef = useRef('');
   const streamingDisplayedRef = useRef('');
-  const streamingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const rafIdRef = useRef<number | null>(null);
   const streamingPendingCompleteRef = useRef<SendMessageResponse | null>(null);
 
-  const loadConversation = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const conv = conversationId
-        ? await getConversation(conversationId)
-        : await getDailyConversation();
-      setConversation(conv);
-      setMessages((conv.messages || []) as ChatMessage[]);
-    } catch (err) {
-      console.error('Failed to load conversation:', err);
-      setError('Failed to load conversation');
-    } finally {
-      setLoading(false);
+  const {
+    data: queryConversation,
+    isPending: conversationPending,
+    isError: conversationQueryError,
+    refetch: refetchConversation,
+  } = useQuery({
+    queryKey: queryKeys.conversation(convIdKey),
+    queryFn: () => (conversationId ? getConversation(conversationId) : getDailyConversation()),
+  });
+
+  useLayoutEffect(() => {
+    if (!queryConversation) {
+      return;
     }
-  }, [conversationId]);
+    if (streamingMessageIdRef.current) {
+      return;
+    }
+    setConversation(queryConversation);
+    setMessages((queryConversation.messages || []) as ChatMessage[]);
+  }, [queryConversation]);
 
   useEffect(() => {
-    void loadConversation();
-  }, [loadConversation]);
-
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
   }, [messages]);
 
-  const pauseStreamingAnimation = useCallback(() => {
-    if (streamingIntervalRef.current) {
-      clearInterval(streamingIntervalRef.current);
-      streamingIntervalRef.current = null;
-    }
-  }, []);
-
   const resetStreamingAnimation = useCallback(() => {
-    pauseStreamingAnimation();
+    if (rafIdRef.current != null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
     streamingBufferRef.current = '';
     streamingMessageIdRef.current = null;
     streamingDisplayedRef.current = '';
     streamingPendingCompleteRef.current = null;
-  }, [pauseStreamingAnimation]);
+    setStreamingMessageId(null);
+  }, []);
+
+  const tickStream = useCallback(() => {
+    rafIdRef.current = null;
+    const messageId = streamingMessageIdRef.current;
+    if (!messageId) {
+      return;
+    }
+
+    if (!streamingBufferRef.current.length) {
+      const pending = streamingPendingCompleteRef.current;
+      if (pending) {
+        setMessages(prev => {
+          const i = prev.findIndex(m => m.id === messageId);
+          if (i === -1) {
+            return prev;
+          }
+          const next = [...prev];
+          next[i] = { ...pending.message, actions: pending.actions || [] };
+          return next;
+        });
+        resetStreamingAnimation();
+      }
+      return;
+    }
+
+    const take = Math.min(STREAM_CHUNK_CHARS, streamingBufferRef.current.length);
+    const chunk = streamingBufferRef.current.slice(0, take);
+    streamingBufferRef.current = streamingBufferRef.current.slice(take);
+    streamingDisplayedRef.current += chunk;
+
+    setMessages(prev => {
+      const i = prev.findIndex(m => m.id === messageId);
+      if (i === -1) {
+        return prev;
+      }
+      const next = [...prev];
+      const msg = next[i];
+      next[i] = { ...msg, content: `${msg.content}${chunk}` };
+      return next;
+    });
+
+    rafIdRef.current = requestAnimationFrame(tickStream);
+  }, [resetStreamingAnimation]);
 
   const queueStreamingDelta = useCallback(
     (delta: string) => {
-      if (!streamingMessageIdRef.current) return;
+      if (!streamingMessageIdRef.current) {
+        return;
+      }
       streamingBufferRef.current += delta;
-      if (streamingIntervalRef.current) return;
-
-      streamingIntervalRef.current = setInterval(() => {
-        const messageId = streamingMessageIdRef.current;
-        if (!messageId) {
-          resetStreamingAnimation();
-          return;
-        }
-
-        if (!streamingBufferRef.current.length) {
-          // No buffered characters right now.
-          // - If we've already received "complete", finalize the message.
-          // - Otherwise just pause the interval and wait for the next delta.
-          const pending = streamingPendingCompleteRef.current;
-          if (pending) {
-            setMessages(prev =>
-              prev.map(msg =>
-                msg.id === messageId ? { ...pending.message, actions: pending.actions || [] } : msg,
-              ),
-            );
-            resetStreamingAnimation();
-          } else {
-            pauseStreamingAnimation();
-          }
-          return;
-        }
-
-        const nextChar = streamingBufferRef.current[0];
-        streamingBufferRef.current = streamingBufferRef.current.slice(1);
-        streamingDisplayedRef.current += nextChar;
-
-        setMessages(prev =>
-          prev.map(msg =>
-            msg.id === messageId ? { ...msg, content: `${msg.content}${nextChar}` } : msg,
-          ),
-        );
-      }, 12);
+      if (rafIdRef.current != null) {
+        return;
+      }
+      rafIdRef.current = requestAnimationFrame(tickStream);
     },
-    [pauseStreamingAnimation, resetStreamingAnimation],
+    [tickStream],
   );
 
   useEffect(() => {
@@ -136,17 +174,22 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
     };
   }, [resetStreamingAnimation]);
 
+  const loadConversation = useCallback(async () => {
+    await refetchConversation();
+  }, [refetchConversation]);
+
   const handleSendMessage = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!input.trim() || loading) return;
+      if (!input.trim() || sending) {
+        return;
+      }
 
       const userMessage = input.trim();
       setInput('');
       setError(null);
-      setLoading(true);
+      setSending(true);
 
-      // Optimistically add user message
       const tempUserMessage: MessageDto = {
         id: `temp-${Date.now()}`,
         role: 'USER',
@@ -162,6 +205,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         createdAt: new Date().toISOString(),
       };
       streamingMessageIdRef.current = tempAssistantMessage.id;
+      setStreamingMessageId(tempAssistantMessage.id);
       streamingDisplayedRef.current = '';
       streamingPendingCompleteRef.current = null;
       setMessages(prev => [...prev, tempUserMessage, tempAssistantMessage]);
@@ -175,21 +219,17 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
           {
             onDelta: delta => queueStreamingDelta(delta),
             onComplete: result => {
-              // Mark stream completion, but let the typing animation drain the remaining buffer.
               streamingPendingCompleteRef.current = result;
 
               const alreadyShown = streamingDisplayedRef.current;
               const full = result.message.content || '';
-              const remaining = full.startsWith(alreadyShown)
-                ? full.slice(alreadyShown.length)
-                : full;
+              const remaining = full.startsWith(alreadyShown) ? full.slice(alreadyShown.length) : full;
 
               if (remaining.length) {
                 queueStreamingDelta(remaining);
                 return;
               }
 
-              // Nothing left to animate: finalize immediately.
               setMessages(prev =>
                 prev.map(msg =>
                   msg.id === tempAssistantMessage.id
@@ -209,20 +249,21 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         console.error('Failed to send message:', err);
         setError('Failed to send message');
         resetStreamingAnimation();
-        // Remove optimistic messages on error
         setMessages(prev =>
           prev.filter(msg => msg.id !== tempUserMessage.id && msg.id !== tempAssistantMessage.id),
         );
       } finally {
-        setLoading(false);
+        setSending(false);
       }
     },
-    [input, loading, conversation, queueStreamingDelta, resetStreamingAnimation, loadConversation],
+    [input, sending, conversation, queueStreamingDelta, resetStreamingAnimation, loadConversation],
   );
 
   const handleConfirmAction = useCallback(
     async (action: ActionCandidate) => {
-      if (confirmingActionId || executedActionIds.includes(action.id)) return;
+      if (confirmingActionId || executedActionIds.includes(action.id)) {
+        return;
+      }
 
       try {
         setConfirmingActionId(action.id);
@@ -230,6 +271,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         const result = await confirmActionApi({ actionId: action.id });
         if (result.status === 'EXECUTED') {
           setExecutedActionIds(prev => (prev.includes(action.id) ? prev : [...prev, action.id]));
+          void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
         }
       } catch (err) {
         console.error('Failed to confirm action:', err);
@@ -238,7 +280,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         setConfirmingActionId(null);
       }
     },
-    [confirmingActionId, executedActionIds],
+    [confirmingActionId, executedActionIds, queryClient],
   );
 
   const getActionLabel = (action: ActionCandidate): string => {
@@ -273,7 +315,9 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
 
   const handleModeSwitch = useCallback(
     async (mode: ConversationMode) => {
-      if (!conversation || conversation.mode === mode) return;
+      if (!conversation || conversation.mode === mode) {
+        return;
+      }
 
       try {
         const updated = await switchModeApi(conversation.id, { mode });
@@ -296,7 +340,15 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
     return labels[mode] || mode;
   };
 
-  if (loading && !conversation) {
+  if (conversationQueryError) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-red-400">Failed to load conversation</div>
+      </div>
+    );
+  }
+
+  if (conversationPending || !queryConversation) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-neutral-400">Loading conversation...</div>
@@ -310,7 +362,6 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
 
   return (
     <div className="flex h-full max-w-full flex-col">
-      {/* Header */}
       {conversation && (
         <Container className="mb-4 p-3 shrink-0">
           <div className="flex items-center gap-3">
@@ -337,7 +388,6 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         </Container>
       )}
 
-      {/* Mode selector */}
       {conversation && (
         <Container className="mb-4 flex gap-2 p-2 flex-shrink-0">
           <span className="text-sm text-neutral-400">Mode:</span>
@@ -357,7 +407,6 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         </Container>
       )}
 
-      {/* Messages */}
       <Container className="flex-1 space-y-2 overflow-y-auto p-4 min-h-0">
         {messages.length === 0 ? (
           <ReactMarkdown>
@@ -388,7 +437,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
                     {getModeLabel(message.mode)}
                   </span>
                 </div>
-                <ReactMarkdown>{message.content}</ReactMarkdown>
+                <MessageBody message={message} streamingMessageId={streamingMessageId} />
                 {message.role === 'ASSISTANT' && message.actions && message.actions.length > 0 && (
                   <div className="mt-3 flex flex-col gap-2">
                     {message.actions.map(action => {
@@ -422,14 +471,12 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         <div ref={messagesEndRef} />
       </Container>
 
-      {/* Error message */}
       {error && (
         <div className="mt-2 rounded bg-red-900/50 p-2 text-sm text-red-300 flex-shrink-0">
           {error}
         </div>
       )}
 
-      {/* Input form */}
       <Container className="mt-2 flex-shrink-0">
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <textarea
@@ -438,14 +485,14 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
             onChange={e => setInput(e.target.value)}
             className="flex-1 rounded  p-2 text-neutral-200 placeholder:text-neutral-500"
             placeholder="Type your message..."
-            disabled={loading}
+            disabled={sending}
           />
           <button
             type="submit"
-            disabled={loading || !input.trim()}
+            disabled={sending || !input.trim()}
             className="rounded bg-indigo-600 px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
-            {loading ? 'Sending...' : 'Send'}
+            {sending ? 'Sending...' : 'Send'}
           </button>
         </form>
       </Container>
