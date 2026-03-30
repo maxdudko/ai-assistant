@@ -44,10 +44,26 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
   const streamingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const streamingPendingCompleteRef = useRef<SendMessageResponse | null>(null);
 
-  // Load conversation on mount or when conversationId changes
-  useEffect(() => {
-    loadConversation();
+  const loadConversation = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const conv = conversationId
+        ? await getConversation(conversationId)
+        : await getDailyConversation();
+      setConversation(conv);
+      setMessages((conv.messages || []) as ChatMessage[]);
+    } catch (err) {
+      console.error('Failed to load conversation:', err);
+      setError('Failed to load conversation');
+    } finally {
+      setLoading(false);
+    }
   }, [conversationId]);
+
+  useEffect(() => {
+    void loadConversation();
+  }, [loadConversation]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -119,23 +135,6 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
       resetStreamingAnimation();
     };
   }, [resetStreamingAnimation]);
-
-  const loadConversation = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const conv = conversationId
-        ? await getConversation(conversationId)
-        : await getDailyConversation();
-      setConversation(conv);
-      setMessages((conv.messages || []) as ChatMessage[]);
-    } catch (err) {
-      console.error('Failed to load conversation:', err);
-      setError('Failed to load conversation');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSendMessage = useCallback(
     async (e: React.FormEvent) => {
@@ -218,7 +217,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         setLoading(false);
       }
     },
-    [input, loading, conversation, queueStreamingDelta, resetStreamingAnimation],
+    [input, loading, conversation, queueStreamingDelta, resetStreamingAnimation, loadConversation],
   );
 
   const handleConfirmAction = useCallback(

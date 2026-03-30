@@ -1,18 +1,27 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
+import dynamic from 'next/dynamic';
 import type { EventInput } from '@fullcalendar/core';
 
 import { getTasks, deleteTask, getTask } from '@/lib/api/tasks';
 import { getMorningBriefing } from '@/lib/api/days';
 import type { MorningBriefingDto, TaskDto } from '@/lib/api/types';
-import TaskModal from '@/components/pages/tasks/task-modal';
-import Chat from '@/components/pages/chat/chat';
 import Container from '@/components/common/container';
+
+const Chat = dynamic(() => import('@/components/pages/chat/chat'), {
+  loading: () => (
+    <div className="flex h-full min-h-[200px] items-center justify-center text-neutral-400">
+      Loading chat…
+    </div>
+  ),
+});
+
+const MeDashboardCalendar = dynamic(() => import('@/components/pages/me/me-dashboard-calendar'), {
+  loading: () => <div className="py-12 text-center text-neutral-400">Loading calendar…</div>,
+});
+
+const TaskModal = dynamic(() => import('@/components/pages/tasks/task-modal'));
 
 function getEventColor(task: TaskDto): string {
   if (task.status === 'DONE') {
@@ -96,7 +105,7 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    fetchTasks();
+    void fetchTasks();
   }, []);
 
   if (loading) {
@@ -117,43 +126,19 @@ export default function Dashboard() {
 
   return (
     <main className="xl:flex xl:h-screen xl:overflow-hidden min-h-screen">
-      <div className="flex-1 xl:p-4 xl:h-[90vh] xl:overflow-hidden xl:flex xl:flex-col">
+      <div className="flex-1 h-[90vh] xl:p-4 xl:h-[90vh] xl:overflow-hidden xl:flex xl:flex-col">
         <Chat />
       </div>
       <div className="flex-1 rounded-lg shadow-lg xl:p-4 xl:h-full xl:overflow-y-auto">
-        <Container className="p-4 min-w-0 overflow-x-auto">
-          <FullCalendar
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            initialView="dayGridMonth"
-            headerToolbar={{
-              left: 'prev,next today',
-              center: 'title',
-              right: 'dayGridMonth,timeGridWeek,timeGridDay',
-            }}
-            events={events}
-            height="auto"
-            dayMaxEventRows={3}
-            moreLinkClick="popover"
-            eventDidMount={info => {
-              info.el.setAttribute('title', info.event.title ?? '');
-            }}
-            eventClick={info => {
-              const eventId = info.event.id;
-              const task = tasks.find(t => t.id === eventId);
-              if (task) {
-                setSelectedTask(task);
-              }
-            }}
-            editable={false}
-            selectable={false}
-          />
+        <Container className="hidden lg:block p-4 min-w-0 overflow-x-auto">
+          <MeDashboardCalendar events={events} tasks={tasks} onTaskSelect={setSelectedTask} />
         </Container>
         <Container className="p-4 my-4">
           <div className="flex items-center justify-between gap-4">
             <b className="text-2xl">Morning briefing</b>
             <button
               type="button"
-              onClick={fetchTasks}
+              onClick={() => void fetchTasks()}
               className="rounded bg-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-700 cursor-pointer"
             >
               Refresh
