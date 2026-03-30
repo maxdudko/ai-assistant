@@ -1,11 +1,9 @@
 import Button from '@/components/common/button';
 import Container from '@/components/common/container';
-import Particles from '@/components/common/particles';
 
 export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
-      <Particles />
       <Container className="max-w-4xl w-full space-y-8 text-center p-4 md:p-8">
         {/* Hero Section */}
         <div className="space-y-4">
