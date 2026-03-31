@@ -30,6 +30,7 @@ const ConversationsList: FC = () => {
   } = useQuery({
     queryKey: queryKeys.conversations(includeArchived),
     queryFn: () => getConversations(includeArchived),
+    select: data => data.items,
   });
   const [error, setError] = useState<string | null>(null);
 

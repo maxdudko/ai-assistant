@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 import { CreateGoalDto } from './dto/create-goal.dto';
 import { UpdateGoalDto } from './dto/update-goal.dto';
+import type { ListPagination } from '../common/parse-list-pagination';
 
 @Injectable()
 export class GoalsService {
@@ -46,17 +47,39 @@ export class GoalsService {
     });
   }
 
-  async findAll(userId: string) {
-    return this.prisma.goal.findMany({
+  async findAll(userId: string, pagination: ListPagination) {
+    const { limit, offset } = pagination;
+    const take = limit + 1;
+
+    const rows = await this.prisma.goal.findMany({
       where: { userId },
-      include: {
-        conversation: true,
-        parent: true,
-        subgoals: true,
-        tasks: true,
+      select: {
+        id: true,
+        userId: true,
+        name: true,
+        description: true,
+        type: true,
+        priority: true,
+        isAchieved: true,
+        source: true,
+        conversationId: true,
+        parentId: true,
+        createdAt: true,
+        updatedAt: true,
       },
       orderBy: { createdAt: 'desc' },
+      take,
+      skip: offset,
     });
+
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+
+    return {
+      items,
+      hasMore,
+      nextOffset: hasMore ? offset + limit : null,
+    };
   }
 
   async findOne(userId: string, id: string) {

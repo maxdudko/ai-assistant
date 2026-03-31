@@ -79,6 +79,13 @@ export interface MessageDto {
   createdAt: string;
 }
 
+/** Standard shape for paginated list endpoints (`/api/tasks`, `/api/goals`, `/api/conversations`). */
+export interface PaginatedList<T> {
+  items: T[];
+  hasMore: boolean;
+  nextOffset: number | null;
+}
+
 export interface ConversationDto {
   id: string;
   userId: string;

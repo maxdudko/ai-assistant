@@ -63,7 +63,11 @@ const TasksList: FC = () => {
     data: tasks = [],
     isPending: loading,
     isError: loadError,
-  } = useQuery({ queryKey: queryKeys.tasks, queryFn: getTasks });
+  } = useQuery({
+    queryKey: queryKeys.tasks,
+    queryFn: () => getTasks(),
+    select: data => data.items,
+  });
   const [error, setError] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<TaskDto | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);

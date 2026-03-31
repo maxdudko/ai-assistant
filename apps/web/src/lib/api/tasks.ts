@@ -1,8 +1,15 @@
 import { apiFetch } from './client';
-import type { TaskDto, CreateTaskRequest, UpdateTaskRequest } from './types';
+import type { TaskDto, CreateTaskRequest, UpdateTaskRequest, PaginatedList } from './types';
 
-export async function getTasks(): Promise<TaskDto[]> {
-  return apiFetch<TaskDto[]>('/api/tasks');
+export async function getTasks(options?: {
+  limit?: number;
+  offset?: number;
+}): Promise<PaginatedList<TaskDto>> {
+  const params = new URLSearchParams();
+  if (options?.limit != null) params.set('limit', String(options.limit));
+  if (options?.offset != null) params.set('offset', String(options.offset));
+  const q = params.toString();
+  return apiFetch<PaginatedList<TaskDto>>(`/api/tasks${q ? `?${q}` : ''}`);
 }
 
 export async function getTask(id: string): Promise<TaskDto> {

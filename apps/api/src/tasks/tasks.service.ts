@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
+import type { ListPagination } from '../common/parse-list-pagination';
 
 @Injectable()
 export class TasksService {
@@ -106,18 +107,42 @@ export class TasksService {
     });
   }
 
-  async findAll(userId: string) {
-    return this.prisma.task.findMany({
+  async findAll(userId: string, pagination: ListPagination) {
+    const { limit, offset } = pagination;
+    const take = limit + 1;
+
+    const rows = await this.prisma.task.findMany({
       where: { userId },
-      include: {
-        conversation: true,
-        parent: true,
-        subtasks: true,
-        goal: true,
+      select: {
+        id: true,
+        userId: true,
+        dayId: true,
+        name: true,
+        description: true,
+        status: true,
+        priority: true,
+        deadline: true,
+        source: true,
+        conversationId: true,
+        parentId: true,
+        goalId: true,
+        createdAt: true,
+        updatedAt: true,
         day: true,
       },
       orderBy: { createdAt: 'desc' },
+      take,
+      skip: offset,
     });
+
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+
+    return {
+      items,
+      hasMore,
+      nextOffset: hasMore ? offset + limit : null,
+    };
   }
 
   async findOne(userId: string, id: string) {

@@ -27,7 +27,7 @@ const GoalsList: FC = () => {
       setLoading(true);
       setError(null);
       const data = await getGoals();
-      setGoals(data);
+      setGoals(data.items);
     } catch (err) {
       console.error('Failed to load goals:', err);
       setError('Failed to load goals');

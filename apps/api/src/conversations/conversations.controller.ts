@@ -15,6 +15,8 @@ import type { Response } from 'express';
 
 import { JwtAuthGuard } from '../auth/jwt.guard';
 
+import { parseListPagination } from '../common/parse-list-pagination';
+
 import { ConversationsService } from './conversations.service';
 
 @Controller('conversations')
@@ -88,19 +90,28 @@ export class ConversationsController {
   }
 
   /**
+   * Get all user conversations
+   */
+  @Get()
+  async getConversations(
+    @Req() req,
+    @Query('includeArchived') includeArchived?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.service.getUserConversations(
+      req.user.id,
+      includeArchived === 'true',
+      parseListPagination(limit, offset),
+    );
+  }
+
+  /**
    * Get a specific conversation
    */
   @Get(':id')
   async getConversation(@Req() req, @Param('id') id: string) {
     return this.service.getActiveConversation(req.user.id, id);
-  }
-
-  /**
-   * Get all user conversations
-   */
-  @Get()
-  async getConversations(@Req() req, @Query('includeArchived') includeArchived?: string) {
-    return this.service.getUserConversations(req.user.id, includeArchived === 'true');
   }
 
   /**

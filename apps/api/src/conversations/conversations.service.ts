@@ -14,16 +14,21 @@ import { ConversationState, ConversationType } from '../prisma/types';
 import { ActionsService } from '../actions/actions.service';
 import { IntentDetectorService } from '../intents/intent-detector.service';
 import { MemoryIngestionService } from '../memory/memory-ingestion.service';
-import { MemoryRetrieverService } from '../memory/memory-retriever.service';
+import { MemoryRetrieverService, type RetrievedMemory } from '../memory/memory-retriever.service';
 import { DaysService } from '../days/days.service';
 import { MemoryCandidateDto, MemoryType } from '../memory/dto/memory-candidate.dto';
 import { DigestService } from '../digest/digest.service';
 import { LogsService } from '../logs/logs.service';
+import type { ListPagination } from '../common/parse-list-pagination';
 
 @Injectable()
 export class ConversationsService {
   private readonly logger = new Logger(ConversationsService.name);
   private readonly verbosePromptLogging = process.env.AI_VERBOSE_PROMPT_LOGS === 'true';
+  private readonly contextMessageLimit = Number(process.env.AI_CONTEXT_MESSAGE_LIMIT ?? '40');
+  private readonly memoryRetrieveTimeoutMs = Number(
+    process.env.AI_MEMORY_RETRIEVE_TIMEOUT_MS ?? '1200',
+  );
 
   constructor(
     private readonly prisma: PrismaService,
@@ -631,12 +636,15 @@ export class ConversationsService {
         ? await this.buildReflectionKeyMessages(conversation.dayId)
         : undefined;
 
-    const retrievedMemories = query ? await this.memoryRetriever.retrieve(userId, query) : [];
+    const retrievedMemories = query
+      ? await this.retrieveMemoriesWithTimeout(userId, query, this.memoryRetrieveTimeoutMs)
+      : [];
+    const contextMessages = conversation.messages.slice(-this.contextMessageLimit);
 
     return {
       mode: conversation.mode,
       userProfile: conversation.user?.profile || null,
-      messages: conversation.messages,
+      messages: contextMessages,
       memories: retrievedMemories.map(memory => ({
         content: memory.content,
         importance: memory.importance,
@@ -658,6 +666,34 @@ export class ConversationsService {
         deadline: task.deadline ? task.deadline.toISOString() : null,
       })),
     };
+  }
+
+  private async retrieveMemoriesWithTimeout(
+    userId: string,
+    query: string,
+    timeoutMs: number,
+  ): Promise<RetrievedMemory[]> {
+    const startedAt = Date.now();
+    let timeoutHandle: NodeJS.Timeout | undefined;
+    try {
+      const timeoutPromise = new Promise<RetrievedMemory[]>((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+          reject(new Error(`memory retrieval timeout after ${timeoutMs}ms`));
+        }, timeoutMs);
+        timeoutHandle.unref?.();
+      });
+      return await Promise.race([this.memoryRetriever.retrieve(userId, query), timeoutPromise]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        `Memory retrieval skipped: ${message} (elapsedMs=${Date.now() - startedAt}, timeoutMs=${timeoutMs})`,
+      );
+      return [];
+    } finally {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
+    }
   }
 
   private isReflectionTrigger(message: string): boolean {
@@ -896,23 +932,60 @@ export class ConversationsService {
   /**
    * Get user's conversations
    */
-  async getUserConversations(userId: string, includeArchived = false) {
-    return this.prisma.conversation.findMany({
+  async getUserConversations(
+    userId: string,
+    includeArchived = false,
+    pagination: ListPagination,
+  ) {
+    const { limit, offset } = pagination;
+    const take = limit + 1;
+
+    const rows = await this.prisma.conversation.findMany({
       where: {
         userId,
         state: includeArchived ? undefined : { not: ConversationState.ARCHIVED },
       },
       include: {
-        day: true,
+        day: {
+          select: {
+            id: true,
+            userId: true,
+            date: true,
+            state: true,
+            startedAt: true,
+            endedAt: true,
+            createdAt: true,
+            morningBriefingSentAt: true,
+            eveningReflectionSentAt: true,
+          },
+        },
         messages: {
           orderBy: { createdAt: 'desc' },
-          take: 1, // Get last message for preview
+          take: 1,
+          select: {
+            id: true,
+            role: true,
+            content: true,
+            mode: true,
+            createdAt: true,
+          },
         },
         _count: {
           select: { messages: true },
         },
       },
       orderBy: { updatedAt: 'desc' },
+      take,
+      skip: offset,
     });
+
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+
+    return {
+      items,
+      hasMore,
+      nextOffset: hasMore ? offset + limit : null,
+    };
   }
 }

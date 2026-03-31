@@ -1,6 +1,19 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Req,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 
 import { JwtAuthGuard } from '../auth/jwt.guard';
+
+import { parseListPagination } from '../common/parse-list-pagination';
 
 import { GoalsService } from './goals.service';
 import { CreateGoalDto } from './dto/create-goal.dto';
@@ -17,8 +30,8 @@ export class GoalsController {
   }
 
   @Get()
-  findAll(@Req() req) {
-    return this.goalsService.findAll(req.user.id);
+  findAll(@Req() req, @Query('limit') limit?: string, @Query('offset') offset?: string) {
+    return this.goalsService.findAll(req.user.id, parseListPagination(limit, offset));
   }
 
   @Get(':id')

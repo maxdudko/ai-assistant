@@ -75,7 +75,11 @@ export default function Dashboard() {
     isPending: loading,
     isError: tasksError,
     error: tasksErrorObj,
-  } = useQuery({ queryKey: queryKeys.tasks, queryFn: getTasks });
+  } = useQuery({
+    queryKey: queryKeys.tasks,
+    queryFn: () => getTasks(),
+    select: data => data.items,
+  });
 
   const { data: morningBriefing, isPending: briefingPending } = useQuery({
     queryKey: queryKeys.morningBriefing,

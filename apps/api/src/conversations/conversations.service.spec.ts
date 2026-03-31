@@ -530,28 +530,43 @@ describe('ConversationsService', () => {
   });
 
   describe('getUserConversations', () => {
+    const page = { limit: 50, offset: 0 };
+
     it('should return user conversations excluding archived', async () => {
       const conversations = [mockConversation];
       prisma.conversation.findMany.mockResolvedValue(conversations);
 
-      const result = await service.getUserConversations(mockUserId, false);
+      const result = await service.getUserConversations(mockUserId, false, page);
 
-      expect(result).toEqual(conversations);
+      expect(result).toEqual({
+        items: conversations,
+        hasMore: false,
+        nextOffset: null,
+      });
       expect(prisma.conversation.findMany).toHaveBeenCalledWith({
         where: {
           userId: mockUserId,
           state: { not: ConversationState.ARCHIVED },
         },
-        include: {
+        include: expect.objectContaining({
           messages: {
             orderBy: { createdAt: 'desc' },
             take: 1,
+            select: {
+              id: true,
+              role: true,
+              content: true,
+              mode: true,
+              createdAt: true,
+            },
           },
           _count: {
             select: { messages: true },
           },
-        },
+        }),
         orderBy: { updatedAt: 'desc' },
+        take: 51,
+        skip: 0,
       });
     });
 
@@ -559,7 +574,7 @@ describe('ConversationsService', () => {
       const conversations = [mockConversation];
       prisma.conversation.findMany.mockResolvedValue(conversations);
 
-      await service.getUserConversations(mockUserId, true);
+      await service.getUserConversations(mockUserId, true, page);
 
       expect(prisma.conversation.findMany).toHaveBeenCalledWith({
         where: {
@@ -568,6 +583,8 @@ describe('ConversationsService', () => {
         },
         include: expect.any(Object),
         orderBy: { updatedAt: 'desc' },
+        take: 51,
+        skip: 0,
       });
     });
   });
