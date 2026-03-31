@@ -12,7 +12,6 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../auth/jwt.guard';
-
 import { parseListPagination } from '../common/parse-list-pagination';
 
 import { GoalsService } from './goals.service';

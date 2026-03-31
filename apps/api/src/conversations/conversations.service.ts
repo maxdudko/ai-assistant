@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ConversationMode, TaskStatus } from '@prisma/client';
+import { ConversationMode, Prisma, TaskStatus } from '@prisma/client';
 import {
   buildSystemPrompt,
   messagesToLlmFormat,
@@ -59,13 +59,18 @@ export class ConversationsService {
     });
 
     if (!day) {
-      day = await this.prisma.day.create({
-        data: {
-          userId,
-          date: today,
-          state: 'START',
-        },
-      });
+      try {
+        day = await this.prisma.day.create({
+          data: { userId, date: today, state: 'START' },
+        });
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          day = await this.prisma.day.findUnique({
+            where: { userId_date: { userId, date: today } },
+          });
+        }
+        if (!day) throw error;
+      }
     }
 
     return day.id;
@@ -98,24 +103,37 @@ export class ConversationsService {
       const dayId = await this.getOrCreateTodayDay(userId);
 
       // Create new daily conversation
-      conversation = await this.prisma.conversation.create({
-        data: {
-          userId,
-          dayId,
-          type: ConversationType.DAILY,
-          mode: ConversationMode.MANAGER,
-          state: ConversationState.CREATED,
-          date: today,
-          messages: {
-            create: {
-              role: 'SYSTEM',
-              content:
-                'Daily conversation started. Ready to help with planning, execution, and reflection.',
-              mode: ConversationMode.MANAGER,
+      try {
+        conversation = await this.prisma.conversation.create({
+          data: {
+            userId,
+            dayId,
+            type: ConversationType.DAILY,
+            mode: ConversationMode.MANAGER,
+            state: ConversationState.CREATED,
+            date: today,
+            messages: {
+              create: {
+                role: 'SYSTEM',
+                content:
+                  'Daily conversation started. Ready to help with planning, execution, and reflection.',
+                mode: ConversationMode.MANAGER,
+              },
             },
           },
-        },
-      });
+        });
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          conversation = await this.prisma.conversation.findFirst({
+            where: {
+              userId,
+              type: ConversationType.DAILY,
+              date: { gte: today, lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) },
+            },
+          });
+        }
+        if (!conversation) throw error;
+      }
     }
 
     // Ensure conversation is ACTIVE if it has user messages
@@ -166,6 +184,32 @@ export class ConversationsService {
     });
 
     return conversation.id;
+  }
+
+  /**
+   * Load a conversation with all data needed for message handling.
+   * Messages are limited at the DB level and returned in chronological order.
+   */
+  private async loadConversationForMessage(conversationId: string, userId: string) {
+    const conversation = await this.prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        userId,
+        state: { in: [ConversationState.CREATED, ConversationState.ACTIVE] },
+      },
+      include: {
+        day: { include: { tasks: { orderBy: { createdAt: 'desc' } } } },
+        messages: { orderBy: { createdAt: 'desc' }, take: this.contextMessageLimit },
+        user: { include: { profile: true } },
+      },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    conversation.messages.reverse();
+    return conversation;
   }
 
   /**
@@ -229,83 +273,32 @@ export class ConversationsService {
     onToken?: (token: string) => Promise<void> | void,
   ) {
     const requestStartedAt = Date.now();
-    // Get or create conversation
-    let conversation;
-    if (conversationId) {
-      conversation = await this.getActiveConversation(userId, conversationId);
-    } else {
-      const id = await this.getOrCreateDailyConversation(userId);
-      conversation = await this.prisma.conversation.findUnique({
-        where: { id },
-        include: {
-          day: true,
-          messages: {
-            orderBy: { createdAt: 'asc' },
-          },
-          user: {
-            include: {
-              profile: true,
-            },
-          },
-        },
-      });
-    }
+    // Get or create conversation — single DB fetch with all context data
+    const targetId = conversationId ?? (await this.getOrCreateDailyConversation(userId));
+    let conversation = await this.loadConversationForMessage(targetId, userId);
 
     // Update mode if provided
     if (mode && mode !== conversation.mode) {
-      conversation = await this.prisma.conversation.update({
-        where: { id: conversation.id },
-        data: { mode },
-        include: {
-          day: true,
-          messages: {
-            orderBy: { createdAt: 'asc' },
-          },
-          user: {
-            include: {
-              profile: true,
-            },
-          },
-        },
-      });
+      await this.prisma.conversation.update({ where: { id: conversation.id }, data: { mode } });
+      conversation.mode = mode;
     }
 
     const infoTriggered = this.shouldUseInfoMode(message, mode, conversation.mode);
     if (infoTriggered && conversation.mode !== ConversationMode.INFO) {
-      conversation = await this.prisma.conversation.update({
+      await this.prisma.conversation.update({
         where: { id: conversation.id },
         data: { mode: ConversationMode.INFO },
-        include: {
-          day: true,
-          messages: {
-            orderBy: { createdAt: 'asc' },
-          },
-          user: {
-            include: {
-              profile: true,
-            },
-          },
-        },
       });
+      conversation.mode = ConversationMode.INFO;
     }
 
     const reflectionTriggered = !infoTriggered && this.isReflectionTrigger(message);
     if (reflectionTriggered && conversation.mode !== ConversationMode.REFLECTION) {
-      conversation = await this.prisma.conversation.update({
+      await this.prisma.conversation.update({
         where: { id: conversation.id },
         data: { mode: ConversationMode.REFLECTION },
-        include: {
-          day: true,
-          messages: {
-            orderBy: { createdAt: 'asc' },
-          },
-          user: {
-            include: {
-              profile: true,
-            },
-          },
-        },
       });
+      conversation.mode = ConversationMode.REFLECTION;
     }
 
     // Save user message
@@ -410,7 +403,7 @@ export class ConversationsService {
     // Build context and generate AI response
     const contextStartedAt = Date.now();
     const context = await this.buildContext(
-      conversation.id,
+      conversation,
       userId,
       message,
       conversation.mode === ConversationMode.REFLECTION || reflectionTriggered,
@@ -580,39 +573,16 @@ export class ConversationsService {
   }
 
   /**
-   * Build context for AI response
+   * Build context for AI response.
+   * Receives the already-loaded conversation to avoid a redundant DB round-trip.
+   * The three remaining async lookups (backlog, key messages, memories) run in parallel.
    */
   private async buildContext(
-    conversationId: string,
+    conversation: Awaited<ReturnType<ConversationsService['loadConversationForMessage']>>,
     userId: string,
     query?: string,
     includeReflectionContext = false,
   ) {
-    const conversation = await this.prisma.conversation.findUnique({
-      where: { id: conversationId },
-      include: {
-        messages: {
-          orderBy: { createdAt: 'asc' },
-        },
-        day: {
-          include: {
-            tasks: {
-              orderBy: { createdAt: 'desc' },
-            },
-          },
-        },
-        user: {
-          include: {
-            profile: true,
-          },
-        },
-      },
-    });
-
-    if (!conversation) {
-      throw new NotFoundException('Conversation not found');
-    }
-
     const tasksToday = (conversation.day?.tasks ?? []).map(task => ({
       id: task.id,
       name: task.name,
@@ -621,30 +591,28 @@ export class ConversationsService {
       deadline: task.deadline ? task.deadline.toISOString() : null,
     }));
 
-    const backlogTasks = await this.prisma.task.findMany({
-      where: {
-        userId,
-        status: { not: TaskStatus.DONE },
-        dayId: conversation.dayId ? { not: conversation.dayId } : undefined,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-    });
-
-    const keyMessages =
+    const [backlogTasks, keyMessages, retrievedMemories] = await Promise.all([
+      this.prisma.task.findMany({
+        where: {
+          userId,
+          status: { not: TaskStatus.DONE },
+          dayId: conversation.dayId ? { not: conversation.dayId } : undefined,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
       includeReflectionContext && conversation.dayId
-        ? await this.buildReflectionKeyMessages(conversation.dayId)
-        : undefined;
-
-    const retrievedMemories = query
-      ? await this.retrieveMemoriesWithTimeout(userId, query, this.memoryRetrieveTimeoutMs)
-      : [];
-    const contextMessages = conversation.messages.slice(-this.contextMessageLimit);
+        ? this.buildReflectionKeyMessages(conversation.dayId)
+        : Promise.resolve(undefined),
+      query
+        ? this.retrieveMemoriesWithTimeout(userId, query, this.memoryRetrieveTimeoutMs)
+        : Promise.resolve([] as RetrievedMemory[]),
+    ]);
 
     return {
       mode: conversation.mode,
       userProfile: conversation.user?.profile || null,
-      messages: contextMessages,
+      messages: conversation.messages,
       memories: retrievedMemories.map(memory => ({
         content: memory.content,
         importance: memory.importance,
@@ -932,11 +900,7 @@ export class ConversationsService {
   /**
    * Get user's conversations
    */
-  async getUserConversations(
-    userId: string,
-    includeArchived = false,
-    pagination: ListPagination,
-  ) {
+  async getUserConversations(userId: string, includeArchived = false, pagination: ListPagination) {
     const { limit, offset } = pagination;
     const take = limit + 1;
 

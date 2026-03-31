@@ -25,9 +25,12 @@ export class MemoryIngestionService {
       c => c.confidence >= 0.7 && c.importance >= 5 && c.content.length > 10,
     );
 
-    for (const c of curated) {
-      const embedding = await this.embeddings.embed(c.content);
+    // Generate all embeddings in parallel
+    const withEmbeddings = await Promise.all(
+      curated.map(async c => ({ candidate: c, embedding: await this.embeddings.embed(c.content) })),
+    );
 
+    for (const { candidate: c, embedding } of withEmbeddings) {
       // Check if embedding is all zeros (indicates embedding generation failed)
       const isZeroEmbedding = embedding.every(val => val === 0);
       if (isZeroEmbedding) {

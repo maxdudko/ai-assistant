@@ -2,10 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { TaskStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import type { ListPagination } from '../common/parse-list-pagination';
 
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
-import type { ListPagination } from '../common/parse-list-pagination';
 
 @Injectable()
 export class TasksService {

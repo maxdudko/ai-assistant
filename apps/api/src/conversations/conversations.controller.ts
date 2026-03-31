@@ -14,7 +14,6 @@ import { ConversationMode } from '@prisma/client';
 import type { Response } from 'express';
 
 import { JwtAuthGuard } from '../auth/jwt.guard';
-
 import { parseListPagination } from '../common/parse-list-pagination';
 
 import { ConversationsService } from './conversations.service';
