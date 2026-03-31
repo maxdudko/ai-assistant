@@ -27,7 +27,7 @@ export class ActionsService {
   ): Promise<ActionCandidate[]> {
     if (candidates.length === 0) return [];
 
-    const normalized = candidates.map(candidate => this.normalizeCandidate(candidate, context));
+    const normalized = this.prepareCandidates(candidates, context);
 
     const created = await Promise.all(
       normalized.map(candidate =>
@@ -53,6 +53,11 @@ export class ActionsService {
       confidence: record.confidence,
       requiresConfirmation: record.requiresConfirmation,
     }));
+  }
+
+  prepareCandidates(candidates: ActionCandidate[], context: ActionContext): ActionCandidate[] {
+    if (candidates.length === 0) return [];
+    return candidates.map(candidate => this.normalizeCandidate(candidate, context));
   }
 
   async confirmAction(userId: string, actionId: string) {

@@ -23,6 +23,7 @@ import { LogsService } from '../logs/logs.service';
 @Injectable()
 export class ConversationsService {
   private readonly logger = new Logger(ConversationsService.name);
+  private readonly verbosePromptLogging = process.env.AI_VERBOSE_PROMPT_LOGS === 'true';
 
   constructor(
     private readonly prisma: PrismaService,
@@ -222,6 +223,7 @@ export class ConversationsService {
     mode?: ConversationMode,
     onToken?: (token: string) => Promise<void> | void,
   ) {
+    const requestStartedAt = Date.now();
     // Get or create conversation
     let conversation;
     if (conversationId) {
@@ -320,6 +322,7 @@ export class ConversationsService {
     }
 
     if (infoTriggered) {
+      const infoFlowStartedAt = Date.now();
       const digest = await this.digestService.generateDigest(userId, message);
 
       if (onToken) {
@@ -337,27 +340,54 @@ export class ConversationsService {
         },
       });
 
+      const actionContext = {
+        conversationId: conversation.id,
+        dayId: conversation.dayId,
+      };
+      const actionPreparedStartedAt = Date.now();
       const storedActions =
         digest.actionCandidates.length > 0
-          ? await this.actionsService.createCandidates(userId, digest.actionCandidates, {
-              conversationId: conversation.id,
-              dayId: conversation.dayId,
-            })
+          ? this.actionsService.prepareCandidates(digest.actionCandidates, actionContext)
           : [];
+      const actionPreparedMs = Date.now() - actionPreparedStartedAt;
 
-      // Log AI interaction
-      try {
-        const promptText = `INFO mode digest request: ${message}`;
-        await this.logsService.create(
-          userId,
-          conversation.mode,
-          promptText,
-          digest.content,
-          digest.actionCandidates || [],
-        );
-      } catch (error) {
-        this.logger.error('Failed to log AI interaction:', error);
-      }
+      const promptText = `INFO mode digest request: ${message}`;
+      this.runInBackground(
+        [
+          storedActions.length > 0
+            ? {
+                name: 'persist-info-actions',
+                run: async () => {
+                  await this.actionsService.createCandidates(userId, storedActions, actionContext);
+                },
+              }
+            : null,
+          {
+            name: 'log-info-ai-interaction',
+            run: async () => {
+              await this.logsService.create(
+                userId,
+                conversation.mode,
+                promptText,
+                digest.content,
+                digest.actionCandidates || [],
+              );
+            },
+          },
+        ].filter((task): task is { name: string; run: () => Promise<void> } => task !== null),
+      );
+
+      this.logger.log(
+        [
+          'timing',
+          'flow=info',
+          `totalMs=${Date.now() - requestStartedAt}`,
+          `infoFlowMs=${Date.now() - infoFlowStartedAt}`,
+          `actionPrepareMs=${actionPreparedMs}`,
+          `actions=${storedActions.length}`,
+          `responseChars=${digest.content.length}`,
+        ].join(' '),
+      );
 
       return {
         conversationId: conversation.id,
@@ -373,30 +403,46 @@ export class ConversationsService {
     }
 
     // Build context and generate AI response
+    const contextStartedAt = Date.now();
     const context = await this.buildContext(
       conversation.id,
       userId,
       message,
       conversation.mode === ConversationMode.REFLECTION || reflectionTriggered,
     );
+    const contextMs = Date.now() - contextStartedAt;
+    const aiStartedAt = Date.now();
     const aiResponse = onToken
       ? await this.ai.generateResponseStream(message, context, onToken)
       : await this.ai.generateResponse(message, context);
+    const aiMs = Date.now() - aiStartedAt;
 
     const promptLog = this.buildPromptLog(context, message);
-    this.logger.log('mode: ' + conversation.mode);
-    this.logger.log('systemPrompt: ' + promptLog.systemPrompt);
-    this.logger.log('messages: ' + JSON.stringify(promptLog.messages));
-    this.logger.log('memories: ' + JSON.stringify(context.memories));
-    this.logger.log('response: ' + JSON.stringify(aiResponse.content));
-    this.logger.log('actions: ' + JSON.stringify(aiResponse.actionCandidates ?? []));
-    this.logger.log('memoryCandidates: ' + JSON.stringify(aiResponse.memoryCandidates ?? []));
-    this.logger.log('summary: ' + JSON.stringify(aiResponse.summary ?? []));
+    this.logger.log(
+      [
+        `mode=${conversation.mode}`,
+        `messages=${promptLog.messages.length}`,
+        `memories=${context.memories?.length ?? 0}`,
+        `actions=${aiResponse.actionCandidates?.length ?? 0}`,
+        `memoryCandidates=${aiResponse.memoryCandidates?.length ?? 0}`,
+        `responseChars=${aiResponse.content?.length ?? 0}`,
+      ].join(' '),
+    );
+    if (this.verbosePromptLogging) {
+      this.logger.debug('systemPrompt: ' + promptLog.systemPrompt);
+      this.logger.debug('messages: ' + JSON.stringify(promptLog.messages));
+      this.logger.debug('memories: ' + JSON.stringify(context.memories));
+      this.logger.debug('response: ' + JSON.stringify(aiResponse.content));
+      this.logger.debug('actions: ' + JSON.stringify(aiResponse.actionCandidates ?? []));
+      this.logger.debug('memoryCandidates: ' + JSON.stringify(aiResponse.memoryCandidates ?? []));
+      this.logger.debug('summary: ' + JSON.stringify(aiResponse.summary ?? []));
+    }
 
     // Build full prompt string for logging
     const fullPrompt = this.buildFullPromptString(promptLog.systemPrompt, promptLog.messages);
 
     // Save AI response
+    const assistantWriteStartedAt = Date.now();
     const assistantMessage = await this.prisma.message.create({
       data: {
         conversationId: conversation.id,
@@ -405,65 +451,111 @@ export class ConversationsService {
         mode: conversation.mode,
       },
     });
+    const assistantWriteMs = Date.now() - assistantWriteStartedAt;
 
+    const actionPreparedStartedAt = Date.now();
     let storedActions = [] as Awaited<ReturnType<ActionsService['createCandidates']>>;
+    let actionPersistenceTask: { name: string; run: () => Promise<void> } | null = null;
     if (conversation.mode !== ConversationMode.REFLECTION) {
       // Post-processing: action candidates
       let actionCandidates = aiResponse.actionCandidates ?? [];
+      const tasksContext = [...(context.tasksToday ?? []), ...(context.backlogTasks ?? [])].map(
+        task => ({
+          id: task.id,
+          name: task.name,
+        }),
+      );
       if (actionCandidates.length === 0) {
-        const taskHints = [...(context.tasksToday ?? []), ...(context.backlogTasks ?? [])].map(
-          task => ({ id: task.id, name: task.name }),
-        );
-        actionCandidates = this.intentDetector.detect(message, taskHints);
+        actionCandidates = this.intentDetector.detect(message, tasksContext);
       }
 
+      const actionContext = {
+        conversationId: conversation.id,
+        dayId: conversation.dayId,
+        tasks: tasksContext,
+      };
       storedActions =
         actionCandidates.length > 0
-          ? await this.actionsService.createCandidates(userId, actionCandidates, {
-              conversationId: conversation.id,
-              dayId: conversation.dayId,
-              tasks: [...(context.tasksToday ?? []), ...(context.backlogTasks ?? [])].map(task => ({
-                id: task.id,
-                name: task.name,
-              })),
-            })
+          ? this.actionsService.prepareCandidates(actionCandidates, actionContext)
           : [];
+      if (storedActions.length > 0) {
+        actionPersistenceTask = {
+          name: 'persist-actions',
+          run: async () => {
+            await this.actionsService.createCandidates(userId, storedActions, actionContext);
+          },
+        };
+      }
     }
+    const actionPrepareMs = Date.now() - actionPreparedStartedAt;
 
-    // Post-processing: memory ingestion
+    const backgroundTasks: Array<{ name: string; run: () => Promise<void> }> = [];
+    if (actionPersistenceTask) {
+      backgroundTasks.push(actionPersistenceTask);
+    }
     if (aiResponse.memoryCandidates && aiResponse.memoryCandidates.length > 0) {
       const mappedCandidates = this.mapMemoryCandidates(aiResponse.memoryCandidates);
       if (conversation.mode === ConversationMode.REFLECTION) {
         const curated = this.validateReflectionCandidates(mappedCandidates).slice(0, 3);
         if (curated.length > 0) {
-          await this.memoryIngestion.ingest(userId, curated, 'REFLECTION', {
-            dayId: conversation.dayId ?? undefined,
+          backgroundTasks.push({
+            name: 'memory-ingestion-reflection',
+            run: async () => {
+              await this.memoryIngestion.ingest(userId, curated, 'REFLECTION', {
+                dayId: conversation.dayId ?? undefined,
+              });
+            },
           });
         }
       } else {
-        await this.memoryIngestion.ingest(userId, mappedCandidates, 'CONVERSATION', {
-          conversationId: conversation.id,
-          dayId: conversation.dayId ?? undefined,
+        backgroundTasks.push({
+          name: 'memory-ingestion-conversation',
+          run: async () => {
+            await this.memoryIngestion.ingest(userId, mappedCandidates, 'CONVERSATION', {
+              conversationId: conversation.id,
+              dayId: conversation.dayId ?? undefined,
+            });
+          },
         });
       }
     }
 
     if (reflectionTriggered) {
-      await this.daysService.endDay(userId);
+      backgroundTasks.push({
+        name: 'end-day',
+        run: async () => {
+          await this.daysService.endDay(userId);
+        },
+      });
     }
 
-    // Log AI interaction
-    try {
-      await this.logsService.create(
-        userId,
-        conversation.mode,
-        fullPrompt,
-        aiResponse.content,
-        aiResponse.actionCandidates || [],
-      );
-    } catch (error) {
-      this.logger.error('Failed to log AI interaction:', error);
-    }
+    backgroundTasks.push({
+      name: 'log-ai-interaction',
+      run: async () => {
+        await this.logsService.create(
+          userId,
+          conversation.mode,
+          fullPrompt,
+          aiResponse.content,
+          aiResponse.actionCandidates || [],
+        );
+      },
+    });
+    this.runInBackground(backgroundTasks);
+    this.logger.log(
+      [
+        'timing',
+        'flow=chat',
+        `totalMs=${Date.now() - requestStartedAt}`,
+        `contextMs=${contextMs}`,
+        `aiMs=${aiMs}`,
+        `assistantWriteMs=${assistantWriteMs}`,
+        `actionPrepareMs=${actionPrepareMs}`,
+        `actions=${storedActions.length}`,
+        `backgroundTasks=${backgroundTasks.length}`,
+        `responseChars=${aiResponse.content.length}`,
+      ].join(' '),
+    );
 
     return {
       conversationId: conversation.id,
@@ -643,6 +735,22 @@ export class ConversationsService {
     }
     const trimmed = summary.trim();
     return trimmed.length > 20 ? trimmed : undefined;
+  }
+
+  private runInBackground(tasks: Array<{ name: string; run: () => Promise<void> }>): void {
+    if (tasks.length === 0) {
+      return;
+    }
+
+    void Promise.allSettled(tasks.map(task => task.run())).then(results => {
+      for (const [index, result] of results.entries()) {
+        if (result.status === 'rejected') {
+          const reason =
+            result.reason instanceof Error ? result.reason : new Error(String(result.reason));
+          this.logger.error(`Background task failed: ${tasks[index].name}`, reason);
+        }
+      }
+    });
   }
 
   private mapMemoryCandidates(
