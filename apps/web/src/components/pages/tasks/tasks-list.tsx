@@ -88,8 +88,7 @@ const TasksList: FC = () => {
     [tasks, selectedDayKey],
   );
 
-  const invalidateTasks = () =>
-    void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
+  const invalidateTasks = () => void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
 
   const handleTaskClick = (task: TaskDto) => {
     setSelectedTask(task);

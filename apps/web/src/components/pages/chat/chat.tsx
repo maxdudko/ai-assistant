@@ -223,7 +223,9 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
 
               const alreadyShown = streamingDisplayedRef.current;
               const full = result.message.content || '';
-              const remaining = full.startsWith(alreadyShown) ? full.slice(alreadyShown.length) : full;
+              const remaining = full.startsWith(alreadyShown)
+                ? full.slice(alreadyShown.length)
+                : full;
 
               if (remaining.length) {
                 queueStreamingDelta(remaining);
