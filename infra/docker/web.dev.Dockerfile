@@ -1,22 +1,21 @@
-FROM node:22.12-bullseye
+FROM node:22-alpine
 
 WORKDIR /app
 
-# Enable Corepack and PNPM
-RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 
-# We copy only the necessary files for caching dependencies
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
 
-# Copy all applications and packages
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+COPY packages/ai-core/package.json ./packages/ai-core/
+COPY packages/shared-types/package.json ./packages/shared-types/
+
+RUN pnpm install --frozen-lockfile
+
 COPY apps ./apps
 COPY packages ./packages
 
-# Installing dependencies
-RUN pnpm install
-
-# We expose the port
 EXPOSE 3000
 
-# Launching a server application
-CMD ["pnpm", "--filter", "web", "dev"]
+CMD ["pnpm", "turbo", "dev", "--filter=@ai/web"]

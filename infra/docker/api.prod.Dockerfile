@@ -1,20 +1,33 @@
 # ---------- BUILDER ----------
-FROM node:22.12-bullseye AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /repo
 
-RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
 
-COPY . .
+RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+COPY packages/ai-core/package.json ./packages/ai-core/
+COPY packages/shared-types/package.json ./packages/shared-types/
 
 RUN pnpm install --frozen-lockfile
 
+COPY . .
+
+RUN pnpm --filter @ai/api exec prisma generate
 RUN pnpm --filter @ai/api build
 
-RUN pnpm --filter @ai/api deploy --prod /out/api
+RUN pnpm --filter @ai/api deploy --prod --legacy /out/api
 
 # ---------- RUNTIME ----------
-FROM node:20-bullseye
+FROM node:22-slim
+
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
