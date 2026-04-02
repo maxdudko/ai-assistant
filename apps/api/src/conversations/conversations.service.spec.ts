@@ -8,6 +8,11 @@ import { AiService } from '../ai/ai.service';
 import { ConversationState, ConversationType } from '../prisma/types';
 import { ActionsService } from '../actions/actions.service';
 import { IntentDetectorService } from '../intents/intent-detector.service';
+import { MemoryIngestionService } from '../memory/memory-ingestion.service';
+import { MemoryRetrieverService } from '../memory/memory-retriever.service';
+import { DaysService } from '../days/days.service';
+import { DigestService } from '../digest/digest.service';
+import { LogsService } from '../logs/logs.service';
 
 describe('ConversationsService', () => {
   let service: ConversationsService;
@@ -15,15 +20,18 @@ describe('ConversationsService', () => {
   let ai: jest.Mocked<AiService>;
   let actions: jest.Mocked<ActionsService>;
   let intentDetector: jest.Mocked<IntentDetectorService>;
+  let memoryIngestion: { ingest: jest.Mock };
 
   const mockUserId = 'user-123';
   const mockConversationId = 'conv-123';
+  const mockDayId = 'day-test-1';
   const mockToday = new Date();
   mockToday.setHours(0, 0, 0, 0);
 
   const mockConversation = {
     id: mockConversationId,
     userId: mockUserId,
+    dayId: mockDayId,
     mode: ConversationMode.MANAGER,
     state: ConversationState.CREATED,
     type: ConversationType.DAILY,
@@ -49,6 +57,10 @@ describe('ConversationsService', () => {
         create: jest.fn(),
         update: jest.fn(),
       },
+      day: {
+        findUnique: jest.fn(),
+        create: jest.fn(),
+      },
       message: {
         create: jest.fn(),
         count: jest.fn(),
@@ -67,10 +79,34 @@ describe('ConversationsService', () => {
 
     const mockActions = {
       createCandidates: jest.fn(),
+      prepareCandidates: jest.fn().mockReturnValue([]),
     };
 
     const mockIntentDetector = {
       detect: jest.fn(),
+    };
+
+    const mockMemoryIngestion = {
+      ingest: jest.fn().mockResolvedValue(undefined),
+    };
+
+    const mockMemoryRetriever = {
+      retrieve: jest.fn().mockResolvedValue([]),
+    };
+
+    const mockDaysService = {
+      endDay: jest.fn().mockResolvedValue(undefined),
+    };
+
+    const mockDigestService = {
+      generateDigest: jest.fn().mockResolvedValue({
+        content: '',
+        actionCandidates: [],
+      }),
+    };
+
+    const mockLogsService = {
+      create: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -92,6 +128,26 @@ describe('ConversationsService', () => {
           provide: IntentDetectorService,
           useValue: mockIntentDetector,
         },
+        {
+          provide: MemoryIngestionService,
+          useValue: mockMemoryIngestion,
+        },
+        {
+          provide: MemoryRetrieverService,
+          useValue: mockMemoryRetriever,
+        },
+        {
+          provide: DaysService,
+          useValue: mockDaysService,
+        },
+        {
+          provide: DigestService,
+          useValue: mockDigestService,
+        },
+        {
+          provide: LogsService,
+          useValue: mockLogsService,
+        },
       ],
     }).compile();
 
@@ -100,6 +156,23 @@ describe('ConversationsService', () => {
     ai = module.get(AiService);
     actions = module.get(ActionsService);
     intentDetector = module.get(IntentDetectorService);
+    memoryIngestion = module.get(MemoryIngestionService);
+
+    prisma.day.findUnique.mockImplementation(
+      (args: {
+        where: { id?: string; userId_date?: { userId: string; date: Date } };
+        include?: { conversations?: unknown };
+      }) => {
+        if (args?.include && 'conversations' in args.include) {
+          return Promise.resolve({
+            id: mockDayId,
+            conversations: [],
+          });
+        }
+        return Promise.resolve({ id: mockDayId });
+      },
+    );
+    prisma.day.create.mockResolvedValue({ id: mockDayId });
   });
 
   afterEach(() => {
@@ -140,6 +213,7 @@ describe('ConversationsService', () => {
       expect(prisma.conversation.create).toHaveBeenCalledWith({
         data: {
           userId: mockUserId,
+          dayId: mockDayId,
           type: ConversationType.DAILY,
           mode: ConversationMode.MANAGER,
           state: ConversationState.CREATED,
@@ -149,6 +223,7 @@ describe('ConversationsService', () => {
               role: 'SYSTEM',
               content:
                 'Daily conversation started. Ready to help with planning, execution, and reflection.',
+              mode: ConversationMode.MANAGER,
             },
           },
         },
@@ -185,6 +260,7 @@ describe('ConversationsService', () => {
       expect(prisma.conversation.create).toHaveBeenCalledWith({
         data: {
           userId: mockUserId,
+          dayId: mockDayId,
           type: ConversationType.AD_HOC,
           mode: ConversationMode.COMPANION,
           state: ConversationState.CREATED,
@@ -193,6 +269,7 @@ describe('ConversationsService', () => {
             create: {
               role: 'SYSTEM',
               content: expect.stringContaining('Ad-hoc conversation started'),
+              mode: ConversationMode.COMPANION,
             },
           },
         },
@@ -223,6 +300,7 @@ describe('ConversationsService', () => {
         ...mockConversation,
         messages: [mockMessage],
         user: { profile: null },
+        day: null,
       };
       prisma.conversation.findFirst.mockResolvedValue(conversationWithMessages);
 
@@ -238,6 +316,7 @@ describe('ConversationsService', () => {
           },
         },
         include: {
+          day: true,
           messages: {
             orderBy: { createdAt: 'asc' },
           },
@@ -275,24 +354,25 @@ describe('ConversationsService', () => {
   });
 
   describe('handleMessage', () => {
-    const mockContext = {
-      mode: ConversationMode.MANAGER,
-      userProfile: null,
-      messages: [mockMessage],
-      memories: [],
-    };
-
     const mockAiResponse = {
       content: 'AI response',
-      memoryCandidates: [],
+      memoryCandidates: [] as { content: string; importance: number; tags?: string[] }[],
     };
 
+    const loadedForMessage = (overrides: Record<string, unknown> = {}) => ({
+      ...mockConversation,
+      day: {
+        date: mockToday,
+        state: 'START',
+        tasks: [],
+      },
+      messages: [mockMessage],
+      user: { profile: null },
+      ...overrides,
+    });
+
     it('should handle message in existing conversation', async () => {
-      const conversationWithUser = {
-        ...mockConversation,
-        messages: [mockMessage],
-        user: { profile: null },
-      };
+      const conversationWithUser = loadedForMessage();
       const assistantMessage = {
         ...mockMessage,
         id: 'msg-assistant',
@@ -300,7 +380,7 @@ describe('ConversationsService', () => {
         content: 'AI response',
       };
 
-      prisma.conversation.findUnique.mockResolvedValue(conversationWithUser);
+      prisma.conversation.findFirst.mockResolvedValue(conversationWithUser);
       prisma.message.create
         .mockResolvedValueOnce(mockMessage) // User message
         .mockResolvedValueOnce(assistantMessage); // AI response
@@ -322,11 +402,7 @@ describe('ConversationsService', () => {
     });
 
     it('should create daily conversation if no conversationId provided', async () => {
-      const conversationWithUser = {
-        ...mockConversation,
-        messages: [mockMessage],
-        user: { profile: null },
-      };
+      const conversationWithUser = loadedForMessage();
       const assistantMessage = {
         ...mockMessage,
         id: 'msg-assistant',
@@ -334,9 +410,10 @@ describe('ConversationsService', () => {
         content: 'AI response',
       };
 
-      prisma.conversation.findFirst.mockResolvedValue(mockConversation);
+      prisma.conversation.findFirst
+        .mockResolvedValueOnce(mockConversation)
+        .mockResolvedValueOnce(conversationWithUser);
       prisma.message.count.mockResolvedValue(0);
-      prisma.conversation.findUnique.mockResolvedValue(conversationWithUser);
       prisma.message.create
         .mockResolvedValueOnce(mockMessage)
         .mockResolvedValueOnce(assistantMessage);
@@ -351,11 +428,7 @@ describe('ConversationsService', () => {
     });
 
     it('should update mode if provided and different', async () => {
-      const conversationWithUser = {
-        ...mockConversation,
-        messages: [mockMessage],
-        user: { profile: null },
-      };
+      const conversationWithUser = loadedForMessage();
       const updatedConversation = {
         ...conversationWithUser,
         mode: ConversationMode.REFLECTION,
@@ -367,7 +440,7 @@ describe('ConversationsService', () => {
         content: 'AI response',
       };
 
-      prisma.conversation.findUnique.mockResolvedValue(conversationWithUser);
+      prisma.conversation.findFirst.mockResolvedValue(conversationWithUser);
       prisma.conversation.update
         .mockResolvedValueOnce(updatedConversation) // Mode update
         .mockResolvedValueOnce({
@@ -392,17 +465,11 @@ describe('ConversationsService', () => {
       expect(prisma.conversation.update).toHaveBeenCalledWith({
         where: { id: mockConversationId },
         data: { mode: ConversationMode.REFLECTION },
-        include: expect.any(Object),
       });
     });
 
     it('should activate conversation if in CREATED state', async () => {
-      const conversationWithUser = {
-        ...mockConversation,
-        state: ConversationState.CREATED,
-        messages: [mockMessage],
-        user: { profile: null },
-      };
+      const conversationWithUser = loadedForMessage({ state: ConversationState.CREATED });
       const assistantMessage = {
         ...mockMessage,
         id: 'msg-assistant',
@@ -410,7 +477,7 @@ describe('ConversationsService', () => {
         content: 'AI response',
       };
 
-      prisma.conversation.findUnique.mockResolvedValue(conversationWithUser);
+      prisma.conversation.findFirst.mockResolvedValue(conversationWithUser);
       prisma.message.create
         .mockResolvedValueOnce(mockMessage)
         .mockResolvedValueOnce(assistantMessage);
@@ -432,11 +499,7 @@ describe('ConversationsService', () => {
     });
 
     it('should create memory candidates if provided', async () => {
-      const conversationWithUser = {
-        ...mockConversation,
-        messages: [mockMessage],
-        user: { profile: null },
-      };
+      const conversationWithUser = loadedForMessage();
       const assistantMessage = {
         ...mockMessage,
         id: 'msg-assistant',
@@ -445,12 +508,18 @@ describe('ConversationsService', () => {
       };
       const aiResponseWithMemories = {
         content: 'AI response',
-        memoryCandidates: [{ content: 'Important insight', importance: 8, tags: ['insight'] }],
+        memoryCandidates: [
+          {
+            content: 'Important insight about the user',
+            type: 'FACTUAL',
+            importance: 8,
+            tags: ['insight'],
+            confidence: 0.9,
+          },
+        ],
       };
 
-      prisma.conversation.findUnique
-        .mockResolvedValueOnce(conversationWithUser) // For handleMessage
-        .mockResolvedValueOnce(mockConversation); // For createMemoryCandidates
+      prisma.conversation.findFirst.mockResolvedValue(conversationWithUser);
       prisma.message.create
         .mockResolvedValueOnce(mockMessage)
         .mockResolvedValueOnce(assistantMessage);
@@ -464,8 +533,21 @@ describe('ConversationsService', () => {
       ai.generateResponse.mockResolvedValue(aiResponseWithMemories);
 
       await service.handleMessage(mockUserId, 'Hello', mockConversationId);
+      await new Promise<void>(resolve => setImmediate(resolve));
 
-      expect(prisma.memory.createMany).toHaveBeenCalled();
+      expect(memoryIngestion.ingest).toHaveBeenCalledWith(
+        mockUserId,
+        expect.arrayContaining([
+          expect.objectContaining({
+            content: 'Important insight about the user',
+            importance: 8,
+            type: expect.any(String),
+            confidence: 0.9,
+          }),
+        ]),
+        'CONVERSATION',
+        expect.objectContaining({ conversationId: mockConversationId, dayId: mockDayId }),
+      );
     });
   });
 

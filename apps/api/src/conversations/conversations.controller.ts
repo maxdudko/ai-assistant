@@ -17,6 +17,8 @@ import { JwtAuthGuard } from '../auth/jwt.guard';
 import { parseListPagination } from '../common/parse-list-pagination';
 
 import { ConversationsService } from './conversations.service';
+import { SendConversationMessageDto } from './dto/send-conversation-message.dto';
+import { SwitchConversationModeDto } from './dto/switch-conversation-mode.dto';
 
 @Controller('conversations')
 @UseGuards(JwtAuthGuard)
@@ -27,17 +29,14 @@ export class ConversationsController {
    * Send a message to a conversation (creates daily conversation if none exists)
    */
   @Post('message')
-  async sendMessage(
-    @Req() req,
-    @Body() body: { message: string; conversationId?: string; mode?: ConversationMode },
-  ) {
+  async sendMessage(@Req() req, @Body() body: SendConversationMessageDto) {
     return this.service.handleMessage(req.user.id, body.message, body.conversationId, body.mode);
   }
 
   @Post('message/stream')
   async sendMessageStream(
     @Req() req,
-    @Body() body: { message: string; conversationId?: string; mode?: ConversationMode },
+    @Body() body: SendConversationMessageDto,
     @Res() res: Response,
   ) {
     res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
@@ -117,7 +116,7 @@ export class ConversationsController {
    * Switch conversation mode
    */
   @Patch(':id/mode')
-  async switchMode(@Req() req, @Param('id') id: string, @Body() body: { mode: ConversationMode }) {
+  async switchMode(@Req() req, @Param('id') id: string, @Body() body: SwitchConversationModeDto) {
     return this.service.switchMode(req.user.id, id, body.mode);
   }
 

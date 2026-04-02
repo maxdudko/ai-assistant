@@ -99,6 +99,23 @@ export class ConversationsService {
     });
 
     if (!conversation) {
+      const archivedToday = await this.prisma.conversation.findFirst({
+        where: {
+          userId,
+          type: ConversationType.DAILY,
+          date: { gte: today, lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) },
+          state: ConversationState.ARCHIVED,
+        },
+      });
+      if (archivedToday) {
+        conversation = await this.prisma.conversation.update({
+          where: { id: archivedToday.id },
+          data: { state: ConversationState.CREATED },
+        });
+      }
+    }
+
+    if (!conversation) {
       // Get or create today's day
       const dayId = await this.getOrCreateTodayDay(userId);
 
@@ -124,13 +141,21 @@ export class ConversationsService {
         });
       } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-          conversation = await this.prisma.conversation.findFirst({
+          const existing = await this.prisma.conversation.findFirst({
             where: {
               userId,
               type: ConversationType.DAILY,
               date: { gte: today, lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) },
             },
           });
+          if (existing?.state === ConversationState.ARCHIVED) {
+            conversation = await this.prisma.conversation.update({
+              where: { id: existing.id },
+              data: { state: ConversationState.CREATED },
+            });
+          } else {
+            conversation = existing;
+          }
         }
         if (!conversation) throw error;
       }
