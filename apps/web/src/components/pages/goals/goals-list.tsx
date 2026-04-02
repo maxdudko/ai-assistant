@@ -169,7 +169,12 @@ const GoalsList: FC = () => {
             {goals.map(goal => (
               <Container key={goal.id}>
                 <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => handleGoalClick(goal)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') handleGoalClick(goal);
+                  }}
                   className="block rounded-lg p-4 transition-colors cursor-pointer"
                 >
                   <div className="flex items-start justify-between">

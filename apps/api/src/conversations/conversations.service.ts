@@ -642,7 +642,7 @@ export class ConversationsService {
     timeoutMs: number,
   ): Promise<RetrievedMemory[]> {
     const startedAt = Date.now();
-    let timeoutHandle: NodeJS.Timeout | undefined;
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     try {
       const timeoutPromise = new Promise<RetrievedMemory[]>((_, reject) => {
         timeoutHandle = setTimeout(() => {

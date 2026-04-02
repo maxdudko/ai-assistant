@@ -286,8 +286,12 @@ const TasksList: FC = () => {
             {visibleTasks.map(task => (
               <Container key={task.id}>
                 <div
-                  key={task.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => handleTaskClick(task)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') handleTaskClick(task);
+                  }}
                   className="block rounded-lg p-4 transition-colors cursor-pointer"
                 >
                   <div className="flex items-start justify-between">

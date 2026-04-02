@@ -1,7 +1,7 @@
 'use client';
 
 import type { FC } from 'react';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 import type { AiLogDto, ConversationMode } from '@/lib/api/types';
 import { logsApi } from '@/lib/api/logs';
@@ -17,11 +17,7 @@ const LogsList: FC = () => {
   const [selectedMode, setSelectedMode] = useState<ConversationMode | ''>('');
   const limit = 20;
 
-  useEffect(() => {
-    loadLogs();
-  }, [page, selectedMode]);
-
-  const loadLogs = async () => {
+  const loadLogs = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -39,7 +35,11 @@ const LogsList: FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, selectedMode]);
+
+  useEffect(() => {
+    loadLogs();
+  }, [loadLogs]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
