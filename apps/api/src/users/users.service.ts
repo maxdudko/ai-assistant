@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { MemoryIngestionService } from '../memory/memory-ingestion.service';
-import { MemoryCandidateDto, MemoryType } from '../memory/dto/memory-candidate.dto';
+import { MemoryCandidateDto, MemoryLayer, MemoryType } from '../memory/dto/memory-candidate.dto';
 
 import { UpdateMeDto } from './dto/update-me.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -76,6 +76,7 @@ export class UsersService {
       candidates.push({
         content: `User prefers to be addressed as ${profile.displayName.trim()}.`,
         type: MemoryType.FACTUAL,
+        layer: MemoryLayer.SEMANTIC,
         importance: 8,
         tags: ['onboarding', 'identity'],
         confidence: 0.95,
@@ -86,6 +87,7 @@ export class UsersService {
       candidates.push({
         content: `Preferred assistant style: tone ${profile.tone || 'neutral'}, verbosity ${profile.verbosity || 'normal'}.`,
         type: MemoryType.FACTUAL,
+        layer: MemoryLayer.SEMANTIC,
         importance: 7,
         tags: ['onboarding', 'preferences', 'communication'],
         confidence: 0.9,
@@ -96,6 +98,7 @@ export class UsersService {
       candidates.push({
         content: `Primary assistant use case is ${profile.primaryUseCase}.`,
         type: MemoryType.FACTUAL,
+        layer: MemoryLayer.SEMANTIC,
         importance: 7,
         tags: ['onboarding', 'goals', 'use-case'],
         confidence: 0.9,
@@ -106,6 +109,7 @@ export class UsersService {
       candidates.push({
         content: `Preferred help style is ${profile.helpStyle}.`,
         type: MemoryType.FACTUAL,
+        layer: MemoryLayer.SEMANTIC,
         importance: 6,
         tags: ['onboarding', 'preferences', 'support-style'],
         confidence: 0.9,
@@ -116,6 +120,7 @@ export class UsersService {
       candidates.push({
         content: `Preferred planning time is ${profile.dayPlanningTime || 'anytime'} and reflection time is ${profile.reflectionTime || 'anytime'}.`,
         type: MemoryType.FACTUAL,
+        layer: MemoryLayer.SEMANTIC,
         importance: 6,
         tags: ['onboarding', 'schedule', 'reflection'],
         confidence: 0.85,

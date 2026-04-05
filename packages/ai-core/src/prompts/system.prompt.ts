@@ -102,13 +102,41 @@ Response style:
     }
   }
 
-  // Add relevant memories
+  // Add structured memory sections
   if (context.memories && context.memories.length > 0) {
-    prompt += `Relevant memories:\n`;
-    context.memories.forEach((memory, idx) => {
-      prompt += `${idx + 1}. ${memory.content} (importance: ${memory.importance})\n`;
-    });
-    prompt += `\n`;
+    const groupedMemories = groupMemories(context.memories);
+
+    if (groupedMemories.patterns.length > 0) {
+      prompt += `Behavioral patterns:\n`;
+      groupedMemories.patterns.forEach(memory => {
+        prompt += `- ${memory.content} (importance: ${memory.importance})\n`;
+      });
+      prompt += `\n`;
+    }
+
+    if (groupedMemories.facts.length > 0) {
+      prompt += `Relevant facts:\n`;
+      groupedMemories.facts.forEach(memory => {
+        prompt += `- ${memory.content} (importance: ${memory.importance})\n`;
+      });
+      prompt += `\n`;
+    }
+
+    if (groupedMemories.recent.length > 0) {
+      prompt += `Recent context:\n`;
+      groupedMemories.recent.forEach(memory => {
+        prompt += `- ${memory.content} (importance: ${memory.importance})\n`;
+      });
+      prompt += `\n`;
+    }
+
+    if (groupedMemories.important.length > 0) {
+      prompt += `Important insights:\n`;
+      groupedMemories.important.forEach(memory => {
+        prompt += `- ${memory.content} (importance: ${memory.importance})\n`;
+      });
+      prompt += `\n`;
+    }
   }
 
   prompt += `Remember: Conversation is contextual. Use the mode and context to provide appropriate responses.`;
@@ -129,4 +157,39 @@ function formatTaskList(tasks?: TaskContext[]): string {
       return `- [${status === 'DONE' ? 'x' : ' '}] ${task.name}${priority}${deadline}`;
     })
     .join('\n');
+}
+
+function groupMemories(memories: ConversationContext['memories']): {
+  patterns: ConversationContext['memories'];
+  facts: ConversationContext['memories'];
+  recent: ConversationContext['memories'];
+  important: ConversationContext['memories'];
+} {
+  const grouped = {
+    patterns: [] as ConversationContext['memories'],
+    facts: [] as ConversationContext['memories'],
+    recent: [] as ConversationContext['memories'],
+    important: [] as ConversationContext['memories'],
+  };
+
+  for (const memory of memories) {
+    if (memory.contextBucket === 'PATTERN' || memory.layer === 'PATTERN') {
+      grouped.patterns.push(memory);
+      continue;
+    }
+
+    if (memory.contextBucket === 'RECENT') {
+      grouped.recent.push(memory);
+      continue;
+    }
+
+    if (memory.contextBucket === 'IMPORTANT') {
+      grouped.important.push(memory);
+      continue;
+    }
+
+    grouped.facts.push(memory);
+  }
+
+  return grouped;
 }

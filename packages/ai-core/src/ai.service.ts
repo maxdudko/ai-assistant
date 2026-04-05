@@ -441,6 +441,13 @@ function normalizeMemoryCandidate(candidate: unknown): MemoryCandidate | null {
   const tags = Array.isArray(record.tags)
     ? record.tags.filter((tag): tag is string => typeof tag === 'string')
     : undefined;
+  const layerRaw = typeof record.layer === 'string' ? record.layer.toUpperCase() : '';
+  const layer =
+    layerRaw === 'EPISODIC' || layerRaw === 'SEMANTIC' || layerRaw === 'PATTERN'
+      ? layerRaw
+      : typeRaw === 'REFLECTION'
+        ? 'EPISODIC'
+        : 'SEMANTIC';
 
   return {
     content,
@@ -448,5 +455,6 @@ function normalizeMemoryCandidate(candidate: unknown): MemoryCandidate | null {
     importance,
     tags,
     confidence,
+    layer,
   };
 }

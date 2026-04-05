@@ -67,6 +67,7 @@ Return format:
     {
       "content": "detailed memory content",
       "type": "REFLECTION",
+      "layer": "EPISODIC",
       "importance": 1-10,
       "tags": ["tag1", "tag2", "..."],
       "confidence": 0.0-1.0

@@ -92,6 +92,14 @@ describe('ConversationsService', () => {
 
     const mockMemoryRetriever = {
       retrieve: jest.fn().mockResolvedValue([]),
+      getMemoryContext: jest.fn().mockResolvedValue({
+        patterns: [],
+        semantic: [],
+        recent: [],
+        important: [],
+        merged: [],
+      }),
+      trackUsage: jest.fn().mockResolvedValue(undefined),
     };
 
     const mockDaysService = {
@@ -356,7 +364,14 @@ describe('ConversationsService', () => {
   describe('handleMessage', () => {
     const mockAiResponse = {
       content: 'AI response',
-      memoryCandidates: [] as { content: string; importance: number; tags?: string[] }[],
+      memoryCandidates: [] as {
+        content: string;
+        type: 'FACTUAL' | 'REFLECTION';
+        layer: 'SEMANTIC' | 'EPISODIC' | 'PATTERN';
+        importance: number;
+        tags?: string[];
+        confidence: number;
+      }[],
     };
 
     const loadedForMessage = (overrides: Record<string, unknown> = {}) => ({
@@ -511,7 +526,8 @@ describe('ConversationsService', () => {
         memoryCandidates: [
           {
             content: 'Important insight about the user',
-            type: 'FACTUAL',
+            type: 'FACTUAL' as const,
+            layer: 'SEMANTIC' as const,
             importance: 8,
             tags: ['insight'],
             confidence: 0.9,

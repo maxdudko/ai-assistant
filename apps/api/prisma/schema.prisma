@@ -108,6 +108,12 @@ enum MemorySource {
   ONBOARDING
 }
 
+enum MemoryLayer {
+  EPISODIC
+  SEMANTIC
+  PATTERN
+}
+
 enum DigestFrequency {
   DAILY
 }
@@ -205,10 +211,14 @@ model Memory {
   id             String       @id @default(uuid())
   userId         String
   type           MemoryType   @default(FACTUAL)
+  layer          MemoryLayer  @default(SEMANTIC)
   content        String
   importance     Int          @default(5) // 1..10
+  confidence     Float        @default(0.8)
   tags           String[]
   source         MemorySource @default(CONVERSATION)
+  usageCount     Int          @default(0)
+  lastUsedAt     DateTime?
   dayId          String?
   conversationId String?
 
@@ -222,7 +232,9 @@ model Memory {
   conversation Conversation? @relation(fields: [conversationId], references: [id])
 
   @@index([userId, type])
+  @@index([userId, layer])
   @@index([userId, importance])
+  @@index([userId, createdAt])
 }
 
 model ActionCandidate {

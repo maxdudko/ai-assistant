@@ -14,9 +14,12 @@ import { ConversationState, ConversationType } from '../prisma/types';
 import { ActionsService } from '../actions/actions.service';
 import { IntentDetectorService } from '../intents/intent-detector.service';
 import { MemoryIngestionService } from '../memory/memory-ingestion.service';
-import { MemoryRetrieverService, type RetrievedMemory } from '../memory/memory-retriever.service';
+import {
+  MemoryRetrieverService,
+  type RetrievedMemoryContext,
+} from '../memory/memory-retriever.service';
 import { DaysService } from '../days/days.service';
-import { MemoryCandidateDto, MemoryType } from '../memory/dto/memory-candidate.dto';
+import { MemoryCandidateDto, MemoryLayer, MemoryType } from '../memory/dto/memory-candidate.dto';
 import { DigestService } from '../digest/digest.service';
 import { LogsService } from '../logs/logs.service';
 import type { ListPagination } from '../common/parse-list-pagination';
@@ -616,7 +619,7 @@ export class ConversationsService {
       deadline: task.deadline ? task.deadline.toISOString() : null,
     }));
 
-    const [backlogTasks, keyMessages, retrievedMemories] = await Promise.all([
+    const [backlogTasks, keyMessages, retrievedMemoryContext] = await Promise.all([
       this.prisma.task.findMany({
         where: {
           userId,
@@ -631,17 +634,28 @@ export class ConversationsService {
         : Promise.resolve(undefined),
       query
         ? this.retrieveMemoriesWithTimeout(userId, query, this.memoryRetrieveTimeoutMs)
-        : Promise.resolve([] as RetrievedMemory[]),
+        : Promise.resolve(this.emptyRetrievedMemoryContext()),
     ]);
+
+    if (retrievedMemoryContext.merged.length > 0) {
+      void this.memoryRetriever
+        .trackUsage(retrievedMemoryContext.merged.map(memory => memory.id))
+        .catch(error => {
+          const message = error instanceof Error ? error.message : String(error);
+          this.logger.warn(`Memory usage tracking skipped: ${message}`);
+        });
+    }
 
     return {
       mode: conversation.mode,
       userProfile: conversation.user?.profile || null,
       messages: conversation.messages,
-      memories: retrievedMemories.map(memory => ({
+      memories: retrievedMemoryContext.merged.map(memory => ({
         content: memory.content,
         importance: memory.importance,
         tags: memory.tags ?? [],
+        layer: memory.layer,
+        contextBucket: memory.contextBucket,
       })),
       day: conversation.day
         ? {
@@ -665,23 +679,26 @@ export class ConversationsService {
     userId: string,
     query: string,
     timeoutMs: number,
-  ): Promise<RetrievedMemory[]> {
+  ): Promise<RetrievedMemoryContext> {
     const startedAt = Date.now();
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     try {
-      const timeoutPromise = new Promise<RetrievedMemory[]>((_, reject) => {
+      const timeoutPromise = new Promise<RetrievedMemoryContext>((_, reject) => {
         timeoutHandle = setTimeout(() => {
           reject(new Error(`memory retrieval timeout after ${timeoutMs}ms`));
         }, timeoutMs);
         timeoutHandle.unref?.();
       });
-      return await Promise.race([this.memoryRetriever.retrieve(userId, query), timeoutPromise]);
+      return await Promise.race([
+        this.memoryRetriever.getMemoryContext(userId, query),
+        timeoutPromise,
+      ]);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(
         `Memory retrieval skipped: ${message} (elapsedMs=${Date.now() - startedAt}, timeoutMs=${timeoutMs})`,
       );
-      return [];
+      return this.emptyRetrievedMemoryContext();
     } finally {
       if (timeoutHandle) {
         clearTimeout(timeoutHandle);
@@ -786,6 +803,7 @@ export class ConversationsService {
     candidates: Array<{
       content: string;
       type?: string;
+      layer?: string;
       importance: number;
       tags?: string[];
       confidence: number;
@@ -805,9 +823,22 @@ export class ConversationsService {
         continue;
       }
 
+      const layerRaw = typeof candidate.layer === 'string' ? candidate.layer.toUpperCase() : '';
+      const layer =
+        layerRaw === 'EPISODIC'
+          ? MemoryLayer.EPISODIC
+          : layerRaw === 'SEMANTIC'
+            ? MemoryLayer.SEMANTIC
+            : layerRaw === 'PATTERN'
+              ? MemoryLayer.PATTERN
+              : type === MemoryType.REFLECTION
+                ? MemoryLayer.EPISODIC
+                : MemoryLayer.SEMANTIC;
+
       mapped.push({
         content: candidate.content,
         type,
+        layer,
         importance: candidate.importance,
         ...(candidate.tags ? { tags: candidate.tags } : {}),
         confidence: candidate.confidence,
@@ -819,6 +850,16 @@ export class ConversationsService {
 
   private validateReflectionCandidates(candidates: MemoryCandidateDto[]) {
     return candidates.filter(candidate => candidate.confidence >= 0.7 && candidate.importance >= 5);
+  }
+
+  private emptyRetrievedMemoryContext(): RetrievedMemoryContext {
+    return {
+      patterns: [],
+      semantic: [],
+      recent: [],
+      important: [],
+      merged: [],
+    };
   }
 
   private buildPromptLog(
@@ -843,6 +884,8 @@ export class ConversationsService {
         content: memory.content,
         importance: memory.importance,
         tags: memory.tags,
+        layer: memory.layer,
+        contextBucket: memory.contextBucket,
       })),
       day: context.day,
       tasksToday: context.tasksToday,

@@ -4,6 +4,7 @@ import { ConversationMode, DayState, MessageRole, TaskStatus } from '@prisma/cli
 
 import { PrismaService } from '../prisma/prisma.service';
 import { DaysService } from '../days/days.service';
+import { PatternDetectionService } from '../memory/pattern-detection.service';
 import { ConversationState, ConversationType } from '../prisma/types';
 
 const REFLECTION_QUESTIONS = [
@@ -23,6 +24,7 @@ export class DailyFlowScheduler {
   constructor(
     private readonly prisma: PrismaService,
     private readonly daysService: DaysService,
+    private readonly patternDetection: PatternDetectionService,
   ) {}
 
   @Cron('0 7 * * *', { name: 'morning-briefing', timeZone: 'UTC' })
@@ -35,6 +37,12 @@ export class DailyFlowScheduler {
   async handleEveningReflections(): Promise<void> {
     this.logger.log('Running evening reflection scheduler');
     await this.runEveningReflections();
+  }
+
+  @Cron('30 0 * * *', { name: 'pattern-detection', timeZone: 'UTC' })
+  async handlePatternDetection(): Promise<void> {
+    this.logger.log('Running pattern detection scheduler');
+    await this.runPatternDetection();
   }
 
   async runMorningBriefings(): Promise<{ delivered: number; skipped: number }> {
@@ -89,6 +97,23 @@ export class DailyFlowScheduler {
 
     this.logger.log(`Evening reflections: ${delivered} delivered, ${skipped} skipped`);
     return { delivered, skipped };
+  }
+
+  async runPatternDetection(): Promise<{
+    processed: number;
+    generated: number;
+    failed: number;
+    decayed: number;
+  }> {
+    const patternResult = await this.patternDetection.runDailyForAllUsers();
+    const decayed = await this.patternDetection.decayStaleMemories();
+    this.logger.log(
+      `Pattern detection: ${patternResult.processed} processed, ${patternResult.generated} generated, ${patternResult.failed} failed, ${decayed} decayed`,
+    );
+    return {
+      ...patternResult,
+      decayed,
+    };
   }
 
   private async deliverMorningBriefing(userId: string, displayName: string): Promise<boolean> {

@@ -1,11 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DayState, TaskPriority, TaskStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { PatternDetectionService } from '../memory/pattern-detection.service';
 
 @Injectable()
 export class DaysService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(DaysService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly patternDetection: PatternDetectionService,
+  ) {}
 
   /**
    * Normalize a date to the start of the day (midnight)
@@ -165,7 +171,7 @@ export class DaysService {
 
     if (!day) {
       // If day doesn't exist, create it in END state
-      return this.prisma.day.create({
+      const createdDay = await this.prisma.day.create({
         data: {
           userId,
           date: today,
@@ -190,9 +196,17 @@ export class DaysService {
           },
         },
       });
+
+      void this.patternDetection.detectForUser(userId).catch(error => {
+        this.logger.warn(
+          `Pattern detection skipped after day end: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+
+      return createdDay;
     }
 
-    return this.prisma.day.update({
+    const endedDay = await this.prisma.day.update({
       where: { id: day.id },
       data: {
         state: DayState.END,
@@ -216,6 +230,14 @@ export class DaysService {
         },
       },
     });
+
+    void this.patternDetection.detectForUser(userId).catch(error => {
+      this.logger.warn(
+        `Pattern detection skipped after day end: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+
+    return endedDay;
   }
 
   /**

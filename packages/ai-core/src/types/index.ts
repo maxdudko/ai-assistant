@@ -33,6 +33,8 @@ export interface Memory {
   content: string;
   importance: number;
   tags: string[];
+  layer?: MemoryLayer;
+  contextBucket?: MemoryContextBucket;
 }
 
 export type DayState = 'START' | 'ACTIVE' | 'END';
@@ -63,6 +65,8 @@ export interface ConversationContext {
 
 export type MemoryType = 'FACTUAL' | 'REFLECTION';
 export type MemorySource = 'CONVERSATION' | 'REFLECTION' | 'ONBOARDING';
+export type MemoryLayer = 'EPISODIC' | 'SEMANTIC' | 'PATTERN';
+export type MemoryContextBucket = 'PATTERN' | 'SEMANTIC' | 'RECENT' | 'IMPORTANT';
 
 export interface MemoryCandidate {
   content: string;
@@ -70,6 +74,7 @@ export interface MemoryCandidate {
   importance: number; // 1..10
   tags?: string[];
   confidence: number; // 0..1
+  layer: MemoryLayer;
 }
 
 export interface AiResponse {

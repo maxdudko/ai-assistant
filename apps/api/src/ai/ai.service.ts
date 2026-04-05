@@ -38,6 +38,8 @@ interface Memory {
   content: string;
   importance: number;
   tags: string[];
+  layer?: 'EPISODIC' | 'SEMANTIC' | 'PATTERN';
+  contextBucket?: 'PATTERN' | 'SEMANTIC' | 'RECENT' | 'IMPORTANT';
 }
 
 interface DayContext {
@@ -264,6 +266,8 @@ export class AiService implements OnModuleInit {
       content: memory.content,
       importance: memory.importance,
       tags: memory.tags,
+      layer: memory.layer,
+      contextBucket: memory.contextBucket,
     };
   }
 

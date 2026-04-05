@@ -292,14 +292,19 @@ export interface MorningBriefingDto {
 
 export type MemoryType = 'FACTUAL' | 'REFLECTION';
 export type MemorySource = 'CONVERSATION' | 'REFLECTION' | 'ONBOARDING';
+export type MemoryLayer = 'EPISODIC' | 'SEMANTIC' | 'PATTERN';
 
 export interface MemoryDto {
   id: string;
   type: MemoryType;
+  layer: MemoryLayer;
   content: string;
   importance: number;
+  confidence: number;
   tags: string[];
   source: MemorySource;
+  usageCount: number;
+  lastUsedAt: string | null;
   dayId: string | null;
   conversationId: string | null;
   createdAt: string;

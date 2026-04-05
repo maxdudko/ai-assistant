@@ -41,6 +41,7 @@ export function extractMemoryCandidates(
         importance: 7,
         tags: ['reflection', 'insight'],
         confidence: 0.7,
+        layer: 'EPISODIC',
       });
     }
   }
@@ -59,6 +60,7 @@ export function extractMemoryCandidates(
         importance: 8,
         tags: ['planning', 'priority'],
         confidence: 0.8,
+        layer: 'SEMANTIC',
       });
     }
   }
