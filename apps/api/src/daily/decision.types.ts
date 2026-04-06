@@ -1,6 +1,7 @@
 import type { DayPhase, DayState, TaskStatus } from '@prisma/client';
 
 import type { DailyEvent } from './daily.types';
+import type { DailyAction } from './action.types';
 import type { Nudge } from './nudge.types';
 
 export type DecisionContext = {
@@ -41,7 +42,7 @@ export type DecisionContext = {
 export type DecisionMessageTemplate = 'MORNING_BRIEFING' | 'EVENING_REFLECTION';
 
 export type DecisionAction =
-  | { type: 'SEND_NUDGE'; nudge: Nudge }
+  | { type: 'SEND_NUDGE'; nudge: Nudge; action?: DailyAction }
   | {
       type: 'SEND_MESSAGE';
       mode: 'MANAGER' | 'REFLECTION';

@@ -109,6 +109,14 @@ export class DecisionEngineService {
           priority: NudgePriority.MEDIUM,
           createdAt: context.now,
         },
+        action: {
+          type: 'SIMPLIFY_DAY',
+          payload: {
+            dayId: context.day.id,
+            keepCount: 2,
+          },
+          requiresConfirmation: true,
+        },
       },
       reason: 'PLAN_OVERLOAD',
     };
@@ -131,6 +139,19 @@ export class DecisionEngineService {
       return null;
     }
 
+    const overdueCandidate = context.tasks
+      .filter(task => task.status !== TaskStatus.DONE)
+      .sort((a, b) => {
+        const aPriority = this.priorityWeight(a.priority);
+        const bPriority = this.priorityWeight(b.priority);
+        if (aPriority !== bPriority) {
+          return bPriority - aPriority;
+        }
+        const aDeadline = a.deadline?.getTime() ?? Number.POSITIVE_INFINITY;
+        const bDeadline = b.deadline?.getTime() ?? Number.POSITIVE_INFINITY;
+        return aDeadline - bDeadline;
+      })[0];
+
     return {
       action: {
         type: 'SEND_NUDGE',
@@ -139,6 +160,13 @@ export class DecisionEngineService {
           priority: NudgePriority.HIGH,
           createdAt: context.now,
         },
+        action: overdueCandidate
+          ? {
+              type: 'RESCHEDULE_TASK',
+              payload: { taskId: overdueCandidate.id },
+              requiresConfirmation: true,
+            }
+          : undefined,
       },
       reason: 'NO_PROGRESS',
     };
@@ -154,12 +182,12 @@ export class DecisionEngineService {
     }
 
     const thresholdMs = 3 * 60 * 60 * 1000;
-    const hasStuckTask = context.tasks.some(
+    const stuckTask = context.tasks.find(
       task =>
         task.status === TaskStatus.IN_PROGRESS &&
         context.now.getTime() - task.updatedAt.getTime() >= thresholdMs,
     );
-    if (!hasStuckTask) {
+    if (!stuckTask) {
       return null;
     }
 
@@ -170,6 +198,11 @@ export class DecisionEngineService {
           type: NudgeType.STUCK_TASK,
           priority: NudgePriority.HIGH,
           createdAt: context.now,
+        },
+        action: {
+          type: 'SPLIT_TASK',
+          payload: { taskId: stuckTask.id, parts: 3 },
+          requiresConfirmation: true,
         },
       },
       reason: 'STUCK_TASK',
@@ -229,5 +262,11 @@ export class DecisionEngineService {
       rank: DECISION_RANK[reason],
       result,
     };
+  }
+
+  private priorityWeight(priority?: string): number {
+    if (priority === 'HIGH') return 3;
+    if (priority === 'MEDIUM') return 2;
+    return 1;
   }
 }

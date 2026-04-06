@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 import { Injectable } from '@nestjs/common';
 import {
   ConversationMode,
@@ -7,6 +9,7 @@ import {
   TaskPriority,
   TaskStatus,
 } from '@prisma/client';
+import type { ActionCandidate } from '@ai/shared-types';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -17,6 +20,7 @@ import { DecisionEngineService } from './decision-engine.service';
 import { DecisionContext, DecisionMessageTemplate } from './decision.types';
 import { NudgePolicyService } from './nudge-policy.service';
 import { NudgePriority, NudgeType } from './nudge.types';
+import type { DailyAction } from './action.types';
 
 type DailyProfile = {
   displayName: string;
@@ -133,6 +137,7 @@ export class DailyEngineService {
           now,
           tasks,
           decision.action.nudge.type,
+          decision.action.action,
         );
         if (sent) {
           this.applyNudgeResult(result, decision.action.nudge.type);
@@ -171,6 +176,7 @@ export class DailyEngineService {
     now: Date,
     tasks: DecisionContext['tasks'],
     type: NudgeType,
+    action?: DailyAction,
   ): Promise<boolean> {
     const nudge = { type, priority: this.nudgePriority(type), createdAt: now };
     const allowed = await this.nudgePolicy.shouldSendNudge(userId, nudge, { dayId });
@@ -190,6 +196,7 @@ export class DailyEngineService {
           'You usually struggle when planning more than 5 tasks.',
           'Want me to simplify it?',
         ].join('\n'),
+        suggestedAction: action,
         where: { planningSuggestionSentAt: null },
         dayUpdate: {
           planningSuggestionSentAt: now,
@@ -209,6 +216,7 @@ export class DailyEngineService {
           'Quick check-in: no tasks are completed yet today.',
           'Would it help if we pick one tiny win to unlock momentum?',
         ].join('\n'),
+        suggestedAction: action,
         where: { noProgressNudgeSentAt: null },
         dayUpdate: {
           noProgressNudgeSentAt: now,
@@ -238,6 +246,7 @@ export class DailyEngineService {
           `You've been on "${stuckTask.name}" for a while.`,
           'Want to split it into a smaller next step or take a short break first?',
         ].join('\n'),
+        suggestedAction: action,
         where: { stuckTaskNudgeSentAt: null },
         dayUpdate: {
           stuckTaskNudgeSentAt: now,
@@ -304,6 +313,7 @@ export class DailyEngineService {
     };
     mode: ConversationMode;
     content: string;
+    suggestedAction?: DailyAction;
     where: DayUpdateGate;
     dayUpdate: Prisma.DayUpdateManyMutationInput;
   }): Promise<boolean> {
@@ -330,12 +340,24 @@ export class DailyEngineService {
           throw new Error('NUDGE_ABORT');
         }
 
+        const actionCandidate =
+          input.suggestedAction && input.suggestedAction.requiresConfirmation
+            ? await this.createActionCandidate(
+                tx,
+                input.userId,
+                conversation.conversationId,
+                input.suggestedAction,
+              )
+            : null;
+
+        const contentWithActionHint = this.appendActionHint(input.content, actionCandidate);
+
         await tx.message.create({
           data: {
             conversationId: conversation.conversationId,
             role: 'ASSISTANT',
             mode: input.mode,
-            content: input.content,
+            content: contentWithActionHint,
           },
         });
         return true;
@@ -497,6 +519,60 @@ export class DailyEngineService {
     if (type === NudgeType.PLAN_OVERLOAD) result.planningSuggestionSent = true;
     if (type === NudgeType.NO_PROGRESS) result.noProgressNudgeSent = true;
     if (type === NudgeType.STUCK_TASK) result.stuckTaskNudgeSent = true;
+  }
+
+  private async createActionCandidate(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    conversationId: string,
+    action: DailyAction,
+  ): Promise<ActionCandidate> {
+    const normalized: ActionCandidate = {
+      id: randomUUID(),
+      type: action.type,
+      payload: {
+        ...action.payload,
+        conversationId,
+      },
+      confidence: 0.85,
+      requiresConfirmation: true,
+    };
+
+    await tx.actionCandidate.create({
+      data: {
+        id: normalized.id,
+        userId,
+        conversationId,
+        type: normalized.type,
+        payload: normalized.payload as Prisma.InputJsonObject,
+        confidence: normalized.confidence,
+        requiresConfirmation: normalized.requiresConfirmation,
+        status: 'PENDING',
+      },
+    });
+
+    return normalized;
+  }
+
+  private appendActionHint(baseContent: string, actionCandidate: ActionCandidate | null): string {
+    if (!actionCandidate) {
+      return baseContent;
+    }
+
+    const actionLabel = this.getActionLabel(actionCandidate.type);
+    return [
+      baseContent,
+      '',
+      `Suggested action available: ${actionLabel}.`,
+      `If you want this applied, confirm action id: ${actionCandidate.id}`,
+    ].join('\n');
+  }
+
+  private getActionLabel(actionType: string): string {
+    if (actionType === 'SIMPLIFY_DAY') return 'simplify today to top priorities';
+    if (actionType === 'SPLIT_TASK') return 'split the stuck task into subtasks';
+    if (actionType === 'RESCHEDULE_TASK') return 'reschedule the task to tomorrow';
+    return actionType.toLowerCase();
   }
 
   private nudgePriority(type: NudgeType): NudgePriority {

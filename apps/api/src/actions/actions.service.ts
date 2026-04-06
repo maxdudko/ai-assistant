@@ -4,8 +4,10 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { ActionCandidate } from '@ai/shared-types';
 
 import { PrismaService } from '../prisma/prisma.service';
+import type { ListPagination } from '../common/parse-list-pagination';
 
 import { ActionExecutorService } from './action-executor.service';
+import { ListPendingActionsDto } from './dto/list-pending-actions.dto';
 
 interface ActionContext {
   conversationId?: string;
@@ -120,6 +122,60 @@ export class ActionsService {
     }
   }
 
+  async getPendingActions(
+    userId: string,
+    query: Pick<ListPendingActionsDto, 'conversationId' | 'dayId'>,
+    pagination: ListPagination,
+  ) {
+    const where = {
+      userId,
+      status: 'PENDING' as const,
+      requiresConfirmation: true,
+      conversationId: query.conversationId,
+      conversation: query.dayId
+        ? {
+            dayId: query.dayId,
+          }
+        : undefined,
+    };
+
+    const take = pagination.limit + 1;
+    const rows = await this.prisma.actionCandidate.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take,
+      skip: pagination.offset,
+      select: {
+        id: true,
+        type: true,
+        payload: true,
+        confidence: true,
+        requiresConfirmation: true,
+        status: true,
+        createdAt: true,
+        conversationId: true,
+      },
+    });
+
+    const hasMore = rows.length > pagination.limit;
+    const items = hasMore ? rows.slice(0, pagination.limit) : rows;
+
+    return {
+      items: items.map(item => ({
+        id: item.id,
+        type: item.type as ActionCandidate['type'],
+        payload: (item.payload as Record<string, unknown>) ?? {},
+        confidence: item.confidence,
+        requiresConfirmation: item.requiresConfirmation,
+        status: item.status,
+        createdAt: item.createdAt,
+        conversationId: item.conversationId,
+      })),
+      hasMore,
+      nextOffset: hasMore ? pagination.offset + pagination.limit : null,
+    };
+  }
+
   private normalizeCandidate(candidate: ActionCandidate, context: ActionContext): ActionCandidate {
     const payload = { ...candidate.payload } as Record<string, unknown>;
 
@@ -146,9 +202,14 @@ export class ActionsService {
     }
 
     if (
-      ['TASK_UPDATE_STATUS', 'TASK_SET_PRIORITY', 'TASK_SET_DUE_DATE', 'TASK_COMPLETE'].includes(
-        candidate.type,
-      ) &&
+      [
+        'TASK_UPDATE_STATUS',
+        'TASK_SET_PRIORITY',
+        'TASK_SET_DUE_DATE',
+        'TASK_COMPLETE',
+        'SPLIT_TASK',
+        'RESCHEDULE_TASK',
+      ].includes(candidate.type) &&
       !payload.taskId
     ) {
       const taskName = this.getTaskNameFromPayload(payload);

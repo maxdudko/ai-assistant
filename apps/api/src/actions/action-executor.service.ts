@@ -5,10 +5,12 @@ import type { ActionCandidate } from '@ai/shared-types';
 import { TasksService } from '../tasks/tasks.service';
 import { DaysService } from '../days/days.service';
 import { DigestService } from '../digest/digest.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class ActionExecutorService {
   constructor(
+    private readonly prisma: PrismaService,
     private readonly tasksService: TasksService,
     private readonly daysService: DaysService,
     private readonly digestService: DigestService,
@@ -75,6 +77,18 @@ export class ActionExecutorService {
         await this.digestService.subscribeFromSuggestion(userId, action.payload);
         break;
 
+      case 'SIMPLIFY_DAY':
+        await this.simplifyDay(userId, action.payload);
+        break;
+
+      case 'SPLIT_TASK':
+        await this.splitTask(userId, action.payload);
+        break;
+
+      case 'RESCHEDULE_TASK':
+        await this.rescheduleTask(userId, action.payload);
+        break;
+
       default:
         throw new BadRequestException(`Unsupported action type: ${action.type}`);
     }
@@ -137,5 +151,164 @@ export class ActionExecutorService {
     if (upper === TaskPriority.MEDIUM) return TaskPriority.MEDIUM;
     if (upper === TaskPriority.HIGH) return TaskPriority.HIGH;
     throw new BadRequestException(`Invalid task priority: ${value}`);
+  }
+
+  private async simplifyDay(userId: string, payload: Record<string, unknown>): Promise<void> {
+    const dayId = this.getOptionalString(payload, ['dayId']);
+    if (!dayId) {
+      throw new BadRequestException('Missing required field: dayId');
+    }
+
+    const keepCount = this.getOptionalNumber(payload, ['keepCount']) ?? 2;
+    const keepLimit = Math.min(5, Math.max(1, Math.floor(keepCount)));
+
+    const tasks = await this.prisma.task.findMany({
+      where: {
+        userId,
+        dayId,
+      },
+      select: {
+        id: true,
+        priority: true,
+        deadline: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (tasks.length <= keepLimit) {
+      return;
+    }
+
+    const sorted = [...tasks].sort((a, b) => {
+      const p = this.priorityRank(b.priority) - this.priorityRank(a.priority);
+      if (p !== 0) return p;
+      const aDeadline = a.deadline?.getTime() ?? Number.POSITIVE_INFINITY;
+      const bDeadline = b.deadline?.getTime() ?? Number.POSITIVE_INFINITY;
+      if (aDeadline !== bDeadline) return aDeadline - bDeadline;
+      return a.createdAt.getTime() - b.createdAt.getTime();
+    });
+
+    const keep = new Set(sorted.slice(0, keepLimit).map(task => task.id));
+    const toMove = tasks.filter(task => !keep.has(task.id)).map(task => task.id);
+    if (toMove.length === 0) return;
+
+    await this.prisma.task.updateMany({
+      where: {
+        userId,
+        id: { in: toMove },
+      },
+      data: {
+        dayId: null,
+      },
+    });
+  }
+
+  private async splitTask(userId: string, payload: Record<string, unknown>): Promise<void> {
+    const taskId = this.getRequiredString(payload, ['taskId', 'task_id']);
+    const parent = await this.prisma.task.findFirst({
+      where: {
+        id: taskId,
+        userId,
+      },
+      select: {
+        id: true,
+        dayId: true,
+        priority: true,
+        name: true,
+      },
+    });
+    if (!parent) {
+      throw new BadRequestException('Task not found');
+    }
+
+    const providedSubtasks = this.getOptionalStringArray(payload, ['subtasks', 'steps']);
+    let subtasks = providedSubtasks;
+    if (!subtasks || subtasks.length === 0) {
+      const parts = this.getOptionalNumber(payload, ['parts']) ?? 3;
+      const count = Math.min(4, Math.max(2, Math.floor(parts)));
+      subtasks = Array.from({ length: count }, (_, index) => `${parent.name} - Part ${index + 1}`);
+    }
+
+    if (subtasks.length < 2 || subtasks.length > 4) {
+      throw new BadRequestException('SPLIT_TASK requires 2-4 subtasks');
+    }
+
+    await this.prisma.task.createMany({
+      data: subtasks.map(name => ({
+        userId,
+        dayId: parent.dayId,
+        parentId: parent.id,
+        name,
+        status: TaskStatus.TODO,
+        priority: parent.priority,
+        source: 'CHAT',
+      })),
+    });
+  }
+
+  private async rescheduleTask(userId: string, payload: Record<string, unknown>): Promise<void> {
+    const taskId = this.getRequiredString(payload, ['taskId', 'task_id']);
+    const task = await this.prisma.task.findFirst({
+      where: {
+        id: taskId,
+        userId,
+      },
+      select: {
+        id: true,
+        deadline: true,
+      },
+    });
+    if (!task) {
+      throw new BadRequestException('Task not found');
+    }
+
+    const base = task.deadline ?? new Date();
+    const nextDay = new Date(base);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    await this.tasksService.update(userId, task.id, {
+      deadline: nextDay.toISOString(),
+    });
+  }
+
+  private getOptionalNumber(payload: Record<string, unknown>, keys: string[]): number | undefined {
+    for (const key of keys) {
+      const value = payload[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+      }
+      if (typeof value === 'string' && value.trim().length > 0) {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) {
+          return parsed;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  private getOptionalStringArray(
+    payload: Record<string, unknown>,
+    keys: string[],
+  ): string[] | undefined {
+    for (const key of keys) {
+      const value = payload[key];
+      if (Array.isArray(value)) {
+        const normalized = value
+          .map(item => (typeof item === 'string' ? item.trim() : ''))
+          .filter(item => item.length > 0);
+        if (normalized.length > 0) {
+          return normalized;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  private priorityRank(priority: TaskPriority): number {
+    if (priority === TaskPriority.HIGH) return 3;
+    if (priority === TaskPriority.MEDIUM) return 2;
+    return 1;
   }
 }

@@ -76,6 +76,7 @@ describe('DecisionEngineService', () => {
     expect(result.action?.type).toBe('SEND_NUDGE');
     if (result.action?.type === 'SEND_NUDGE') {
       expect(result.action.nudge.type).toBe('NO_PROGRESS');
+      expect(result.action.action?.type).toBe('RESCHEDULE_TASK');
     }
     expect(result.reason).toBe('NO_PROGRESS');
   });
@@ -104,7 +105,47 @@ describe('DecisionEngineService', () => {
     expect(result.action?.type).toBe('SEND_NUDGE');
     if (result.action?.type === 'SEND_NUDGE') {
       expect(result.action.nudge.type).toBe('PLAN_OVERLOAD');
+      expect(result.action.action?.type).toBe('SIMPLIFY_DAY');
     }
+  });
+
+  it('attaches split action for stuck task when no-progress is not applicable', () => {
+    const result = service.evaluate(
+      createContext({
+        day: {
+          ...createContext().day,
+          phase: DayPhase.EXECUTION,
+        },
+        localHour: 11,
+        tasks: [
+          {
+            id: 'task-done',
+            name: 'Done task',
+            status: TaskStatus.DONE,
+            updatedAt: new Date(baseNow.getTime() - 5 * 60 * 60 * 1000),
+            priority: 'HIGH',
+            deadline: null,
+            createdAt: new Date(baseNow.getTime() - 6 * 60 * 60 * 1000),
+          },
+          {
+            id: 'task-stuck',
+            name: 'Stuck task',
+            status: TaskStatus.IN_PROGRESS,
+            updatedAt: new Date(baseNow.getTime() - 4 * 60 * 60 * 1000),
+            priority: 'MEDIUM',
+            deadline: null,
+            createdAt: new Date(baseNow.getTime() - 6 * 60 * 60 * 1000),
+          },
+        ],
+      }),
+    );
+
+    expect(result.action?.type).toBe('SEND_NUDGE');
+    if (result.action?.type === 'SEND_NUDGE') {
+      expect(result.action.nudge.type).toBe('STUCK_TASK');
+      expect(result.action.action?.type).toBe('SPLIT_TASK');
+    }
+    expect(result.reason).toBe('STUCK_TASK');
   });
 
   it('blocks invalid phase transition', () => {

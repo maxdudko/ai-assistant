@@ -6,7 +6,10 @@ export type ActionType =
   | 'TASK_COMPLETE'
   | 'DAY_START'
   | 'DAY_END'
-  | 'SUGGEST_DIGEST_SUBSCRIPTION';
+  | 'SUGGEST_DIGEST_SUBSCRIPTION'
+  | 'SIMPLIFY_DAY'
+  | 'SPLIT_TASK'
+  | 'RESCHEDULE_TASK';
 
 export interface ActionCandidate {
   id: string; // uuid
