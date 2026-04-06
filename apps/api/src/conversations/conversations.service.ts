@@ -169,7 +169,11 @@ export class ConversationsService {
       throw new NotFoundException('Conversation not found');
     }
 
-    conversation.messages.reverse();
+    if (!conversation.messages) {
+      conversation.messages = [];
+    } else {
+      conversation.messages.reverse();
+    }
     return conversation;
   }
 

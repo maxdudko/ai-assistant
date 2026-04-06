@@ -443,9 +443,9 @@ describe('ConversationsService', () => {
         content: 'AI response',
       };
 
-      prisma.conversation.findFirst
-        .mockResolvedValueOnce(mockConversation)
-        .mockResolvedValueOnce(conversationWithUser);
+      // getOrCreateDailyConversation uses dailyConversation + findUnique, not findFirst.
+      // Only loadConversationForMessage calls findFirst (must include messages for reverse()).
+      prisma.conversation.findFirst.mockResolvedValue(conversationWithUser);
       prisma.message.count.mockResolvedValue(0);
       prisma.message.create
         .mockResolvedValueOnce(mockMessage)
