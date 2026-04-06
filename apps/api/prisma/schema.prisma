@@ -106,6 +106,20 @@ enum DayPhase {
   CLOSED
 }
 
+enum NudgeType {
+  MORNING_START
+  PLAN_OVERLOAD
+  NO_PROGRESS
+  STUCK_TASK
+  EVENING_REFLECTION
+}
+
+enum NudgePriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 enum MemoryType {
   FACTUAL
   REFLECTION
@@ -148,6 +162,7 @@ model User {
   goals               Goal[]
   days                Day[]
   dayInsights         DayInsight[]
+  nudgeEvents         NudgeEvent[]
   actionCandidates    ActionCandidate[]
   actionExecutionLogs ActionExecutionLog[]
   memories            Memory[]
@@ -360,12 +375,15 @@ model Day {
   noProgressNudgeSentAt    DateTime?
   stuckTaskNudgeSentAt     DateTime?
   nudgesSentCount          Int       @default(0)
+  nudgesSentToday          Int       @default(0)
+  lastNudgeAt              DateTime?
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   tasks         Task[]
   conversations Conversation[]
   memories      Memory[]
   insight       DayInsight?
+  nudgeEvents   NudgeEvent[]
 
   @@unique([userId, date])
   @@index([userId, date])
@@ -389,6 +407,22 @@ model DayInsight {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+model NudgeEvent {
+  id        String        @id @default(uuid())
+  userId    String
+  dayId     String
+  type      NudgeType
+  priority  NudgePriority
+  createdAt DateTime      @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day  Day  @relation(fields: [dayId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, type, createdAt])
+  @@index([dayId, type, createdAt])
 }
 
 model DigestTopic {

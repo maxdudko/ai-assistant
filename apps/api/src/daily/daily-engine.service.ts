@@ -1,5 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConversationMode, DayPhase, DayState, TaskPriority, TaskStatus } from '@prisma/client';
+import { Injectable } from '@nestjs/common';
+import {
+  ConversationMode,
+  DayPhase,
+  DayState,
+  Prisma,
+  TaskPriority,
+  TaskStatus,
+} from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -7,6 +14,8 @@ import { addUtcDays, getUserLocalDateInfo } from './daily-timezone.util';
 import { DailyConversationService } from './daily-conversation.service';
 import { DailyEvent, DailyEventResult } from './daily.types';
 import { ExecutionMonitorService } from './execution-monitor.service';
+import { NudgePolicyService } from './nudge-policy.service';
+import { NudgePriority, NudgeType } from './nudge.types';
 
 type DailyProfile = {
   displayName: string;
@@ -18,12 +27,11 @@ type DailyProfile = {
 
 @Injectable()
 export class DailyEngineService {
-  private readonly logger = new Logger(DailyEngineService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly dailyConversation: DailyConversationService,
     private readonly executionMonitor: ExecutionMonitorService,
+    private readonly nudgePolicy: NudgePolicyService,
   ) {}
 
   async handleEvent(
@@ -81,12 +89,7 @@ export class DailyEngineService {
       }
 
       if (profile.onboardingCompleted) {
-        result.planningSuggestionSent = await this.maybeSendPlanningSuggestion(
-          userId,
-          profile,
-          day.id,
-          now,
-        );
+        result.planningSuggestionSent = await this.maybeSendPlanningSuggestion(userId, day.id, now);
         if (result.planningSuggestionSent) {
           result.actions += 1;
         }
@@ -109,12 +112,7 @@ export class DailyEngineService {
         result.eveningSent = await this.sendDynamicEveningReflection(userId, profile, day.id, now);
       }
 
-      result.planningSuggestionSent = await this.maybeSendPlanningSuggestion(
-        userId,
-        profile,
-        day.id,
-        now,
-      );
+      result.planningSuggestionSent = await this.maybeSendPlanningSuggestion(userId, day.id, now);
 
       const monitor = await this.maybeRunExecutionMonitor(userId, day.id, local.hour, now);
       result.noProgressNudgeSent = monitor.noProgressNudgeSent;
@@ -166,7 +164,17 @@ export class DailyEngineService {
     };
   }
 
-  private async getOrCreateDay(userId: string, date: Date) {
+  private async getOrCreateDay(
+    userId: string,
+    date: Date,
+  ): Promise<{
+    id: string;
+    date: Date;
+    state: DayState;
+    phase: DayPhase;
+    startedAt: Date | null;
+    lastActivityAt: Date | null;
+  }> {
     return this.prisma.day.upsert({
       where: { userId_date: { userId, date } },
       update: {},
@@ -270,44 +278,28 @@ export class DailyEngineService {
     ];
 
     const message = lines.join('\n');
-    const conversation = await this.dailyConversation.getOrCreate(userId, { now });
-
-    const sent = await this.prisma.$transaction(async tx => {
-      const updated = await tx.day.updateMany({
-        where: {
-          id: dayId,
-          morningBriefingSentAt: null,
-        },
-        data: {
-          morningBriefingSentAt: now,
-          startedAt: day.startedAt ?? now,
-          state: DayState.ACTIVE,
-          phase: DayPhase.PLANNING,
-        },
-      });
-
-      if (updated.count === 0) {
-        return false;
-      }
-
-      await tx.message.create({
-        data: {
-          conversationId: conversation.conversationId,
-          role: 'ASSISTANT',
-          mode: ConversationMode.MANAGER,
-          content: message,
-        },
-      });
-
-      return true;
+    return this.sendManagedNudge({
+      userId,
+      dayId,
+      now,
+      type: NudgeType.MORNING_START,
+      priority: NudgePriority.LOW,
+      mode: ConversationMode.MANAGER,
+      content: message,
+      where: {
+        morningBriefingSentAt: null,
+      },
+      dayUpdate: {
+        morningBriefingSentAt: now,
+        startedAt: day.startedAt ?? now,
+        state: DayState.ACTIVE,
+        phase: DayPhase.PLANNING,
+      },
     });
-
-    return sent;
   }
 
   private async maybeSendPlanningSuggestion(
     userId: string,
-    profile: DailyProfile,
     dayId: string,
     now: Date,
   ): Promise<boolean> {
@@ -320,7 +312,7 @@ export class DailyEngineService {
       },
     });
 
-    if (!day || day.planningSuggestionSentAt || day.nudgesSentCount >= 3) {
+    if (!day || day.planningSuggestionSentAt) {
       return false;
     }
 
@@ -345,39 +337,26 @@ export class DailyEngineService {
       return false;
     }
 
-    const conversation = await this.dailyConversation.getOrCreate(userId, { now });
     const suggestion = [
       'You have a heavy plan today.',
       `You usually struggle when planning more than 5 tasks.`,
       'Want me to simplify it into a smaller focus set?',
     ].join('\n');
 
-    return this.prisma.$transaction(async tx => {
-      const updated = await tx.day.updateMany({
-        where: {
-          id: dayId,
-          planningSuggestionSentAt: null,
-          nudgesSentCount: { lt: 3 },
-        },
-        data: {
-          planningSuggestionSentAt: now,
-          nudgesSentCount: { increment: 1 },
-        },
-      });
-
-      if (updated.count === 0) {
-        return false;
-      }
-
-      await tx.message.create({
-        data: {
-          conversationId: conversation.conversationId,
-          role: 'ASSISTANT',
-          mode: ConversationMode.MANAGER,
-          content: suggestion,
-        },
-      });
-      return true;
+    return this.sendManagedNudge({
+      userId,
+      dayId,
+      now,
+      type: NudgeType.PLAN_OVERLOAD,
+      priority: NudgePriority.MEDIUM,
+      mode: ConversationMode.MANAGER,
+      content: suggestion,
+      where: {
+        planningSuggestionSentAt: null,
+      },
+      dayUpdate: {
+        planningSuggestionSentAt: now,
+      },
     });
   }
 
@@ -393,16 +372,14 @@ export class DailyEngineService {
         id: true,
         noProgressNudgeSentAt: true,
         stuckTaskNudgeSentAt: true,
-        nudgesSentCount: true,
       },
     });
 
-    if (!day || day.nudgesSentCount >= 3) {
+    if (!day) {
       return { noProgressNudgeSent: false, stuckTaskNudgeSent: false, actions: 0 };
     }
 
     const signals = await this.executionMonitor.evaluate(dayId, localHour, now);
-    const conversation = await this.dailyConversation.getOrCreate(userId, { now });
 
     // Keep nudges minimal: at most one execution nudge per evaluation cycle.
     if (signals.stuckTask && !day.stuckTaskNudgeSentAt) {
@@ -411,28 +388,20 @@ export class DailyEngineService {
         'Want to split it into a smaller next step or take a short break first?',
       ].join('\n');
 
-      const sent = await this.prisma.$transaction(async tx => {
-        const updated = await tx.day.updateMany({
-          where: {
-            id: day.id,
-            stuckTaskNudgeSentAt: null,
-            nudgesSentCount: { lt: 3 },
-          },
-          data: {
-            stuckTaskNudgeSentAt: now,
-            nudgesSentCount: { increment: 1 },
-          },
-        });
-        if (updated.count === 0) return false;
-        await tx.message.create({
-          data: {
-            conversationId: conversation.conversationId,
-            role: 'ASSISTANT',
-            mode: ConversationMode.MANAGER,
-            content,
-          },
-        });
-        return true;
+      const sent = await this.sendManagedNudge({
+        userId,
+        dayId: day.id,
+        now,
+        type: NudgeType.STUCK_TASK,
+        priority: NudgePriority.HIGH,
+        mode: ConversationMode.MANAGER,
+        content,
+        where: {
+          stuckTaskNudgeSentAt: null,
+        },
+        dayUpdate: {
+          stuckTaskNudgeSentAt: now,
+        },
       });
 
       return { noProgressNudgeSent: false, stuckTaskNudgeSent: sent, actions: Number(sent) };
@@ -444,28 +413,20 @@ export class DailyEngineService {
         'Would it help if we pick one tiny win to unlock momentum?',
       ].join('\n');
 
-      const sent = await this.prisma.$transaction(async tx => {
-        const updated = await tx.day.updateMany({
-          where: {
-            id: day.id,
-            noProgressNudgeSentAt: null,
-            nudgesSentCount: { lt: 3 },
-          },
-          data: {
-            noProgressNudgeSentAt: now,
-            nudgesSentCount: { increment: 1 },
-          },
-        });
-        if (updated.count === 0) return false;
-        await tx.message.create({
-          data: {
-            conversationId: conversation.conversationId,
-            role: 'ASSISTANT',
-            mode: ConversationMode.MANAGER,
-            content,
-          },
-        });
-        return true;
+      const sent = await this.sendManagedNudge({
+        userId,
+        dayId: day.id,
+        now,
+        type: NudgeType.NO_PROGRESS,
+        priority: NudgePriority.HIGH,
+        mode: ConversationMode.MANAGER,
+        content,
+        where: {
+          noProgressNudgeSentAt: null,
+        },
+        dayUpdate: {
+          noProgressNudgeSentAt: now,
+        },
       });
 
       return { noProgressNudgeSent: sent, stuckTaskNudgeSent: false, actions: Number(sent) };
@@ -522,30 +483,90 @@ export class DailyEngineService {
 
     lines.push('', 'Question:', question);
 
-    const conversation = await this.dailyConversation.getOrCreate(userId, { now });
-    return this.prisma.$transaction(async tx => {
-      const updated = await tx.day.updateMany({
-        where: {
-          id: dayId,
-          eveningReflectionSentAt: null,
-        },
-        data: {
-          eveningReflectionSentAt: now,
-          phase: DayPhase.EVENING,
-        },
-      });
-      if (updated.count === 0) return false;
-
-      await tx.message.create({
-        data: {
-          conversationId: conversation.conversationId,
-          role: 'ASSISTANT',
-          mode: ConversationMode.REFLECTION,
-          content: lines.join('\n'),
-        },
-      });
-      return true;
+    return this.sendManagedNudge({
+      userId,
+      dayId,
+      now,
+      type: NudgeType.EVENING_REFLECTION,
+      priority: NudgePriority.LOW,
+      mode: ConversationMode.REFLECTION,
+      content: lines.join('\n'),
+      where: {
+        eveningReflectionSentAt: null,
+      },
+      dayUpdate: {
+        eveningReflectionSentAt: now,
+        phase: DayPhase.EVENING,
+      },
     });
+  }
+
+  private async sendManagedNudge(input: {
+    userId: string;
+    dayId: string;
+    now: Date;
+    type: NudgeType;
+    priority: NudgePriority;
+    mode: ConversationMode;
+    content: string;
+    where: Prisma.DayWhereInput;
+    dayUpdate: Prisma.DayUpdateManyMutationInput;
+  }): Promise<boolean> {
+    const nudge = {
+      type: input.type,
+      priority: input.priority,
+      createdAt: input.now,
+    };
+
+    const allowed = await this.nudgePolicy.shouldSendNudge(input.userId, nudge, {
+      dayId: input.dayId,
+    });
+    if (!allowed) {
+      return false;
+    }
+
+    const conversation = await this.dailyConversation.getOrCreate(input.userId, { now: input.now });
+
+    try {
+      return await this.prisma.$transaction(async tx => {
+        const recorded = await this.nudgePolicy.recordNudge(input.userId, nudge, {
+          dayId: input.dayId,
+          client: tx,
+        });
+
+        if (!recorded) {
+          throw new Error('NUDGE_ABORT');
+        }
+
+        const updated = await tx.day.updateMany({
+          where: {
+            id: input.dayId,
+            ...input.where,
+          },
+          data: input.dayUpdate,
+        });
+
+        if (updated.count === 0) {
+          throw new Error('NUDGE_ABORT');
+        }
+
+        await tx.message.create({
+          data: {
+            conversationId: conversation.conversationId,
+            role: 'ASSISTANT',
+            mode: input.mode,
+            content: input.content,
+          },
+        });
+
+        return true;
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'NUDGE_ABORT') {
+        return false;
+      }
+      throw error;
+    }
   }
 
   private shouldRunMorningFallback(preference: string | null, localHour: number): boolean {
