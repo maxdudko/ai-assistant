@@ -27,6 +27,8 @@ export type DecisionContext = {
     status: TaskStatus;
     updatedAt: Date;
     priority?: string;
+    difficulty?: number | null;
+    estimatedMinutes?: number | null;
     deadline?: Date | null;
     createdAt?: Date;
   }>;
@@ -37,6 +39,10 @@ export type DecisionContext = {
   now: Date;
   localHour: number;
   allowEveningReflection?: boolean;
+  availableMinutes: number;
+  totalEstimatedMinutes: number;
+  isOverloaded: boolean;
+  morningFocusPattern: boolean;
 };
 
 export type DecisionMessageTemplate = 'MORNING_BRIEFING' | 'EVENING_REFLECTION';

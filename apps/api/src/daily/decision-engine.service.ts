@@ -97,7 +97,7 @@ export class DecisionEngineService {
       const content = pattern.content.toLowerCase();
       return pattern.tags.includes('overcommitment') || content.includes('overcommit');
     });
-    if (context.tasks.length <= 5 || !hasOvercommitmentPattern) {
+    if (!context.isOverloaded) {
       return null;
     }
 
@@ -113,7 +113,9 @@ export class DecisionEngineService {
           type: 'SIMPLIFY_DAY',
           payload: {
             dayId: context.day.id,
-            keepCount: 2,
+            keepCount: hasOvercommitmentPattern ? 2 : 3,
+            totalEstimatedMinutes: context.totalEstimatedMinutes,
+            availableMinutes: context.availableMinutes,
           },
           requiresConfirmation: true,
         },

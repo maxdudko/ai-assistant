@@ -302,20 +302,22 @@ model ActionExecutionLog {
 }
 
 model Task {
-  id             String       @id @default(uuid())
-  userId         String
-  dayId          String?
-  name           String
-  description    String?
-  status         TaskStatus   @default(TODO)
-  priority       TaskPriority @default(MEDIUM)
-  deadline       DateTime?
-  source         TaskSource   @default(MANUAL)
-  conversationId String?
-  parentId       String?
-  goalId         String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id               String       @id @default(uuid())
+  userId           String
+  dayId            String?
+  name             String
+  description      String?
+  status           TaskStatus   @default(TODO)
+  priority         TaskPriority @default(MEDIUM)
+  difficulty       Int          @default(3)
+  estimatedMinutes Int?
+  deadline         DateTime?
+  source           TaskSource   @default(MANUAL)
+  conversationId   String?
+  parentId         String?
+  goalId           String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   day          Day?          @relation(fields: [dayId], references: [id], onDelete: SetNull)

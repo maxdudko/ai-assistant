@@ -138,6 +138,8 @@ export interface TaskDto {
   description: string | null;
   status: TaskStatus;
   priority: TaskPriority;
+  difficulty: number;
+  estimatedMinutes: number | null;
   deadline: string | null;
   source: TaskSource;
   conversationId: string | null;
@@ -157,6 +159,8 @@ export interface CreateTaskRequest {
   description?: string;
   status?: TaskStatus;
   priority?: TaskPriority;
+  difficulty?: number;
+  estimatedMinutes?: number;
   deadline?: string;
   source?: TaskSource;
   conversationId?: string;
@@ -168,6 +172,8 @@ export interface UpdateTaskRequest {
   description?: string;
   status?: TaskStatus;
   priority?: TaskPriority;
+  difficulty?: number;
+  estimatedMinutes?: number;
   deadline?: string;
   parentId?: string;
   goalId?: string;

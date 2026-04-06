@@ -12,6 +12,7 @@ import {
 import type { ActionCandidate } from '@ai/shared-types';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { TaskScoringService } from '../tasks/task-scoring.service';
 
 import { addUtcDays, getUserLocalDateInfo } from './daily-timezone.util';
 import { DailyConversationService } from './daily-conversation.service';
@@ -60,6 +61,7 @@ export class DailyEngineService {
     private readonly dailyConversation: DailyConversationService,
     private readonly decisionEngine: DecisionEngineService,
     private readonly nudgePolicy: NudgePolicyService,
+    private readonly taskScoring: TaskScoringService,
   ) {}
 
   async handleEvent(
@@ -95,6 +97,8 @@ export class DailyEngineService {
           name: true,
           status: true,
           priority: true,
+          difficulty: true,
+          estimatedMinutes: true,
           deadline: true,
           createdAt: true,
           updatedAt: true,
@@ -114,6 +118,11 @@ export class DailyEngineService {
       }),
     ]);
 
+    const morningFocusPattern = this.hasMorningFocusPattern(patterns);
+    const availableMinutes = this.taskScoring.getAvailableMinutes();
+    const totalEstimatedMinutes = this.taskScoring.totalEstimatedTime(tasks);
+    const isOverloaded = this.taskScoring.isOverloaded(tasks, availableMinutes);
+
     const context: DecisionContext = {
       userId,
       event: decisionEvent,
@@ -123,6 +132,10 @@ export class DailyEngineService {
       now,
       localHour: local.hour,
       allowEveningReflection: this.matchesPreference(profile.reflectionTime, 'evening'),
+      availableMinutes,
+      totalEstimatedMinutes,
+      isOverloaded,
+      morningFocusPattern,
     };
 
     const decision = this.decisionEngine.evaluate(context);
@@ -135,7 +148,7 @@ export class DailyEngineService {
           userId,
           day.id,
           now,
-          tasks,
+          context,
           decision.action.nudge.type,
           decision.action.action,
         );
@@ -174,7 +187,7 @@ export class DailyEngineService {
     userId: string,
     dayId: string,
     now: Date,
-    tasks: DecisionContext['tasks'],
+    context: DecisionContext,
     type: NudgeType,
     action?: DailyAction,
   ): Promise<boolean> {
@@ -191,11 +204,7 @@ export class DailyEngineService {
         now,
         nudge,
         mode: ConversationMode.MANAGER,
-        content: [
-          'You have a heavy plan today.',
-          'You usually struggle when planning more than 5 tasks.',
-          'Want me to simplify it?',
-        ].join('\n'),
+        content: this.buildOverloadNudgeContent(context),
         suggestedAction: action,
         where: { planningSuggestionSentAt: null },
         dayUpdate: {
@@ -227,7 +236,7 @@ export class DailyEngineService {
 
     if (type === NudgeType.STUCK_TASK) {
       const thresholdMs = 3 * 60 * 60 * 1000;
-      const stuckTask = tasks
+      const stuckTask = context.tasks
         .filter(task => task.status === TaskStatus.IN_PROGRESS)
         .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())
         .find(task => now.getTime() - task.updatedAt.getTime() >= thresholdMs);
@@ -424,33 +433,36 @@ export class DailyEngineService {
       (yesterday?.tasks.length ?? 0) -
       (yesterday?.tasks.filter(task => task.status === TaskStatus.DONE).length ?? 0);
 
-    const priorities = tasks
-      .filter(task => task.status !== TaskStatus.DONE && task.createdAt)
-      .sort((a, b) =>
-        this.compareTaskPriority(
-          {
-            priority: a.priority as TaskPriority,
-            deadline: a.deadline ?? null,
-            createdAt: a.createdAt as Date,
-          },
-          {
-            priority: b.priority as TaskPriority,
-            deadline: b.deadline ?? null,
-            createdAt: b.createdAt as Date,
-          },
-        ),
-      )
-      .slice(0, 2);
+    const normalizedTasks = tasks.map(task => ({
+      id: task.id,
+      name: task.name,
+      status: task.status,
+      priority: (task.priority ?? 'MEDIUM') as TaskPriority,
+      difficulty: task.difficulty ?? 3,
+      estimatedMinutes: task.estimatedMinutes ?? null,
+      deadline: task.deadline ?? null,
+    }));
+    const morningFocusPattern = this.hasMorningFocusPattern(patterns);
+    const topTasks = this.taskScoring.getTopTasks(normalizedTasks, {
+      limit: 2,
+      morningFocus: morningFocusPattern,
+      includeHighImpact: true,
+    });
+    const totalEstimatedMinutes = this.taskScoring.totalEstimatedTime(normalizedTasks);
+    const availableMinutes = this.taskScoring.getAvailableMinutes();
+    const isOverloaded = totalEstimatedMinutes > availableMinutes;
 
     const focusLines =
-      priorities.length > 0
-        ? priorities.map(task => {
+      topTasks.length > 0
+        ? topTasks.map(task => {
             const due = task.deadline ? ` (due ${task.deadline.toISOString().slice(0, 10)})` : '';
-            return `- ${task.name}${due}`;
+            const estimate = this.taskScoring.estimateTaskMinutes(task);
+            return `- ${task.name}${due} ~${estimate}m`;
           })
         : ['- No pending tasks yet. Pick one meaningful priority.'];
 
     const topPattern = patterns[0]?.content ?? 'No strong pattern detected yet.';
+    const loadLine = `- Planned load: ${this.formatMinutes(totalEstimatedMinutes)} / ${this.formatMinutes(availableMinutes)} available`;
     return [
       `Good morning, ${profile.displayName}.`,
       '',
@@ -461,6 +473,11 @@ export class DailyEngineService {
       'Insight:',
       topPattern,
       '',
+      'Load:',
+      loadLine,
+      ...(isOverloaded
+        ? ['- This looks overloaded. A lighter plan can improve follow-through.', '']
+        : ['']),
       'Today focus (1-2 priorities):',
       ...focusLines,
     ].join('\n');
@@ -519,6 +536,22 @@ export class DailyEngineService {
     if (type === NudgeType.PLAN_OVERLOAD) result.planningSuggestionSent = true;
     if (type === NudgeType.NO_PROGRESS) result.noProgressNudgeSent = true;
     if (type === NudgeType.STUCK_TASK) result.stuckTaskNudgeSent = true;
+  }
+
+  private buildOverloadNudgeContent(context: DecisionContext): string {
+    const lines = [
+      `You are currently over your available day capacity.`,
+      `Planned load is ${this.formatMinutes(context.totalEstimatedMinutes)} vs about ${this.formatMinutes(context.availableMinutes)} available.`,
+    ];
+
+    if (context.morningFocusPattern) {
+      lines.push(
+        'You tend to focus better in the morning, so let’s protect a smaller high-impact set.',
+      );
+    }
+
+    lines.push('Want me to simplify today into a focused set?');
+    return lines.join('\n');
   }
 
   private async createActionCandidate(
@@ -702,22 +735,29 @@ export class DailyEngineService {
     return preference === target;
   }
 
-  private compareTaskPriority(
-    a: { priority: TaskPriority; deadline: Date | null; createdAt: Date },
-    b: { priority: TaskPriority; deadline: Date | null; createdAt: Date },
-  ): number {
-    const priorityWeight = (priority: TaskPriority): number => {
-      if (priority === TaskPriority.HIGH) return 3;
-      if (priority === TaskPriority.MEDIUM) return 2;
-      return 1;
-    };
+  private hasMorningFocusPattern(patterns: DecisionContext['patterns']): boolean {
+    return patterns.some(pattern => {
+      const content = pattern.content.toLowerCase();
+      return (
+        pattern.tags.includes('morning-focus') ||
+        pattern.tags.includes('morning-productivity') ||
+        content.includes('morning focus') ||
+        content.includes('before noon')
+      );
+    });
+  }
 
-    const diff = priorityWeight(b.priority) - priorityWeight(a.priority);
-    if (diff !== 0) return diff;
-    if (a.deadline && b.deadline) return a.deadline.getTime() - b.deadline.getTime();
-    if (a.deadline && !b.deadline) return -1;
-    if (!a.deadline && b.deadline) return 1;
-    return a.createdAt.getTime() - b.createdAt.getTime();
+  private formatMinutes(minutes: number): string {
+    const normalized = Math.max(0, Math.round(minutes));
+    const hours = Math.floor(normalized / 60);
+    const mins = normalized % 60;
+    if (hours === 0) {
+      return `${mins}m`;
+    }
+    if (mins === 0) {
+      return `${hours}h`;
+    }
+    return `${hours}h ${mins}m`;
   }
 
   private buildEveningQuestion(completionRate: number, patternTags: string[]): string {

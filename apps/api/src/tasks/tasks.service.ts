@@ -47,6 +47,8 @@ export class TasksService {
       description: createTaskDto.description,
       status: createTaskDto.status || 'TODO',
       priority: createTaskDto.priority || 'MEDIUM',
+      difficulty: createTaskDto.difficulty ?? 3,
+      estimatedMinutes: createTaskDto.estimatedMinutes,
       source: createTaskDto.source || 'MANUAL',
     };
 
@@ -121,6 +123,8 @@ export class TasksService {
         description: true,
         status: true,
         priority: true,
+        difficulty: true,
+        estimatedMinutes: true,
         deadline: true,
         source: true,
         conversationId: true,
@@ -186,6 +190,12 @@ export class TasksService {
     }
     if (updateTaskDto.priority !== undefined) {
       data.priority = updateTaskDto.priority;
+    }
+    if (updateTaskDto.difficulty !== undefined) {
+      data.difficulty = updateTaskDto.difficulty;
+    }
+    if (updateTaskDto.estimatedMinutes !== undefined) {
+      data.estimatedMinutes = updateTaskDto.estimatedMinutes;
     }
     if (updateTaskDto.deadline !== undefined) {
       data.deadline = updateTaskDto.deadline ? new Date(updateTaskDto.deadline) : null;
