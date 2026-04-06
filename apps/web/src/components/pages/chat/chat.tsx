@@ -443,6 +443,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
                 {message.role === 'ASSISTANT' && message.actions && message.actions.length > 0 && (
                   <div className="mt-3 flex flex-col gap-2">
                     {message.actions.map(action => {
+                      console.log(action);
                       const executed = executedActionIds.includes(action.id);
                       const confirming = confirmingActionId === action.id;
                       return (

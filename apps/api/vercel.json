@@ -23,12 +23,20 @@
   ],
   "crons": [
     {
+      "path": "/api/scheduler/time-trigger",
+      "schedule": "0 * * * *"
+    },
+    {
       "path": "/api/scheduler/morning-briefing",
       "schedule": "0 7 * * *"
     },
     {
       "path": "/api/scheduler/evening-reflection",
       "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/scheduler/pattern-detection",
+      "schedule": "30 0 * * *"
     }
   ]
 }

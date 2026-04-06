@@ -36,6 +36,14 @@ export class SchedulerController {
     return this.scheduler.runEveningReflections();
   }
 
+  @Post('time-trigger')
+  @HttpCode(200)
+  async triggerTimeTrigger(@Req() req: Request) {
+    this.validateCronSecret(req);
+    this.logger.log('Adaptive time trigger fired via HTTP');
+    return this.scheduler.runTimeTriggers('all');
+  }
+
   @Post('pattern-detection')
   @HttpCode(200)
   async triggerPatternDetection(@Req() req: Request) {

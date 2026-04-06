@@ -127,6 +127,17 @@ export class UsersService {
       });
     }
 
+    if (profile.timezone) {
+      candidates.push({
+        content: `User timezone is ${profile.timezone}.`,
+        type: MemoryType.FACTUAL,
+        layer: MemoryLayer.SEMANTIC,
+        importance: 5,
+        tags: ['onboarding', 'timezone', 'schedule'],
+        confidence: 0.85,
+      });
+    }
+
     return candidates;
   }
 }

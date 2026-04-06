@@ -52,6 +52,7 @@ const Profile: FC = () => {
   }, [user]);
 
   async function onSave() {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
     await userApi.updateMe({
       email,
       profile: {
@@ -63,6 +64,7 @@ const Profile: FC = () => {
         helpStyle,
         dayPlanningTime,
         reflectionTime,
+        timezone,
       },
     });
     await refresh();

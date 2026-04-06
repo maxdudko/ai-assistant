@@ -26,6 +26,7 @@ export interface UserProfileDto {
   helpStyle?: HelpStyleOption;
   dayPlanningTime?: TimePreferenceOption;
   reflectionTime?: TimePreferenceOption;
+  timezone?: string;
   onboardingCompleted?: boolean;
 }
 
@@ -216,14 +217,17 @@ export interface UpdateGoalRequest {
 }
 
 export type DayState = 'START' | 'ACTIVE' | 'END';
+export type DayPhase = 'NOT_STARTED' | 'MORNING' | 'PLANNING' | 'EXECUTION' | 'EVENING' | 'CLOSED';
 
 export interface DayDto {
   id: string;
   userId: string;
   date: string;
   state: DayState;
+  phase: DayPhase;
   startedAt: string | null;
   endedAt: string | null;
+  lastActivityAt?: string | null;
   createdAt: string;
   tasks?: TaskDto[];
   conversations?: ConversationDto[];
@@ -234,6 +238,7 @@ export interface DaySummaryDto {
     id: string;
     date: string;
     state: DayState;
+    phase: DayPhase;
     startedAt: string | null;
     endedAt: string | null;
     createdAt: string;
@@ -273,6 +278,7 @@ export interface MorningBriefingDto {
     id: string;
     date: string;
     state: DayState;
+    phase: DayPhase;
   };
   tasks: Array<{
     id: string;

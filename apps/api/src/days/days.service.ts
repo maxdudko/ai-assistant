@@ -1,8 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DayState, TaskPriority, TaskStatus } from '@prisma/client';
+import { DayPhase, DayState, TaskPriority, TaskStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { PatternDetectionService } from '../memory/pattern-detection.service';
+import { DayInsightService } from '../daily/day-insight.service';
+import { DailyEngineService } from '../daily/daily-engine.service';
 
 @Injectable()
 export class DaysService {
@@ -11,6 +13,8 @@ export class DaysService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly patternDetection: PatternDetectionService,
+    private readonly dayInsight: DayInsightService,
+    private readonly dailyEngine: DailyEngineService,
   ) {}
 
   /**
@@ -101,11 +105,12 @@ export class DaysService {
 
     if (!day) {
       // If day doesn't exist, create it in ACTIVE state
-      return this.prisma.day.create({
+      const created = await this.prisma.day.create({
         data: {
           userId,
           date: today,
           state: DayState.ACTIVE,
+          phase: DayPhase.MORNING,
           startedAt: new Date(),
         },
         include: {
@@ -126,12 +131,20 @@ export class DaysService {
           },
         },
       });
+
+      void this.dailyEngine.handleEvent(userId, { type: 'DAY_START' }).catch(error => {
+        this.logger.warn(
+          `Daily engine skipped after manual day start: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+      return created;
     }
 
-    return this.prisma.day.update({
+    const updated = await this.prisma.day.update({
       where: { id: day.id },
       data: {
         state: DayState.ACTIVE,
+        phase: day.phase === DayPhase.NOT_STARTED ? DayPhase.MORNING : day.phase,
         startedAt: day.startedAt || new Date(),
       },
       include: {
@@ -152,6 +165,12 @@ export class DaysService {
         },
       },
     });
+    void this.dailyEngine.handleEvent(userId, { type: 'DAY_START' }).catch(error => {
+      this.logger.warn(
+        `Daily engine skipped after manual day start: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+    return updated;
   }
 
   /**
@@ -176,6 +195,7 @@ export class DaysService {
           userId,
           date: today,
           state: DayState.END,
+          phase: DayPhase.CLOSED,
           endedAt: new Date(),
         },
         include: {
@@ -202,6 +222,11 @@ export class DaysService {
           `Pattern detection skipped after day end: ${error instanceof Error ? error.message : String(error)}`,
         );
       });
+      void this.dayInsight.generateForDay(createdDay.id).catch(error => {
+        this.logger.warn(
+          `Day insight generation skipped after day end: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
 
       return createdDay;
     }
@@ -210,6 +235,7 @@ export class DaysService {
       where: { id: day.id },
       data: {
         state: DayState.END,
+        phase: DayPhase.CLOSED,
         endedAt: new Date(),
       },
       include: {
@@ -234,6 +260,11 @@ export class DaysService {
     void this.patternDetection.detectForUser(userId).catch(error => {
       this.logger.warn(
         `Pattern detection skipped after day end: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+    void this.dayInsight.generateForDay(endedDay.id).catch(error => {
+      this.logger.warn(
+        `Day insight generation skipped after day end: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
 
@@ -306,8 +337,10 @@ export class DaysService {
         id: day.id,
         date: day.date,
         state: day.state,
+        phase: day.phase,
         startedAt: day.startedAt,
         endedAt: day.endedAt,
+        lastActivityAt: day.lastActivityAt,
         createdAt: day.createdAt,
       },
       conversations: day.conversations.map(conv => ({
@@ -364,6 +397,7 @@ export class DaysService {
         id: day.id,
         date: day.date,
         state: day.state,
+        phase: day.phase,
       },
       tasks: tasks.map(task => ({
         id: task.id,

@@ -23,6 +23,8 @@ import { MemoryCandidateDto, MemoryLayer, MemoryType } from '../memory/dto/memor
 import { DigestService } from '../digest/digest.service';
 import { LogsService } from '../logs/logs.service';
 import type { ListPagination } from '../common/parse-list-pagination';
+import { DailyConversationService } from '../daily/daily-conversation.service';
+import { DailyEngineService } from '../daily/daily-engine.service';
 
 @Injectable()
 export class ConversationsService {
@@ -43,6 +45,8 @@ export class ConversationsService {
     private readonly daysService: DaysService,
     private readonly digestService: DigestService,
     private readonly logsService: LogsService,
+    private readonly dailyConversation: DailyConversationService,
+    private readonly dailyEngine: DailyEngineService,
   ) {}
 
   /**
@@ -83,91 +87,20 @@ export class ConversationsService {
    * Get or create the active daily conversation for a user
    */
   async getOrCreateDailyConversation(userId: string): Promise<string> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Try to find existing active daily conversation for today
-    let conversation = await this.prisma.conversation.findFirst({
-      where: {
-        userId,
-        type: ConversationType.DAILY,
-        date: {
-          gte: today,
-          lt: new Date(today.getTime() + 24 * 60 * 60 * 1000),
-        },
-        state: {
-          in: [ConversationState.CREATED, ConversationState.ACTIVE],
-        },
-      },
+    const { conversationId } = await this.dailyConversation.getOrCreate(userId);
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: { id: true, state: true },
     });
 
     if (!conversation) {
-      const archivedToday = await this.prisma.conversation.findFirst({
-        where: {
-          userId,
-          type: ConversationType.DAILY,
-          date: { gte: today, lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) },
-          state: ConversationState.ARCHIVED,
-        },
-      });
-      if (archivedToday) {
-        conversation = await this.prisma.conversation.update({
-          where: { id: archivedToday.id },
-          data: { state: ConversationState.CREATED },
-        });
-      }
-    }
-
-    if (!conversation) {
-      // Get or create today's day
-      const dayId = await this.getOrCreateTodayDay(userId);
-
-      // Create new daily conversation
-      try {
-        conversation = await this.prisma.conversation.create({
-          data: {
-            userId,
-            dayId,
-            type: ConversationType.DAILY,
-            mode: ConversationMode.MANAGER,
-            state: ConversationState.CREATED,
-            date: today,
-            messages: {
-              create: {
-                role: 'SYSTEM',
-                content:
-                  'Daily conversation started. Ready to help with planning, execution, and reflection.',
-                mode: ConversationMode.MANAGER,
-              },
-            },
-          },
-        });
-      } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-          const existing = await this.prisma.conversation.findFirst({
-            where: {
-              userId,
-              type: ConversationType.DAILY,
-              date: { gte: today, lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) },
-            },
-          });
-          if (existing?.state === ConversationState.ARCHIVED) {
-            conversation = await this.prisma.conversation.update({
-              where: { id: existing.id },
-              data: { state: ConversationState.CREATED },
-            });
-          } else {
-            conversation = existing;
-          }
-        }
-        if (!conversation) throw error;
-      }
+      throw new NotFoundException('Conversation not found');
     }
 
     // Ensure conversation is ACTIVE if it has user messages
     const messageCount = await this.prisma.message.count({
       where: {
-        conversationId: conversation.id,
+        conversationId,
         role: 'USER',
       },
     });
@@ -180,7 +113,7 @@ export class ConversationsService {
       conversation.state = ConversationState.ACTIVE;
     }
 
-    return conversation.id;
+    return conversationId;
   }
 
   /**
@@ -337,6 +270,11 @@ export class ConversationsService {
         content: message,
         mode: conversation.mode,
       },
+    });
+
+    void this.dailyEngine.handleEvent(userId, { type: 'USER_ACTIVITY' }).catch(error => {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Daily engine skipped after user activity: ${reason}`);
     });
 
     // Activate conversation if needed
@@ -984,8 +922,10 @@ export class ConversationsService {
             userId: true,
             date: true,
             state: true,
+            phase: true,
             startedAt: true,
             endedAt: true,
+            lastActivityAt: true,
             createdAt: true,
             morningBriefingSentAt: true,
             eveningReflectionSentAt: true,

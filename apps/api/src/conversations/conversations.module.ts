@@ -8,6 +8,7 @@ import { MemoryModule } from '../memory/memory.module';
 import { DaysModule } from '../days/days.module';
 import { DigestModule } from '../digest/digest.module';
 import { LogsModule } from '../logs/logs.module';
+import { DailyModule } from '../daily/daily.module';
 
 import { ConversationsController } from './conversations.controller';
 import { ConversationsService } from './conversations.service';
@@ -22,6 +23,7 @@ import { ConversationsService } from './conversations.service';
     DaysModule,
     DigestModule,
     LogsModule,
+    DailyModule,
   ],
   controllers: [ConversationsController],
   providers: [ConversationsService],
