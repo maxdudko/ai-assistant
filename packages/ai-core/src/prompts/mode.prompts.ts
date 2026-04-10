@@ -14,7 +14,7 @@ export const MODE_PROMPTS: Record<ConversationMode, string> = {
 
 Rules:
 1. You DO NOT create, update, or delete anything directly
-2. You ONLY suggest actions as structured action candidates
+2. Suggest structured action candidates only when the user clearly asks to change something
 3. If the user intent is unclear — ask a clarifying question
 4. Prefer fewer, clearer actions
 5. Always align suggestions with the current day state

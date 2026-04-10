@@ -265,6 +265,8 @@ export class ConversationsService {
       });
       conversation.mode = ConversationMode.REFLECTION;
     }
+    const taskOverviewRequest = this.isTaskOverviewRequest(message);
+    const completionIntent = this.isTaskCompletionMutationRequest(message);
 
     // Save user message
     await this.prisma.message.create({
@@ -276,10 +278,12 @@ export class ConversationsService {
       },
     });
 
-    void this.dailyEngine.handleEvent(userId, { type: 'USER_ACTIVITY' }).catch(error => {
-      const reason = error instanceof Error ? error.message : String(error);
-      this.logger.warn(`Daily engine skipped after user activity: ${reason}`);
-    });
+    if (!taskOverviewRequest) {
+      void this.dailyEngine.handleEvent(userId, { type: 'USER_ACTIVITY' }).catch(error => {
+        const reason = error instanceof Error ? error.message : String(error);
+        this.logger.warn(`Daily engine skipped after user activity: ${reason}`);
+      });
+    }
 
     // Activate conversation if needed
     if (conversation.state === ConversationState.CREATED) {
@@ -287,6 +291,41 @@ export class ConversationsService {
         where: { id: conversation.id },
         data: { state: ConversationState.ACTIVE },
       });
+    }
+
+    if (taskOverviewRequest) {
+      const tasks = await this.prisma.task.findMany({
+        where: { userId },
+        orderBy: [{ status: 'asc' }, { deadline: 'asc' }, { createdAt: 'desc' }],
+        select: {
+          name: true,
+          status: true,
+          priority: true,
+          deadline: true,
+          dayId: true,
+        },
+      });
+      const content = this.renderTaskOverview(tasks, conversation.dayId ?? null);
+      const assistantMessage = await this.prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          role: 'ASSISTANT',
+          content,
+          mode: conversation.mode,
+        },
+      });
+
+      return {
+        conversationId: conversation.id,
+        message: {
+          id: assistantMessage.id,
+          role: 'ASSISTANT' as const,
+          content: assistantMessage.content,
+          mode: assistantMessage.mode,
+          createdAt: assistantMessage.createdAt.toISOString(),
+        },
+        actions: [],
+      };
     }
 
     if (infoTriggered) {
@@ -384,6 +423,10 @@ export class ConversationsService {
       ? await this.ai.generateResponseStream(message, context, onToken)
       : await this.ai.generateResponse(message, context);
     const aiMs = Date.now() - aiStartedAt;
+    const assistantResponseContent = this.normalizeAssistantContent(
+      aiResponse.content,
+      completionIntent,
+    );
 
     const promptLog = this.buildPromptLog(context, message);
     this.logger.log(
@@ -393,7 +436,7 @@ export class ConversationsService {
         `memories=${context.memories?.length ?? 0}`,
         `actions=${aiResponse.actionCandidates?.length ?? 0}`,
         `memoryCandidates=${aiResponse.memoryCandidates?.length ?? 0}`,
-        `responseChars=${aiResponse.content?.length ?? 0}`,
+        `responseChars=${assistantResponseContent?.length ?? 0}`,
       ].join(' '),
     );
     if (this.verbosePromptLogging) {
@@ -415,7 +458,7 @@ export class ConversationsService {
       data: {
         conversationId: conversation.id,
         role: 'ASSISTANT',
-        content: aiResponse.content,
+        content: assistantResponseContent,
         mode: conversation.mode,
       },
     });
@@ -426,15 +469,25 @@ export class ConversationsService {
     let actionPersistenceTask: { name: string; run: () => Promise<void> } | null = null;
     if (conversation.mode !== ConversationMode.REFLECTION) {
       // Post-processing: action candidates
-      let actionCandidates = aiResponse.actionCandidates ?? [];
+      const actionGuardAllowsMutation = this.shouldAllowMutationActions(message);
+      let actionCandidates = actionGuardAllowsMutation ? (aiResponse.actionCandidates ?? []) : [];
       const tasksContext = [...(context.tasksToday ?? []), ...(context.backlogTasks ?? [])].map(
         task => ({
           id: task.id,
           name: task.name,
         }),
       );
-      if (actionCandidates.length === 0) {
-        actionCandidates = this.intentDetector.detect(message, tasksContext);
+      const detectorActionsRaw = actionGuardAllowsMutation
+        ? this.intentDetector.detect(message, tasksContext)
+        : [];
+      const detectorActions = Array.isArray(detectorActionsRaw) ? detectorActionsRaw : [];
+      if (completionIntent) {
+        actionCandidates = detectorActions.filter(
+          candidate =>
+            candidate.type === 'TASK_UPDATE_STATUS' || candidate.type === 'TASK_COMPLETE',
+        );
+      } else if (actionGuardAllowsMutation && actionCandidates.length === 0) {
+        actionCandidates = detectorActions;
       }
 
       const actionContext = {
@@ -504,7 +557,7 @@ export class ConversationsService {
           userId,
           conversation.mode,
           fullPrompt,
-          aiResponse.content,
+          assistantResponseContent,
           aiResponse.actionCandidates || [],
         );
       },
@@ -521,7 +574,7 @@ export class ConversationsService {
         `actionPrepareMs=${actionPrepareMs}`,
         `actions=${storedActions.length}`,
         `backgroundTasks=${backgroundTasks.length}`,
-        `responseChars=${aiResponse.content.length}`,
+        `responseChars=${assistantResponseContent.length}`,
       ].join(' '),
     );
 
@@ -685,6 +738,225 @@ export class ConversationsService {
     ];
 
     return patterns.some(pattern => pattern.test(normalized));
+  }
+
+  private isTaskOverviewRequest(message: string): boolean {
+    const normalized = message.trim().toLowerCase();
+
+    const taskMentioned = /\b(task|tasks|todo|to-do)\b/.test(normalized);
+    if (!taskMentioned) {
+      return false;
+    }
+
+    const overviewPatterns = [
+      /\blist\b/,
+      /\bshow\b/,
+      /\bwhat\b.*\b(status|state)\b/,
+      /\bcurrent\b.*\b(status|state)\b/,
+      /\boverview\b/,
+      /\bwhich\b.*\b(tasks|todo)\b/,
+    ];
+    if (!overviewPatterns.some(pattern => pattern.test(normalized))) {
+      return false;
+    }
+
+    return !this.shouldAllowMutationActions(message);
+  }
+
+  private shouldAllowMutationActions(message: string): boolean {
+    const normalized = message.trim().toLowerCase();
+
+    const mutationPatterns = [
+      /\b(add|create|new)\b.*\b(task|todo)\b/,
+      /\b(mark|set|update|change)\b.*\b(done|complete|priority|deadline|due|status)\b/,
+      /\b(reschedule|split|simplify|defer|postpone)\b/,
+      /\b(start|end)\b.*\bday\b/,
+      /\bcomplete\b.*\b(task|todo)\b/,
+      /\bmove\b.*\b(task|deadline|due)\b/,
+    ];
+    return mutationPatterns.some(pattern => pattern.test(normalized));
+  }
+
+  private isTaskCompletionMutationRequest(message: string): boolean {
+    const normalized = message.trim().toLowerCase();
+    return (
+      /\b(mark|set|update|change|complete|finish)\b/.test(normalized) &&
+      /\b(done|completed|complete|finished)\b/.test(normalized)
+    );
+  }
+
+  private normalizeAssistantContent(content: string, completionIntent: boolean): string {
+    const extracted = this.extractTextFromJsonLikePayload(content);
+    const normalized = extracted ?? content;
+    const trimmed = normalized.trim();
+
+    if (completionIntent && this.isGenericPlaceholderResponse(trimmed)) {
+      return 'Got it. I can mark those tasks as done. Please confirm and I will apply it.';
+    }
+
+    return normalized;
+  }
+
+  private extractTextFromJsonLikePayload(content: string): string | null {
+    const trimmed = content.trim();
+    const candidate = this.extractFirstJsonObject(trimmed);
+    if (!candidate) {
+      return null;
+    }
+
+    const direct = this.tryParseJsonText(candidate);
+    if (direct) {
+      return direct;
+    }
+
+    const sanitized = this.sanitizeJsonStringNewlines(candidate);
+    return this.tryParseJsonText(sanitized);
+  }
+
+  private tryParseJsonText(candidate: string): string | null {
+    try {
+      const parsed = JSON.parse(candidate) as { text?: unknown };
+      return typeof parsed.text === 'string' ? parsed.text : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private sanitizeJsonStringNewlines(input: string): string {
+    let result = '';
+    let inString = false;
+    let escaped = false;
+
+    for (const ch of input) {
+      if (inString) {
+        if (escaped) {
+          result += ch;
+          escaped = false;
+          continue;
+        }
+        if (ch === '\\') {
+          result += ch;
+          escaped = true;
+          continue;
+        }
+        if (ch === '"') {
+          result += ch;
+          inString = false;
+          continue;
+        }
+        if (ch === '\n') {
+          result += '\\n';
+          continue;
+        }
+        if (ch === '\r') {
+          result += '\\r';
+          continue;
+        }
+        result += ch;
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = true;
+      }
+      result += ch;
+    }
+
+    return result;
+  }
+
+  private extractFirstJsonObject(content: string): string | null {
+    const start = content.indexOf('{');
+    if (start === -1) {
+      return null;
+    }
+
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let index = start; index < content.length; index += 1) {
+      const ch = content[index];
+
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === '\\') {
+          escaped = true;
+          continue;
+        }
+        if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+      if (ch === '{') {
+        depth += 1;
+        continue;
+      }
+      if (ch === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          return content.slice(start, index + 1);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private isGenericPlaceholderResponse(text: string): boolean {
+    const normalized = text.toLowerCase();
+    return (
+      normalized.includes('please provide a helpful response') ||
+      normalized === "please tell me what tasks you're currently working on."
+    );
+  }
+
+  private renderTaskOverview(
+    tasks: Array<{
+      name: string;
+      status: string;
+      priority: string;
+      deadline: Date | null;
+      dayId: string | null;
+    }>,
+    todayDayId: string | null,
+  ): string {
+    if (tasks.length === 0) {
+      return 'You have no tasks yet.';
+    }
+
+    const formatTaskLine = (task: {
+      name: string;
+      status: string;
+      priority: string;
+      deadline: Date | null;
+    }): string => {
+      const doneMark = task.status === TaskStatus.DONE ? 'x' : ' ';
+      const due = task.deadline ? ` due ${task.deadline.toISOString().slice(0, 10)}` : '';
+      return `- [${doneMark}] ${task.name} (${task.priority})${due}`;
+    };
+
+    const todayTasks = tasks.filter(task => todayDayId && task.dayId === todayDayId);
+    const backlog = tasks.filter(task => !todayDayId || task.dayId !== todayDayId);
+
+    return [
+      `Okay, here is your full task list (${tasks.length} total):`,
+      '',
+      'Tasks today:',
+      ...(todayTasks.length > 0 ? todayTasks.map(formatTaskLine) : ['- (none)']),
+      '',
+      'Other tasks:',
+      ...(backlog.length > 0 ? backlog.map(formatTaskLine) : ['- (none)']),
+    ].join('\n');
   }
 
   private async buildReflectionKeyMessages(dayId: string): Promise<string[]> {

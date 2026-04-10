@@ -10,6 +10,7 @@ import { getMorningBriefing } from '@/lib/api/days';
 import type { TaskDto } from '@/lib/api/types';
 import Container from '@/components/common/container';
 import { queryKeys } from '@/lib/query-keys';
+import DailyCard from '@/components/common/daily-card';
 
 const Chat = dynamic(() => import('@/components/pages/chat/chat'), {
   loading: () => (
@@ -117,12 +118,13 @@ export default function Dashboard() {
   }
 
   return (
-    <main className="xl:flex xl:h-screen xl:overflow-hidden min-h-screen">
-      <div className="flex-1 h-[90vh] xl:p-4 xl:h-[90vh] xl:overflow-hidden xl:flex xl:flex-col">
+    <div className="xl:flex xl:h-screen xl:overflow-hidden">
+      <div className="flex-1 xl:p-2 xl:overflow-hidden xl:flex xl:flex-col xl:max-h-[calc(100vh-100px)]">
         <Chat />
       </div>
-      <div className="flex-1 rounded-lg shadow-lg xl:p-4 xl:h-full xl:overflow-y-auto">
+      <div className="flex-1 rounded-lg shadow-lg xl:p-2 xl:h-full xl:overflow-y-auto">
         <Container className="hidden lg:block p-4 min-w-0 overflow-x-auto">
+          <DailyCard />
           <MeDashboardCalendar events={events} tasks={tasks} onTaskSelect={setSelectedTask} />
         </Container>
         <Container className="p-4 my-4">
@@ -277,6 +279,6 @@ export default function Dashboard() {
           }}
         />
       )}
-    </main>
+    </div>
   );
 }

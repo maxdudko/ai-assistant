@@ -67,7 +67,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
   const [executedActionIds, setExecutedActionIds] = useState<string[]>([]);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
   const streamingBufferRef = useRef('');
   const streamingDisplayedRef = useRef('');
@@ -96,7 +96,10 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
   }, [queryConversation]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+    const el = messagesScrollRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [messages]);
 
   const resetStreamingAnimation = useCallback(() => {
@@ -363,9 +366,9 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
   };
 
   return (
-    <div className="flex h-full max-w-full flex-col">
+    <div className="relative flex h-full max-w-full flex-col">
       {conversation && (
-        <Container className="mb-4 p-3 shrink-0">
+        <Container className="mb-2 p-2 shrink-0">
           <div className="flex items-center gap-3">
             <Link
               href="/me/conversations"
@@ -391,7 +394,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
       )}
 
       {conversation && (
-        <Container className="mb-4 flex gap-2 p-2 flex-shrink-0">
+        <Container className="mb-2 flex gap-2 p-2 flex-shrink-0">
           <span className="text-sm text-neutral-400">Mode:</span>
           {(['MANAGER', 'REFLECTION', 'COMPANION', 'INFO'] as ConversationMode[]).map(mode => (
             <button
@@ -409,69 +412,72 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         </Container>
       )}
 
-      <Container className="flex-1 space-y-2 overflow-y-auto p-4 min-h-0">
-        {messages.length === 0 ? (
-          <ReactMarkdown>
-            Mira: How can I help you today? Start by planning your day or asking a question.
-          </ReactMarkdown>
-        ) : (
-          messages.map(message => (
-            <div
-              key={message.id}
-              className={`flex ${message.role === 'USER' ? 'justify-end' : 'justify-start'}`}
-            >
+      <Container className="flex-1 min-h-0 flex flex-col pb-25">
+        <div ref={messagesScrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
+          {messages.length === 0 ? (
+            <ReactMarkdown>
+              Mira: How can I help you today? Start by planning your day or asking a question.
+            </ReactMarkdown>
+          ) : (
+            messages.map(message => (
               <div
-                className={`max-w-[80%] min-w-[20%] rounded-lg px-3 py-2 text-sm ${
-                  message.role === 'USER'
-                    ? 'bg-[#212121] border border-indigo-400 text-white'
-                    : message.role === 'SYSTEM'
-                      ? 'bg-neutral-800 text-neutral-400'
-                      : 'bg-[#212121] border border-indigo-800 text-neutral-200'
-                }`}
+                key={message.id}
+                className={`flex ${message.role === 'USER' ? 'justify-end' : 'justify-start'}`}
               >
-                <div className="font-medium mb-1 flex items-center justify-between">
-                  <span className="font-bold">
-                    {message.role === 'USER' && '✨ ' + (user?.profile?.displayName || 'You')}
-                    {message.role === 'ASSISTANT' && '💕 Mira'}
-                    {message.role === 'SYSTEM' && 'System'}
-                  </span>
-                  <span className="text-xs font-normal opacity-70 ml-2">
-                    {getModeLabel(message.mode)}
-                  </span>
-                </div>
-                <MessageBody message={message} streamingMessageId={streamingMessageId} />
-                {message.role === 'ASSISTANT' && message.actions && message.actions.length > 0 && (
-                  <div className="mt-3 flex flex-col gap-2">
-                    {message.actions.map(action => {
-                      console.log(action);
-                      const executed = executedActionIds.includes(action.id);
-                      const confirming = confirmingActionId === action.id;
-                      return (
-                        <button
-                          key={action.id}
-                          type="button"
-                          onClick={() => handleConfirmAction(action)}
-                          disabled={executed || confirming}
-                          className={`rounded border px-3 py-1 text-xs text-left cursor-pointer ${
-                            executed
-                              ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
-                              : 'border-indigo-600/40 bg-indigo-600/10 text-indigo-200 hover:bg-indigo-600/20'
-                          } disabled:cursor-not-allowed disabled:opacity-60`}
-                        >
-                          {executed ? 'Action completed' : 'Confirm'}: {getActionLabel(action)}
-                        </button>
-                      );
-                    })}
+                <div
+                  className={`max-w-[80%] min-w-[20%] rounded-lg px-3 py-2 text-sm ${
+                    message.role === 'USER'
+                      ? 'bg-[#212121] border border-indigo-400 text-white'
+                      : message.role === 'SYSTEM'
+                        ? 'bg-neutral-800 text-neutral-400'
+                        : 'bg-[#212121] border border-indigo-800 text-neutral-200'
+                  }`}
+                >
+                  <div className="font-medium mb-1 flex items-center justify-between">
+                    <span className="font-bold">
+                      {message.role === 'USER' && '✨ ' + (user?.profile?.displayName || 'You')}
+                      {message.role === 'ASSISTANT' && '💕 Mira'}
+                      {message.role === 'SYSTEM' && 'System'}
+                    </span>
+                    <span className="text-xs font-normal opacity-70 ml-2">
+                      {getModeLabel(message.mode)}
+                    </span>
                   </div>
-                )}
-                <p className="text-xs text-right mt-2">
-                  {new Date(message.createdAt).toLocaleTimeString()}
-                </p>
+                  <MessageBody message={message} streamingMessageId={streamingMessageId} />
+                  {message.role === 'ASSISTANT' &&
+                    message.actions &&
+                    message.actions.length > 0 && (
+                      <div className="mt-3 flex flex-col gap-2">
+                        {message.actions.map(action => {
+                          console.log(action);
+                          const executed = executedActionIds.includes(action.id);
+                          const confirming = confirmingActionId === action.id;
+                          return (
+                            <button
+                              key={action.id}
+                              type="button"
+                              onClick={() => handleConfirmAction(action)}
+                              disabled={executed || confirming}
+                              className={`rounded border px-3 py-1 text-xs text-left cursor-pointer ${
+                                executed
+                                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                                  : 'border-indigo-600/40 bg-indigo-600/10 text-indigo-200 hover:bg-indigo-600/20'
+                              } disabled:cursor-not-allowed disabled:opacity-60`}
+                            >
+                              {executed ? 'Action completed' : 'Confirm'}: {getActionLabel(action)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  <p className="text-xs text-right mt-2">
+                    {new Date(message.createdAt).toLocaleTimeString()}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))
-        )}
-        <div ref={messagesEndRef} />
+            ))
+          )}
+        </div>
       </Container>
 
       {error && (
@@ -480,10 +486,10 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         </div>
       )}
 
-      <Container className="mt-2 flex-shrink-0">
+      <Container className="absolute left-0 bottom-0 w-full mt-2 flex-shrink-0 bg-neutral-700">
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <textarea
-            rows={5}
+            rows={3}
             value={input}
             onChange={e => setInput(e.target.value)}
             className="flex-1 rounded  p-2 text-neutral-200 placeholder:text-neutral-500"
