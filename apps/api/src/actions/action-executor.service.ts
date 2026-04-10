@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { TaskStatus, TaskPriority } from '@prisma/client';
 import type { ActionCandidate } from '@ai/shared-types';
 
@@ -6,14 +6,20 @@ import { TasksService } from '../tasks/tasks.service';
 import { DaysService } from '../days/days.service';
 import { DigestService } from '../digest/digest.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { MemoryIngestionService } from '../memory/memory-ingestion.service';
+import { MemoryLayer, MemoryType } from '../memory/dto/memory-candidate.dto';
 
 @Injectable()
 export class ActionExecutorService {
+  private readonly logger = new Logger(ActionExecutorService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly tasksService: TasksService,
+    @Inject(forwardRef(() => DaysService))
     private readonly daysService: DaysService,
     private readonly digestService: DigestService,
+    private readonly memoryIngestion: MemoryIngestionService,
   ) {}
 
   async execute(userId: string, action: ActionCandidate): Promise<void> {
@@ -91,6 +97,13 @@ export class ActionExecutorService {
 
       default:
         throw new BadRequestException(`Unsupported action type: ${action.type}`);
+    }
+
+    try {
+      await this.recordActionFeedbackMemory(userId, action);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Feedback memory failed for action ${action.id}: ${reason}`);
     }
   }
 
@@ -310,5 +323,42 @@ export class ActionExecutorService {
     if (priority === TaskPriority.HIGH) return 3;
     if (priority === TaskPriority.MEDIUM) return 2;
     return 1;
+  }
+
+  private async recordActionFeedbackMemory(userId: string, action: ActionCandidate): Promise<void> {
+    const content = this.buildActionFeedbackContent(action.type);
+    const payload = action.payload as Record<string, unknown>;
+
+    await this.memoryIngestion.ingest(
+      userId,
+      [
+        {
+          content,
+          type: MemoryType.FACTUAL,
+          layer: MemoryLayer.PATTERN,
+          importance: 6,
+          confidence: 0.9,
+          tags: ['action-feedback', action.type.toLowerCase()],
+        },
+      ],
+      'CONVERSATION',
+      {
+        dayId: this.getOptionalString(payload, ['dayId']),
+        conversationId: this.getOptionalString(payload, ['conversationId']),
+      },
+    );
+  }
+
+  private buildActionFeedbackContent(actionType: ActionCandidate['type']): string {
+    if (actionType === 'SIMPLIFY_DAY') {
+      return 'User accepted simplification of their day';
+    }
+    if (actionType === 'SPLIT_TASK') {
+      return 'User accepted splitting a task into smaller steps';
+    }
+    if (actionType === 'RESCHEDULE_TASK') {
+      return 'User accepted rescheduling a task';
+    }
+    return `User confirmed and executed action: ${actionType}`;
   }
 }

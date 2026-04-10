@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ConversationMode, Prisma, TaskStatus } from '@prisma/client';
+import { ConversationMode, TaskStatus } from '@prisma/client';
 import {
   buildSystemPrompt,
   messagesToLlmFormat,
@@ -14,26 +14,21 @@ import { ConversationState, ConversationType } from '../prisma/types';
 import { ActionsService } from '../actions/actions.service';
 import { IntentDetectorService } from '../intents/intent-detector.service';
 import { MemoryIngestionService } from '../memory/memory-ingestion.service';
-import {
-  MemoryRetrieverService,
-  type RetrievedMemoryContext,
-} from '../memory/memory-retriever.service';
 import { DaysService } from '../days/days.service';
+import { DayResolverService } from '../days/day-resolver.service';
 import { MemoryCandidateDto, MemoryLayer, MemoryType } from '../memory/dto/memory-candidate.dto';
 import { DigestService } from '../digest/digest.service';
 import { LogsService } from '../logs/logs.service';
 import type { ListPagination } from '../common/parse-list-pagination';
 import { DailyConversationService } from '../daily/daily-conversation.service';
 import { DailyEngineService } from '../daily/daily-engine.service';
+import { UnifiedContextService } from '../daily/unified-context.service';
 
 @Injectable()
 export class ConversationsService {
   private readonly logger = new Logger(ConversationsService.name);
   private readonly verbosePromptLogging = process.env.AI_VERBOSE_PROMPT_LOGS === 'true';
   private readonly contextMessageLimit = Number(process.env.AI_CONTEXT_MESSAGE_LIMIT ?? '40');
-  private readonly memoryRetrieveTimeoutMs = Number(
-    process.env.AI_MEMORY_RETRIEVE_TIMEOUT_MS ?? '1200',
-  );
 
   constructor(
     private readonly prisma: PrismaService,
@@ -41,47 +36,14 @@ export class ConversationsService {
     private readonly actionsService: ActionsService,
     private readonly intentDetector: IntentDetectorService,
     private readonly memoryIngestion: MemoryIngestionService,
-    private readonly memoryRetriever: MemoryRetrieverService,
+    private readonly dayResolver: DayResolverService,
     private readonly daysService: DaysService,
     private readonly digestService: DigestService,
     private readonly logsService: LogsService,
     private readonly dailyConversation: DailyConversationService,
     private readonly dailyEngine: DailyEngineService,
+    private readonly unifiedContext: UnifiedContextService,
   ) {}
-
-  /**
-   * Get or create today's day for a user
-   */
-  private async getOrCreateTodayDay(userId: string): Promise<string> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    let day = await this.prisma.day.findUnique({
-      where: {
-        userId_date: {
-          userId,
-          date: today,
-        },
-      },
-    });
-
-    if (!day) {
-      try {
-        day = await this.prisma.day.create({
-          data: { userId, date: today, state: 'START' },
-        });
-      } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-          day = await this.prisma.day.findUnique({
-            where: { userId_date: { userId, date: today } },
-          });
-        }
-        if (!day) throw error;
-      }
-    }
-
-    return day.id;
-  }
 
   /**
    * Get or create the active daily conversation for a user
@@ -123,13 +85,13 @@ export class ConversationsService {
     userId: string,
     mode: ConversationMode = ConversationMode.COMPANION,
   ): Promise<string> {
-    // Get or create today's day
-    const dayId = await this.getOrCreateTodayDay(userId);
+    // Get or create the user's current local day
+    const day = await this.dayResolver.getCurrentDay(userId);
 
     const conversation = await this.prisma.conversation.create({
       data: {
         userId,
-        dayId,
+        dayId: day.id,
         type: ConversationType.AD_HOC,
         mode,
         state: ConversationState.CREATED,
@@ -238,6 +200,7 @@ export class ConversationsService {
     onToken?: (token: string) => Promise<void> | void,
   ) {
     const requestStartedAt = Date.now();
+    const requestNow = new Date();
     // Get or create conversation — single DB fetch with all context data
     const targetId = conversationId ?? (await this.getOrCreateDailyConversation(userId));
     let conversation = await this.loadConversationForMessage(targetId, userId);
@@ -414,6 +377,7 @@ export class ConversationsService {
     const context = await this.buildContext(
       conversation,
       userId,
+      requestNow,
       message,
       conversation.mode === ConversationMode.REFLECTION || reflectionTriggered,
     );
@@ -603,10 +567,18 @@ export class ConversationsService {
   private async buildContext(
     conversation: Awaited<ReturnType<ConversationsService['loadConversationForMessage']>>,
     userId: string,
+    now: Date,
     query?: string,
     includeReflectionContext = false,
   ) {
-    const tasksToday = (conversation.day?.tasks ?? []).map(task => ({
+    const unified = await this.unifiedContext.getContext({
+      userId,
+      event: { type: 'USER_ACTIVITY' },
+      query,
+      now,
+    });
+
+    const tasksToday = unified.tasks.map(task => ({
       id: task.id,
       name: task.name,
       status: task.status,
@@ -614,12 +586,12 @@ export class ConversationsService {
       deadline: task.deadline ? task.deadline.toISOString() : null,
     }));
 
-    const [backlogTasks, keyMessages, retrievedMemoryContext] = await Promise.all([
+    const [backlogTasks, keyMessages] = await Promise.all([
       this.prisma.task.findMany({
         where: {
           userId,
           status: { not: TaskStatus.DONE },
-          dayId: conversation.dayId ? { not: conversation.dayId } : undefined,
+          dayId: { not: unified.day.id },
         },
         orderBy: { createdAt: 'desc' },
         take: 5,
@@ -627,37 +599,17 @@ export class ConversationsService {
       includeReflectionContext && conversation.dayId
         ? this.buildReflectionKeyMessages(conversation.dayId)
         : Promise.resolve(undefined),
-      query
-        ? this.retrieveMemoriesWithTimeout(userId, query, this.memoryRetrieveTimeoutMs)
-        : Promise.resolve(this.emptyRetrievedMemoryContext()),
     ]);
-
-    if (retrievedMemoryContext.merged.length > 0) {
-      void this.memoryRetriever
-        .trackUsage(retrievedMemoryContext.merged.map(memory => memory.id))
-        .catch(error => {
-          const message = error instanceof Error ? error.message : String(error);
-          this.logger.warn(`Memory usage tracking skipped: ${message}`);
-        });
-    }
 
     return {
       mode: conversation.mode,
       userProfile: conversation.user?.profile || null,
       messages: conversation.messages,
-      memories: retrievedMemoryContext.merged.map(memory => ({
-        content: memory.content,
-        importance: memory.importance,
-        tags: memory.tags ?? [],
-        layer: memory.layer,
-        contextBucket: memory.contextBucket,
-      })),
-      day: conversation.day
-        ? {
-            date: conversation.day.date.toISOString().split('T')[0],
-            state: conversation.day.state,
-          }
-        : undefined,
+      memories: this.mapUnifiedMemories(unified.memory),
+      day: {
+        date: unified.day.date.toISOString().split('T')[0],
+        state: unified.day.state,
+      },
       tasksToday,
       keyMessages,
       backlogTasks: backlogTasks.map(task => ({
@@ -668,37 +620,6 @@ export class ConversationsService {
         deadline: task.deadline ? task.deadline.toISOString() : null,
       })),
     };
-  }
-
-  private async retrieveMemoriesWithTimeout(
-    userId: string,
-    query: string,
-    timeoutMs: number,
-  ): Promise<RetrievedMemoryContext> {
-    const startedAt = Date.now();
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-    try {
-      const timeoutPromise = new Promise<RetrievedMemoryContext>((_, reject) => {
-        timeoutHandle = setTimeout(() => {
-          reject(new Error(`memory retrieval timeout after ${timeoutMs}ms`));
-        }, timeoutMs);
-        timeoutHandle.unref?.();
-      });
-      return await Promise.race([
-        this.memoryRetriever.getMemoryContext(userId, query),
-        timeoutPromise,
-      ]);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.warn(
-        `Memory retrieval skipped: ${message} (elapsedMs=${Date.now() - startedAt}, timeoutMs=${timeoutMs})`,
-      );
-      return this.emptyRetrievedMemoryContext();
-    } finally {
-      if (timeoutHandle) {
-        clearTimeout(timeoutHandle);
-      }
-    }
   }
 
   private isReflectionTrigger(message: string): boolean {
@@ -1066,14 +987,65 @@ export class ConversationsService {
     return candidates.filter(candidate => candidate.confidence >= 0.7 && candidate.importance >= 5);
   }
 
-  private emptyRetrievedMemoryContext(): RetrievedMemoryContext {
-    return {
-      patterns: [],
-      semantic: [],
-      recent: [],
-      important: [],
-      merged: [],
-    };
+  private mapUnifiedMemories(memory: {
+    patterns: Array<{
+      content: string;
+      importance: number;
+      tags: string[];
+      layer: 'EPISODIC' | 'SEMANTIC' | 'PATTERN';
+      contextBucket: 'PATTERN' | 'SEMANTIC' | 'RECENT' | 'IMPORTANT';
+    }>;
+    semantic: Array<{
+      content: string;
+      importance: number;
+      tags: string[];
+      layer: 'EPISODIC' | 'SEMANTIC' | 'PATTERN';
+      contextBucket: 'PATTERN' | 'SEMANTIC' | 'RECENT' | 'IMPORTANT';
+    }>;
+    recent: Array<{
+      content: string;
+      importance: number;
+      tags: string[];
+      layer: 'EPISODIC' | 'SEMANTIC' | 'PATTERN';
+      contextBucket: 'PATTERN' | 'SEMANTIC' | 'RECENT' | 'IMPORTANT';
+    }>;
+    important: Array<{
+      content: string;
+      importance: number;
+      tags: string[];
+      layer: 'EPISODIC' | 'SEMANTIC' | 'PATTERN';
+      contextBucket: 'PATTERN' | 'SEMANTIC' | 'RECENT' | 'IMPORTANT';
+    }>;
+  }): Array<{
+    content: string;
+    importance: number;
+    tags: string[];
+    layer: 'EPISODIC' | 'SEMANTIC' | 'PATTERN';
+    contextBucket: 'PATTERN' | 'SEMANTIC' | 'RECENT' | 'IMPORTANT';
+  }> {
+    const toEntries = (
+      source: Array<{
+        content: string;
+        importance: number;
+        tags: string[];
+        layer: 'EPISODIC' | 'SEMANTIC' | 'PATTERN';
+        contextBucket: 'PATTERN' | 'SEMANTIC' | 'RECENT' | 'IMPORTANT';
+      }>,
+    ) =>
+      source.map(item => ({
+        content: item.content,
+        importance: item.importance,
+        tags: item.tags ?? [],
+        layer: item.layer,
+        contextBucket: item.contextBucket,
+      }));
+
+    return [
+      ...toEntries(memory.patterns),
+      ...toEntries(memory.semantic),
+      ...toEntries(memory.recent),
+      ...toEntries(memory.important),
+    ];
   }
 
   private buildPromptLog(

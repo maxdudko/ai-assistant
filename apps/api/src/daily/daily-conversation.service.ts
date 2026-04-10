@@ -8,6 +8,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { DayResolverService } from '../days/day-resolver.service';
 
 import { getUserLocalDateInfo } from './daily-timezone.util';
 
@@ -17,7 +18,10 @@ type GetOrCreateDailyConversationOptions = {
 
 @Injectable()
 export class DailyConversationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dayResolver: DayResolverService,
+  ) {}
 
   async getOrCreate(
     userId: string,
@@ -29,8 +33,7 @@ export class DailyConversationService {
       select: { timezone: true },
     });
     const local = getUserLocalDateInfo(now, profile?.timezone);
-
-    const day = await this.getOrCreateDay(userId, local.dayStartUtc);
+    const day = await this.dayResolver.getDayForMoment(userId, now);
     const conversation = await this.getOrCreateDailyConversation(userId, day.id, local.dayStartUtc);
     await this.ensureSystemMessage(conversation.id);
 
@@ -40,34 +43,6 @@ export class DailyConversationService {
       date: local.dayStartUtc,
       timezone: local.timeZone,
     };
-  }
-
-  private async getOrCreateDay(userId: string, date: Date): Promise<{ id: string }> {
-    let day = await this.prisma.day.findUnique({
-      where: { userId_date: { userId, date } },
-      select: { id: true },
-    });
-
-    if (!day) {
-      try {
-        day = await this.prisma.day.create({
-          data: { userId, date, state: 'START', phase: 'NOT_STARTED' },
-          select: { id: true },
-        });
-      } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-          day = await this.prisma.day.findUnique({
-            where: { userId_date: { userId, date } },
-            select: { id: true },
-          });
-        }
-        if (!day) {
-          throw error;
-        }
-      }
-    }
-
-    return day;
   }
 
   private async getOrCreateDailyConversation(

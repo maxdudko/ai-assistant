@@ -1,10 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { DayPhase, DayState, TaskPriority, TaskStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { PatternDetectionService } from '../memory/pattern-detection.service';
 import { DayInsightService } from '../daily/day-insight.service';
 import { DailyEngineService } from '../daily/daily-engine.service';
+
+import { DayResolverService } from './day-resolver.service';
 
 @Injectable()
 export class DaysService {
@@ -14,31 +16,18 @@ export class DaysService {
     private readonly prisma: PrismaService,
     private readonly patternDetection: PatternDetectionService,
     private readonly dayInsight: DayInsightService,
+    @Inject(forwardRef(() => DailyEngineService))
     private readonly dailyEngine: DailyEngineService,
+    private readonly dayResolver: DayResolverService,
   ) {}
-
-  /**
-   * Normalize a date to the start of the day (midnight)
-   */
-  private normalizeDate(date: Date): Date {
-    const normalized = new Date(date);
-    normalized.setHours(0, 0, 0, 0);
-    return normalized;
-  }
 
   /**
    * Get today's day, create if it doesn't exist
    */
   async getToday(userId: string) {
-    const today = this.normalizeDate(new Date());
-
-    let day = await this.prisma.day.findUnique({
-      where: {
-        userId_date: {
-          userId,
-          date: today,
-        },
-      },
+    const day = await this.dayResolver.getCurrentDay(userId);
+    return this.prisma.day.findUniqueOrThrow({
+      where: { id: day.id },
       include: {
         tasks: {
           orderBy: { createdAt: 'desc' },
@@ -57,88 +46,13 @@ export class DaysService {
         },
       },
     });
-
-    if (!day) {
-      day = await this.prisma.day.create({
-        data: {
-          userId,
-          date: today,
-          state: DayState.START,
-        },
-        include: {
-          tasks: {
-            orderBy: { createdAt: 'desc' },
-          },
-          conversations: {
-            include: {
-              messages: {
-                orderBy: { createdAt: 'asc' },
-                take: 1,
-              },
-              _count: {
-                select: { messages: true },
-              },
-            },
-            orderBy: { createdAt: 'desc' },
-          },
-        },
-      });
-    }
-
-    return day;
   }
 
   /**
    * Start the day - change to ACTIVE state and set startedAt
    */
   async start(userId: string, date?: Date) {
-    const today = this.normalizeDate(date ?? new Date());
-
-    const day = await this.prisma.day.findUnique({
-      where: {
-        userId_date: {
-          userId,
-          date: today,
-        },
-      },
-    });
-
-    if (!day) {
-      // If day doesn't exist, create it in ACTIVE state
-      const created = await this.prisma.day.create({
-        data: {
-          userId,
-          date: today,
-          state: DayState.ACTIVE,
-          phase: DayPhase.MORNING,
-          startedAt: new Date(),
-        },
-        include: {
-          tasks: {
-            orderBy: { createdAt: 'desc' },
-          },
-          conversations: {
-            include: {
-              messages: {
-                orderBy: { createdAt: 'asc' },
-                take: 1,
-              },
-              _count: {
-                select: { messages: true },
-              },
-            },
-            orderBy: { createdAt: 'desc' },
-          },
-        },
-      });
-
-      void this.dailyEngine.handleEvent(userId, { type: 'DAY_START' }).catch(error => {
-        this.logger.warn(
-          `Daily engine skipped after manual day start: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      });
-      return created;
-    }
+    const day = await this.dayResolver.getDayForMoment(userId, date ?? new Date());
 
     const updated = await this.prisma.day.update({
       where: { id: day.id },
@@ -177,59 +91,7 @@ export class DaysService {
    * End the day - change to END state and set endedAt
    */
   async end(userId: string, date?: Date) {
-    const today = this.normalizeDate(date ?? new Date());
-
-    const day = await this.prisma.day.findUnique({
-      where: {
-        userId_date: {
-          userId,
-          date: today,
-        },
-      },
-    });
-
-    if (!day) {
-      // If day doesn't exist, create it in END state
-      const createdDay = await this.prisma.day.create({
-        data: {
-          userId,
-          date: today,
-          state: DayState.END,
-          phase: DayPhase.CLOSED,
-          endedAt: new Date(),
-        },
-        include: {
-          tasks: {
-            orderBy: { createdAt: 'desc' },
-          },
-          conversations: {
-            include: {
-              messages: {
-                orderBy: { createdAt: 'asc' },
-                take: 1,
-              },
-              _count: {
-                select: { messages: true },
-              },
-            },
-            orderBy: { createdAt: 'desc' },
-          },
-        },
-      });
-
-      void this.patternDetection.detectForUser(userId).catch(error => {
-        this.logger.warn(
-          `Pattern detection skipped after day end: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      });
-      void this.dayInsight.generateForDay(createdDay.id).catch(error => {
-        this.logger.warn(
-          `Day insight generation skipped after day end: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      });
-
-      return createdDay;
-    }
+    const day = await this.dayResolver.getDayForMoment(userId, date ?? new Date());
 
     const endedDay = await this.prisma.day.update({
       where: { id: day.id },
@@ -275,15 +137,9 @@ export class DaysService {
    * Get day summary with conversations and completion status
    */
   async getSummary(userId: string) {
-    const today = this.normalizeDate(new Date());
-
+    const currentDay = await this.dayResolver.getCurrentDay(userId);
     const day = await this.prisma.day.findUnique({
-      where: {
-        userId_date: {
-          userId,
-          date: today,
-        },
-      },
+      where: { id: currentDay.id },
       include: {
         conversations: {
           include: {

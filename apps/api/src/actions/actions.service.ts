@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto';
 
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { ActionCandidate } from '@ai/shared-types';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import type { ListPagination } from '../common/parse-list-pagination';
@@ -15,46 +16,66 @@ interface ActionContext {
   tasks?: Array<{ id: string; name: string }>;
 }
 
+type ActionPersistenceOptions = {
+  client?: Prisma.TransactionClient | PrismaService;
+};
+
 @Injectable()
 export class ActionsService {
+  private readonly logger = new Logger(ActionsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly executor: ActionExecutorService,
   ) {}
 
-  async createCandidates(
+  async createCandidate(
     userId: string,
-    candidates: ActionCandidate[],
+    candidate: ActionCandidate,
     context: ActionContext,
-  ): Promise<ActionCandidate[]> {
-    if (candidates.length === 0) return [];
+    options?: ActionPersistenceOptions,
+  ): Promise<ActionCandidate> {
+    const client = options?.client ?? this.prisma;
+    const [normalized] = this.prepareCandidates([candidate], context);
+    if (!normalized) {
+      throw new BadRequestException('Action candidate could not be created');
+    }
+    this.validateCandidate(normalized);
 
-    const normalized = this.prepareCandidates(candidates, context);
+    const record = await client.actionCandidate.create({
+      data: {
+        id: normalized.id,
+        userId,
+        conversationId: context.conversationId,
+        type: normalized.type,
+        payload: normalized.payload as any,
+        confidence: normalized.confidence,
+        requiresConfirmation: normalized.requiresConfirmation,
+        status: 'PENDING',
+      },
+    });
 
-    const created = await Promise.all(
-      normalized.map(candidate =>
-        this.prisma.actionCandidate.create({
-          data: {
-            id: candidate.id,
-            userId,
-            conversationId: context.conversationId,
-            type: candidate.type,
-            payload: candidate.payload as any,
-            confidence: candidate.confidence,
-            requiresConfirmation: candidate.requiresConfirmation,
-            status: 'PENDING',
-          },
-        }),
-      ),
-    );
-
-    return created.map(record => ({
+    this.logger.log(`Created 1 action candidate for userId=${userId}`);
+    return {
       id: record.id,
       type: record.type as ActionCandidate['type'],
       payload: (record.payload as Record<string, unknown>) ?? {},
       confidence: record.confidence,
       requiresConfirmation: record.requiresConfirmation,
-    }));
+    };
+  }
+
+  async createCandidates(
+    userId: string,
+    candidates: ActionCandidate[],
+    context: ActionContext,
+    options?: ActionPersistenceOptions,
+  ): Promise<ActionCandidate[]> {
+    if (candidates.length === 0) return [];
+    const created = await Promise.all(
+      candidates.map(candidate => this.createCandidate(userId, candidate, context, options)),
+    );
+    return created;
   }
 
   prepareCandidates(candidates: ActionCandidate[], context: ActionContext): ActionCandidate[] {
@@ -257,6 +278,47 @@ export class ActionsService {
       const normalized = this.normalize(task.name);
       return normalized === target || normalized.includes(target) || target.includes(normalized);
     });
+  }
+
+  private validateCandidate(candidate: ActionCandidate): void {
+    if (!candidate.type) {
+      throw new BadRequestException('Action type is required');
+    }
+    if (
+      !candidate.payload ||
+      typeof candidate.payload !== 'object' ||
+      Array.isArray(candidate.payload)
+    ) {
+      throw new BadRequestException('Action payload must be an object');
+    }
+    if (
+      !Number.isFinite(candidate.confidence) ||
+      candidate.confidence < 0 ||
+      candidate.confidence > 1
+    ) {
+      throw new BadRequestException('Action confidence must be between 0 and 1');
+    }
+
+    const payload = candidate.payload as Record<string, unknown>;
+    if (candidate.type === 'SIMPLIFY_DAY' && !this.getPayloadString(payload, ['dayId'])) {
+      throw new BadRequestException('SIMPLIFY_DAY requires dayId');
+    }
+    if (
+      (candidate.type === 'SPLIT_TASK' || candidate.type === 'RESCHEDULE_TASK') &&
+      !this.getPayloadString(payload, ['taskId', 'task_id'])
+    ) {
+      throw new BadRequestException(`${candidate.type} requires taskId`);
+    }
+  }
+
+  private getPayloadString(payload: Record<string, unknown>, keys: string[]): string | null {
+    for (const key of keys) {
+      const value = payload[key];
+      if (typeof value === 'string' && value.trim().length > 0) {
+        return value;
+      }
+    }
+    return null;
   }
 
   private normalize(value: string): string {

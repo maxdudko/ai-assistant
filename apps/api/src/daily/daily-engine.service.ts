@@ -1,18 +1,13 @@
 import { randomUUID } from 'crypto';
 
-import { Injectable } from '@nestjs/common';
-import {
-  ConversationMode,
-  DayPhase,
-  DayState,
-  Prisma,
-  TaskPriority,
-  TaskStatus,
-} from '@prisma/client';
+import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
+import { ConversationMode, DayPhase, DayState, Prisma, TaskStatus } from '@prisma/client';
 import type { ActionCandidate } from '@ai/shared-types';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskScoringService } from '../tasks/task-scoring.service';
+import { ActionsService } from '../actions/actions.service';
+import { DayResolverService } from '../days/day-resolver.service';
 
 import { addUtcDays, getUserLocalDateInfo } from './daily-timezone.util';
 import { DailyConversationService } from './daily-conversation.service';
@@ -22,6 +17,7 @@ import { DecisionContext, DecisionMessageTemplate } from './decision.types';
 import { NudgePolicyService } from './nudge-policy.service';
 import { NudgePriority, NudgeType } from './nudge.types';
 import type { DailyAction } from './action.types';
+import { UnifiedContextService } from './unified-context.service';
 
 type DailyProfile = {
   displayName: string;
@@ -56,12 +52,18 @@ type DayUpdateGate = {
 
 @Injectable()
 export class DailyEngineService {
+  private readonly logger = new Logger(DailyEngineService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly dailyConversation: DailyConversationService,
     private readonly decisionEngine: DecisionEngineService,
     private readonly nudgePolicy: NudgePolicyService,
     private readonly taskScoring: TaskScoringService,
+    @Inject(forwardRef(() => ActionsService))
+    private readonly actionsService: ActionsService,
+    private readonly dayResolver: DayResolverService,
+    private readonly unifiedContext: UnifiedContextService,
   ) {}
 
   async handleEvent(
@@ -71,7 +73,7 @@ export class DailyEngineService {
   ): Promise<DailyEventResult> {
     const profile = await this.loadProfile(userId);
     const local = getUserLocalDateInfo(now, profile.timezone);
-    let day = await this.getOrCreateDay(userId, local.dayStartUtc);
+    let day: DaySnapshot = await this.dayResolver.getDayForMoment(userId, now);
 
     if (!profile.onboardingCompleted && event.type !== 'USER_ACTIVITY') {
       return this.emptyResult();
@@ -89,39 +91,21 @@ export class DailyEngineService {
       profile,
       local.hour,
     );
-    const [tasks, patterns] = await Promise.all([
-      this.prisma.task.findMany({
-        where: { dayId: day.id },
-        select: {
-          id: true,
-          name: true,
-          status: true,
-          priority: true,
-          difficulty: true,
-          estimatedMinutes: true,
-          deadline: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      }),
-      this.prisma.memory.findMany({
-        where: {
-          userId,
-          layer: 'PATTERN',
-        },
-        orderBy: [{ importance: 'desc' }, { updatedAt: 'desc' }],
-        take: 5,
-        select: {
-          content: true,
-          tags: true,
-        },
-      }),
-    ]);
-
+    const unifiedContext = await this.unifiedContext.getContext({
+      userId,
+      event: decisionEvent,
+      now,
+    });
+    day = unifiedContext.day;
+    const tasks = unifiedContext.tasks;
+    const patterns = unifiedContext.memory.patterns.map(pattern => ({
+      content: pattern.content,
+      tags: pattern.tags,
+    }));
     const morningFocusPattern = this.hasMorningFocusPattern(patterns);
-    const availableMinutes = this.taskScoring.getAvailableMinutes();
-    const totalEstimatedMinutes = this.taskScoring.totalEstimatedTime(tasks);
-    const isOverloaded = this.taskScoring.isOverloaded(tasks, availableMinutes);
+    const availableMinutes = unifiedContext.load.available;
+    const totalEstimatedMinutes = unifiedContext.load.totalEstimated;
+    const isOverloaded = unifiedContext.load.isOverloaded;
 
     const context: DecisionContext = {
       userId,
@@ -138,13 +122,19 @@ export class DailyEngineService {
       morningFocusPattern,
     };
 
-    const decision = this.decisionEngine.evaluate(context);
     const result = this.emptyResult();
-
+    const sortedDecisions = this.decisionEngine.rankDecisions(context);
+    let selectedDecision: (typeof sortedDecisions)[number] | null = null;
     let sent = false;
-    if (decision.action && decision.action.type !== 'NO_OP') {
+
+    for (const [index, decision] of sortedDecisions.entries()) {
+      if (!decision.action || decision.action.type === 'NO_OP') {
+        selectedDecision = decision;
+        break;
+      }
+
       if (decision.action.type === 'SEND_NUDGE') {
-        sent = await this.executeNudgeAction(
+        const sentNudge = await this.executeNudgeAction(
           userId,
           day.id,
           now,
@@ -152,30 +142,60 @@ export class DailyEngineService {
           decision.action.nudge.type,
           decision.action.action,
         );
-        if (sent) {
-          this.applyNudgeResult(result, decision.action.nudge.type);
+        if (!sentNudge) {
+          this.logger.log(
+            `Skipped decision reason=${decision.reason ?? 'UNKNOWN'} action=SEND_NUDGE userId=${userId}`,
+          );
+          continue;
         }
-      } else if (decision.action.type === 'SEND_MESSAGE') {
-        sent = await this.executeMessageAction(
-          userId,
-          day,
-          profile,
-          tasks,
-          patterns,
-          now,
-          decision.action.template,
-        );
-        if (sent) {
-          if (decision.action.template === 'MORNING_BRIEFING') result.morningSent = true;
-          if (decision.action.template === 'EVENING_REFLECTION') result.eveningSent = true;
+        sent = true;
+        selectedDecision = decision;
+        this.applyNudgeResult(result, decision.action.nudge.type);
+        if (index > 0) {
+          this.logger.log(
+            `Decision fallback applied reason=${decision.reason ?? 'UNKNOWN'} rankIndex=${index} userId=${userId}`,
+          );
         }
+        break;
       }
+
+      const sentMessage = await this.executeMessageAction(
+        userId,
+        day,
+        profile,
+        tasks,
+        patterns,
+        unifiedContext.scoredTasks,
+        unifiedContext.load,
+        now,
+        decision.action.template,
+      );
+      if (!sentMessage) {
+        this.logger.log(
+          `Skipped decision reason=${decision.reason ?? 'UNKNOWN'} action=SEND_MESSAGE userId=${userId}`,
+        );
+        continue;
+      }
+      sent = true;
+      selectedDecision = decision;
+      if (decision.action.template === 'MORNING_BRIEFING') result.morningSent = true;
+      if (decision.action.template === 'EVENING_REFLECTION') result.eveningSent = true;
+      if (index > 0) {
+        this.logger.log(
+          `Decision fallback applied reason=${decision.reason ?? 'UNKNOWN'} rankIndex=${index} userId=${userId}`,
+        );
+      }
+      break;
     }
 
-    if (decision.nextPhase && (decision.action?.type === 'NO_OP' || sent)) {
-      const transitioned = await this.applyPhaseTransition(day.id, day.phase, decision.nextPhase);
+    if (selectedDecision?.nextPhase && (selectedDecision.action?.type === 'NO_OP' || sent)) {
+      const transitioned = await this.applyPhaseTransition(
+        day.id,
+        day.phase,
+        selectedDecision.nextPhase,
+      );
       if (transitioned) {
-        day.phase = decision.nextPhase;
+        day.phase = selectedDecision.nextPhase;
       }
     }
 
@@ -273,11 +293,26 @@ export class DailyEngineService {
     profile: DailyProfile,
     tasks: DecisionContext['tasks'],
     patterns: DecisionContext['patterns'],
+    scoredTasks: Array<{
+      taskId: string;
+      score: number;
+      estimatedMinutes: number;
+      status: TaskStatus;
+    }>,
+    load: { totalEstimated: number; available: number; isOverloaded: boolean },
     now: Date,
     template: DecisionMessageTemplate,
   ): Promise<boolean> {
     if (template === 'MORNING_BRIEFING') {
-      const content = await this.buildMorningBriefingContent(userId, day, profile, tasks, patterns);
+      const content = await this.buildMorningBriefingContent(
+        userId,
+        day,
+        profile,
+        tasks,
+        patterns,
+        scoredTasks,
+        load,
+      );
       return this.sendMessage({
         userId,
         dayId: day.id,
@@ -351,11 +386,22 @@ export class DailyEngineService {
 
         const actionCandidate =
           input.suggestedAction && input.suggestedAction.requiresConfirmation
-            ? await this.createActionCandidate(
-                tx,
+            ? await this.actionsService.createCandidate(
                 input.userId,
-                conversation.conversationId,
-                input.suggestedAction,
+                {
+                  id: randomUUID(),
+                  type: input.suggestedAction.type,
+                  payload: {
+                    ...input.suggestedAction.payload,
+                    conversationId: conversation.conversationId,
+                  },
+                  confidence: 0.85,
+                  requiresConfirmation: true,
+                },
+                {
+                  conversationId: conversation.conversationId,
+                },
+                { client: tx },
               )
             : null;
 
@@ -417,6 +463,13 @@ export class DailyEngineService {
     profile: DailyProfile,
     tasks: DecisionContext['tasks'],
     patterns: DecisionContext['patterns'],
+    scoredTasks: Array<{
+      taskId: string;
+      score: number;
+      estimatedMinutes: number;
+      status: TaskStatus;
+    }>,
+    load: { totalEstimated: number; available: number; isOverloaded: boolean },
   ): Promise<string> {
     const yesterday = await this.prisma.day.findUnique({
       where: { userId_date: { userId, date: addUtcDays(day.date, -1) } },
@@ -433,24 +486,15 @@ export class DailyEngineService {
       (yesterday?.tasks.length ?? 0) -
       (yesterday?.tasks.filter(task => task.status === TaskStatus.DONE).length ?? 0);
 
-    const normalizedTasks = tasks.map(task => ({
-      id: task.id,
-      name: task.name,
-      status: task.status,
-      priority: (task.priority ?? 'MEDIUM') as TaskPriority,
-      difficulty: task.difficulty ?? 3,
-      estimatedMinutes: task.estimatedMinutes ?? null,
-      deadline: task.deadline ?? null,
-    }));
-    const morningFocusPattern = this.hasMorningFocusPattern(patterns);
-    const topTasks = this.taskScoring.getTopTasks(normalizedTasks, {
-      limit: 2,
-      morningFocus: morningFocusPattern,
-      includeHighImpact: true,
-    });
-    const totalEstimatedMinutes = this.taskScoring.totalEstimatedTime(normalizedTasks);
-    const availableMinutes = this.taskScoring.getAvailableMinutes();
-    const isOverloaded = totalEstimatedMinutes > availableMinutes;
+    const taskById = new Map(tasks.map(task => [task.id, task]));
+    const topTasks = scoredTasks
+      .filter(entry => entry.status !== TaskStatus.DONE)
+      .slice(0, 2)
+      .map(entry => taskById.get(entry.taskId))
+      .filter((task): task is NonNullable<typeof task> => Boolean(task));
+    const totalEstimatedMinutes = load.totalEstimated;
+    const availableMinutes = load.available;
+    const isOverloaded = load.isOverloaded;
 
     const focusLines =
       topTasks.length > 0
@@ -552,39 +596,6 @@ export class DailyEngineService {
 
     lines.push('Want me to simplify today into a focused set?');
     return lines.join('\n');
-  }
-
-  private async createActionCandidate(
-    tx: Prisma.TransactionClient,
-    userId: string,
-    conversationId: string,
-    action: DailyAction,
-  ): Promise<ActionCandidate> {
-    const normalized: ActionCandidate = {
-      id: randomUUID(),
-      type: action.type,
-      payload: {
-        ...action.payload,
-        conversationId,
-      },
-      confidence: 0.85,
-      requiresConfirmation: true,
-    };
-
-    await tx.actionCandidate.create({
-      data: {
-        id: normalized.id,
-        userId,
-        conversationId,
-        type: normalized.type,
-        payload: normalized.payload as Prisma.InputJsonObject,
-        confidence: normalized.confidence,
-        requiresConfirmation: normalized.requiresConfirmation,
-        status: 'PENDING',
-      },
-    });
-
-    return normalized;
   }
 
   private appendActionHint(baseContent: string, actionCandidate: ActionCandidate | null): string {
@@ -691,33 +702,6 @@ export class DailyEngineService {
       reflectionTime: profile?.reflectionTime ?? null,
       timezone: profile?.timezone ?? 'UTC',
     };
-  }
-
-  private async getOrCreateDay(userId: string, date: Date): Promise<DaySnapshot> {
-    return this.prisma.day.upsert({
-      where: { userId_date: { userId, date } },
-      update: {},
-      create: {
-        userId,
-        date,
-        state: DayState.START,
-        phase: DayPhase.NOT_STARTED,
-      },
-      select: {
-        id: true,
-        date: true,
-        state: true,
-        phase: true,
-        startedAt: true,
-        endedAt: true,
-        lastActivityAt: true,
-        morningBriefingSentAt: true,
-        eveningReflectionSentAt: true,
-        planningSuggestionSentAt: true,
-        noProgressNudgeSentAt: true,
-        stuckTaskNudgeSentAt: true,
-      },
-    });
   }
 
   private shouldRunMorningFallback(preference: string | null, localHour: number): boolean {

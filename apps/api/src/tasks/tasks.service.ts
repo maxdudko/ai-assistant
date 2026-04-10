@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { TaskStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { DayResolverService } from '../days/day-resolver.service';
 import type { ListPagination } from '../common/parse-list-pagination';
 
 import { CreateTaskDto } from './dto/create-task.dto';
@@ -9,34 +10,16 @@ import { UpdateTaskDto } from './dto/update-task.dto';
 
 @Injectable()
 export class TasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dayResolver: DayResolverService,
+  ) {}
 
   /**
    * Get or create today's day for a user
    */
   private async getOrCreateTodayDay(userId: string): Promise<string> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    let day = await this.prisma.day.findUnique({
-      where: {
-        userId_date: {
-          userId,
-          date: today,
-        },
-      },
-    });
-
-    if (!day) {
-      day = await this.prisma.day.create({
-        data: {
-          userId,
-          date: today,
-          state: 'START',
-        },
-      });
-    }
-
+    const day = await this.dayResolver.getCurrentDay(userId);
     return day.id;
   }
 

@@ -9,12 +9,13 @@ import { ConversationState, ConversationType } from '../prisma/types';
 import { ActionsService } from '../actions/actions.service';
 import { IntentDetectorService } from '../intents/intent-detector.service';
 import { MemoryIngestionService } from '../memory/memory-ingestion.service';
-import { MemoryRetrieverService } from '../memory/memory-retriever.service';
 import { DaysService } from '../days/days.service';
+import { DayResolverService } from '../days/day-resolver.service';
 import { DigestService } from '../digest/digest.service';
 import { LogsService } from '../logs/logs.service';
 import { DailyConversationService } from '../daily/daily-conversation.service';
 import { DailyEngineService } from '../daily/daily-engine.service';
+import { UnifiedContextService } from '../daily/unified-context.service';
 
 describe('ConversationsService', () => {
   let service: ConversationsService;
@@ -25,6 +26,8 @@ describe('ConversationsService', () => {
   let memoryIngestion: { ingest: jest.Mock };
   let dailyConversation: { getOrCreate: jest.Mock };
   let dailyEngine: { handleEvent: jest.Mock };
+  let dayResolver: { getCurrentDay: jest.Mock };
+  let unifiedContext: { getContext: jest.Mock };
 
   const mockUserId = 'user-123';
   const mockConversationId = 'conv-123';
@@ -94,20 +97,43 @@ describe('ConversationsService', () => {
       ingest: jest.fn().mockResolvedValue(undefined),
     };
 
-    const mockMemoryRetriever = {
-      retrieve: jest.fn().mockResolvedValue([]),
-      getMemoryContext: jest.fn().mockResolvedValue({
-        patterns: [],
-        semantic: [],
-        recent: [],
-        important: [],
-        merged: [],
-      }),
-      trackUsage: jest.fn().mockResolvedValue(undefined),
-    };
-
     const mockDaysService = {
       endDay: jest.fn().mockResolvedValue(undefined),
+    };
+
+    const mockDayResolver = {
+      getCurrentDay: jest.fn().mockResolvedValue({
+        id: mockDayId,
+        userId: mockUserId,
+        date: mockToday,
+        state: 'START',
+        phase: 'NOT_STARTED',
+      }),
+    };
+
+    const mockUnifiedContext = {
+      getContext: jest.fn().mockResolvedValue({
+        day: {
+          id: mockDayId,
+          userId: mockUserId,
+          date: mockToday,
+          state: 'START',
+          phase: 'NOT_STARTED',
+        },
+        tasks: [],
+        scoredTasks: [],
+        memory: {
+          patterns: [],
+          semantic: [],
+          recent: [],
+          important: [],
+        },
+        load: {
+          totalEstimated: 0,
+          available: 480,
+          isOverloaded: false,
+        },
+      }),
     };
 
     const mockDigestService = {
@@ -165,12 +191,12 @@ describe('ConversationsService', () => {
           useValue: mockMemoryIngestion,
         },
         {
-          provide: MemoryRetrieverService,
-          useValue: mockMemoryRetriever,
-        },
-        {
           provide: DaysService,
           useValue: mockDaysService,
+        },
+        {
+          provide: DayResolverService,
+          useValue: mockDayResolver,
         },
         {
           provide: DigestService,
@@ -188,6 +214,10 @@ describe('ConversationsService', () => {
           provide: DailyEngineService,
           useValue: mockDailyEngine,
         },
+        {
+          provide: UnifiedContextService,
+          useValue: mockUnifiedContext,
+        },
       ],
     }).compile();
 
@@ -199,6 +229,8 @@ describe('ConversationsService', () => {
     memoryIngestion = module.get(MemoryIngestionService);
     dailyConversation = module.get(DailyConversationService);
     dailyEngine = module.get(DailyEngineService);
+    dayResolver = module.get(DayResolverService);
+    unifiedContext = module.get(UnifiedContextService);
 
     prisma.conversation.findUnique.mockResolvedValue({
       id: mockConversationId,
@@ -434,6 +466,38 @@ describe('ConversationsService', () => {
       expect(result.message.content).toBe('AI response');
       expect(prisma.message.create).toHaveBeenCalledTimes(2);
       expect(ai.generateResponse).toHaveBeenCalled();
+    });
+
+    it('builds chat context through UnifiedContextService with query', async () => {
+      const conversationWithUser = loadedForMessage();
+      const assistantMessage = {
+        ...mockMessage,
+        id: 'msg-assistant',
+        role: 'ASSISTANT' as const,
+        content: 'AI response',
+      };
+
+      prisma.conversation.findFirst.mockResolvedValue(conversationWithUser);
+      prisma.message.create
+        .mockResolvedValueOnce(mockMessage)
+        .mockResolvedValueOnce(assistantMessage);
+      prisma.conversation.update.mockResolvedValue({
+        ...conversationWithUser,
+        state: ConversationState.ACTIVE,
+      });
+      prisma.task.findMany.mockResolvedValue([]);
+      actions.createCandidates.mockResolvedValue([]);
+      intentDetector.detect.mockReturnValue([]);
+      ai.generateResponse.mockResolvedValue(mockAiResponse);
+
+      await service.handleMessage(mockUserId, 'Need focus plan', mockConversationId);
+
+      expect(unifiedContext.getContext).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: mockUserId,
+          query: 'Need focus plan',
+        }),
+      );
     });
 
     it('should create daily conversation if no conversationId provided', async () => {

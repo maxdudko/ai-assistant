@@ -9,6 +9,7 @@ import { DaysModule } from '../days/days.module';
 import { DigestModule } from '../digest/digest.module';
 import { LogsModule } from '../logs/logs.module';
 import { DailyModule } from '../daily/daily.module';
+import { DayResolverModule } from '../days/day-resolver.module';
 
 import { ConversationsController } from './conversations.controller';
 import { ConversationsService } from './conversations.service';
@@ -24,6 +25,7 @@ import { ConversationsService } from './conversations.service';
     DigestModule,
     LogsModule,
     DailyModule,
+    DayResolverModule,
   ],
   controllers: [ConversationsController],
   providers: [ConversationsService],

@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { NudgePriority, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { DayResolverService } from '../days/day-resolver.service';
 
-import { getUserLocalDateInfo } from './daily-timezone.util';
 import { Nudge } from './nudge.types';
 
 type NudgePolicyOptions = {
@@ -17,7 +17,10 @@ export class NudgePolicyService {
   private readonly minIntervalMs = 2 * 60 * 60 * 1000;
   private readonly dedupeWindowMs = 6 * 60 * 60 * 1000;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dayResolver: DayResolverService,
+  ) {}
 
   async shouldSendNudge(
     userId: string,
@@ -118,20 +121,7 @@ export class NudgePolicyService {
     now: Date,
     client: Prisma.TransactionClient | PrismaService,
   ): Promise<string | null> {
-    const profile = await client.userProfile.findUnique({
-      where: { userId },
-      select: { timezone: true },
-    });
-    const local = getUserLocalDateInfo(now, profile?.timezone);
-    const day = await client.day.findUnique({
-      where: {
-        userId_date: {
-          userId,
-          date: local.dayStartUtc,
-        },
-      },
-      select: { id: true },
-    });
-    return day?.id ?? null;
+    const day = await this.dayResolver.getDayForMomentTx(userId, now, client);
+    return day.id;
   }
 }

@@ -29,6 +29,21 @@ const VALID_PHASE_TRANSITIONS: Record<DayPhase, DayPhase[]> = {
 @Injectable()
 export class DecisionEngineService {
   evaluate(context: DecisionContext): DecisionResult {
+    const ranked = this.rankDecisions(context);
+    if (ranked.length === 0) {
+      return { action: { type: 'NO_OP' } };
+    }
+
+    const selected = ranked[0];
+    if (selected.nextPhase && !this.isValidPhaseTransition(context.day.phase, selected.nextPhase)) {
+      return {
+        action: { type: 'NO_OP' },
+      };
+    }
+    return selected;
+  }
+
+  rankDecisions(context: DecisionContext): DecisionResult[] {
     const candidates: CandidateDecision[] = [];
 
     const morningStart = this.ruleMorningStart(context);
@@ -50,16 +65,15 @@ export class DecisionEngineService {
     if (phaseProgression) candidates.push(this.toCandidate(phaseProgression));
 
     if (candidates.length === 0) {
-      return { action: { type: 'NO_OP' } };
+      return [];
     }
 
-    const selected = candidates.sort((a, b) => b.rank - a.rank)[0].result;
-    if (selected.nextPhase && !this.isValidPhaseTransition(context.day.phase, selected.nextPhase)) {
-      return {
-        action: { type: 'NO_OP' },
-      };
-    }
-    return selected;
+    return candidates
+      .sort((a, b) => b.rank - a.rank)
+      .map(candidate => candidate.result)
+      .filter(result =>
+        result.nextPhase ? this.isValidPhaseTransition(context.day.phase, result.nextPhase) : true,
+      );
   }
 
   isValidPhaseTransition(from: DayPhase, to: DayPhase): boolean {
