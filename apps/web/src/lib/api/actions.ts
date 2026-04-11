@@ -18,6 +18,8 @@ export interface PendingAction {
   status: string;
   createdAt: string;
   conversationId: string | null;
+  relatedMessageId: string | null;
+  relatedMessagePreview: string | null;
 }
 
 export interface PendingActionsResponse {
@@ -30,6 +32,18 @@ export async function confirmAction(request: ConfirmActionRequest): Promise<Conf
   return apiFetch<ConfirmActionResponse>('/api/actions/confirm', {
     method: 'POST',
     body: JSON.stringify(request),
+  });
+}
+
+export async function dismissAction(actionId: string): Promise<ConfirmActionResponse> {
+  return apiFetch<ConfirmActionResponse>(`/api/actions/${actionId}/dismiss`, {
+    method: 'POST',
+  });
+}
+
+export async function undoAction(actionId: string): Promise<ConfirmActionResponse> {
+  return apiFetch<ConfirmActionResponse>(`/api/actions/${actionId}/undo`, {
+    method: 'POST',
   });
 }
 

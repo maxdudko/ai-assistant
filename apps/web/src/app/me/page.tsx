@@ -7,6 +7,7 @@ import type { EventInput } from '@fullcalendar/core';
 
 import { getTasks, deleteTask, getTask } from '@/lib/api/tasks';
 import { getMorningBriefing } from '@/lib/api/days';
+import { getPendingActions, confirmAction, dismissAction } from '@/lib/api/actions';
 import type { TaskDto } from '@/lib/api/types';
 import Container from '@/components/common/container';
 import { queryKeys } from '@/lib/query-keys';
@@ -86,6 +87,11 @@ export default function Dashboard() {
     queryKey: queryKeys.morningBriefing,
     queryFn: getMorningBriefing,
     retry: false,
+  });
+  const { data: pendingActions } = useQuery({
+    queryKey: queryKeys.pendingActions('dashboard'),
+    queryFn: () => getPendingActions({ dayId: morningBriefing?.day.id, limit: 10 }),
+    enabled: Boolean(morningBriefing?.day.id),
   });
 
   const events = useMemo(() => transformTasksToEvents(tasks), [tasks]);
@@ -178,6 +184,49 @@ export default function Dashboard() {
             <p className="mt-4 text-sm text-neutral-500">
               Morning briefing is unavailable right now.
             </p>
+          )}
+        </Container>
+        <Container className="p-4 my-4">
+          <b className="text-2xl">Pending actions</b>
+          {pendingActions && pendingActions.items.length > 0 ? (
+            <div className="mt-4 space-y-2">
+              {pendingActions.items.map(action => (
+                <div key={action.id} className="rounded border border-neutral-700 p-3">
+                  <div className="text-sm text-neutral-200">
+                    {action.type} ({Math.round(action.confidence * 100)}% confidence)
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-200 hover:bg-emerald-500/20"
+                      onClick={async () => {
+                        await confirmAction({ actionId: action.id });
+                        await queryClient.invalidateQueries({
+                          queryKey: queryKeys.pendingActions('dashboard'),
+                        });
+                        await queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
+                      }}
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded border border-neutral-500/40 bg-neutral-500/10 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-500/20"
+                      onClick={async () => {
+                        await dismissAction(action.id);
+                        await queryClient.invalidateQueries({
+                          queryKey: queryKeys.pendingActions('dashboard'),
+                        });
+                      }}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-neutral-500">No pending actions.</p>
           )}
         </Container>
         <Container className="p-4 my-4">

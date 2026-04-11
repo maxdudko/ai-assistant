@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { DayDto, DaySummaryDto, MorningBriefingDto } from './types';
+import type { DayDto, DayIntelligenceDto, DaySummaryDto, MorningBriefingDto } from './types';
 
 export async function getToday(): Promise<DayDto> {
   return apiFetch<DayDto>('/api/day/today');
@@ -23,4 +23,8 @@ export async function getDaySummary(): Promise<DaySummaryDto> {
 
 export async function getMorningBriefing(): Promise<MorningBriefingDto> {
   return apiFetch<MorningBriefingDto>('/api/day/morning-briefing');
+}
+
+export async function getDayIntelligence(): Promise<DayIntelligenceDto> {
+  return apiFetch<DayIntelligenceDto>('/api/day/intelligence');
 }

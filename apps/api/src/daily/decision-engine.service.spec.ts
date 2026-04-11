@@ -83,6 +83,7 @@ describe('DecisionEngineService', () => {
     expect(result.action?.type).toBe('SEND_NUDGE');
     if (result.action?.type === 'SEND_NUDGE') {
       expect(result.action.nudge.type).toBe('NO_PROGRESS');
+      expect(result.action.targetTaskId).toBe('task-1');
       expect(result.action.action?.type).toBe('RESCHEDULE_TASK');
     }
     expect(result.reason).toBe('NO_PROGRESS');
@@ -158,6 +159,7 @@ describe('DecisionEngineService', () => {
     expect(result.action?.type).toBe('SEND_NUDGE');
     if (result.action?.type === 'SEND_NUDGE') {
       expect(result.action.nudge.type).toBe('STUCK_TASK');
+      expect(result.action.targetTaskId).toBe('task-stuck');
       expect(result.action.action?.type).toBe('SPLIT_TASK');
     }
     expect(result.reason).toBe('STUCK_TASK');

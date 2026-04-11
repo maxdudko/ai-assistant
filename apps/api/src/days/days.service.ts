@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PatternDetectionService } from '../memory/pattern-detection.service';
 import { DayInsightService } from '../daily/day-insight.service';
 import { DailyEngineService } from '../daily/daily-engine.service';
+import { UnifiedContextService } from '../daily/unified-context.service';
 
 import { DayResolverService } from './day-resolver.service';
 
@@ -19,6 +20,8 @@ export class DaysService {
     @Inject(forwardRef(() => DailyEngineService))
     private readonly dailyEngine: DailyEngineService,
     private readonly dayResolver: DayResolverService,
+    @Inject(forwardRef(() => UnifiedContextService))
+    private readonly unifiedContext: UnifiedContextService,
   ) {}
 
   /**
@@ -276,6 +279,89 @@ export class DaysService {
     return this.end(userId, parsed);
   }
 
+  async getIntelligence(userId: string) {
+    const context = await this.unifiedContext.getContext({
+      userId,
+      event: { type: 'TIME_TRIGGER' },
+      now: new Date(),
+    });
+
+    const topTasks = context.scoredTasks
+      .filter(entry => entry.status !== TaskStatus.DONE)
+      .slice(0, 3)
+      .map(entry => {
+        const task = context.tasks.find(candidate => candidate.id === entry.taskId);
+        if (!task) {
+          return null;
+        }
+        return {
+          id: task.id,
+          name: task.name,
+          priority: task.priority,
+          estimatedMinutes: entry.estimatedMinutes,
+          score: Number(entry.score.toFixed(4)),
+          reason: this.getTaskReason(task.priority, task.deadline),
+        };
+      })
+      .filter(
+        (
+          task,
+        ): task is {
+          id: string;
+          name: string;
+          priority: TaskPriority;
+          estimatedMinutes: number;
+          score: number;
+          reason: string;
+        } => Boolean(task),
+      );
+
+    const suggestedActionsRows = await this.prisma.actionCandidate.findMany({
+      where: {
+        userId,
+        status: 'PENDING',
+        requiresConfirmation: true,
+        OR: [{ conversation: { dayId: context.day.id } }, { conversationId: null }],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: {
+        id: true,
+        type: true,
+        payload: true,
+        confidence: true,
+        createdAt: true,
+      },
+    });
+
+    const insights = context.memory.patterns.slice(0, 3).map(pattern => pattern.content);
+    const reasoning = [
+      `Top tasks prioritize urgency, priority, and estimated execution difficulty.`,
+      context.load.isOverloaded
+        ? `Overload detected because ${context.load.totalEstimated} planned minutes exceed ${context.load.available} available minutes.`
+        : `Load is healthy because ${context.load.totalEstimated} planned minutes fit within ${context.load.available} available minutes.`,
+    ];
+
+    return {
+      phase: context.day.phase,
+      load: {
+        plannedMinutes: context.load.totalEstimated,
+        availableMinutes: context.load.available,
+        overload: context.load.isOverloaded,
+      },
+      topTasks,
+      suggestedActions: suggestedActionsRows.map(action => ({
+        id: action.id,
+        type: action.type,
+        payload: action.payload,
+        confidence: action.confidence,
+        createdAt: action.createdAt,
+      })),
+      insights,
+      reasoning,
+    };
+  }
+
   private compareTasksForPriority(
     a: { priority: TaskPriority; deadline: Date | null; createdAt: Date },
     b: { priority: TaskPriority; deadline: Date | null; createdAt: Date },
@@ -322,5 +408,15 @@ export class DaysService {
     }
 
     return 'Important next step for today';
+  }
+
+  private getTaskReason(priority: TaskPriority, deadline: Date | null): string {
+    if (deadline) {
+      return 'Selected because of deadline urgency and score.';
+    }
+    if (priority === TaskPriority.HIGH) {
+      return 'Selected because it is high priority and high impact.';
+    }
+    return 'Selected as the best next task by current scoring.';
   }
 }

@@ -1,5 +1,8 @@
+import { randomUUID } from 'crypto';
+
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConversationMode, TaskStatus } from '@prisma/client';
+import type { ActionCandidate } from '@ai/shared-types';
 import {
   buildSystemPrompt,
   messagesToLlmFormat,
@@ -315,23 +318,19 @@ export class ConversationsService {
         dayId: conversation.dayId,
       };
       const actionPreparedStartedAt = Date.now();
-      const storedActions =
+      const preparedActions =
         digest.actionCandidates.length > 0
           ? this.actionsService.prepareCandidates(digest.actionCandidates, actionContext)
+          : [];
+      const storedActions =
+        preparedActions.length > 0
+          ? await this.actionsService.createCandidates(userId, preparedActions, actionContext)
           : [];
       const actionPreparedMs = Date.now() - actionPreparedStartedAt;
 
       const promptText = `INFO mode digest request: ${message}`;
       this.runInBackground(
         [
-          storedActions.length > 0
-            ? {
-                name: 'persist-info-actions',
-                run: async () => {
-                  await this.actionsService.createCandidates(userId, storedActions, actionContext);
-                },
-              }
-            : null,
           {
             name: 'log-info-ai-interaction',
             run: async () => {
@@ -430,11 +429,13 @@ export class ConversationsService {
 
     const actionPreparedStartedAt = Date.now();
     let storedActions = [] as Awaited<ReturnType<ActionsService['createCandidates']>>;
-    let actionPersistenceTask: { name: string; run: () => Promise<void> } | null = null;
     if (conversation.mode !== ConversationMode.REFLECTION) {
       // Post-processing: action candidates
       const actionGuardAllowsMutation = this.shouldAllowMutationActions(message);
       let actionCandidates = actionGuardAllowsMutation ? (aiResponse.actionCandidates ?? []) : [];
+      if (actionGuardAllowsMutation && actionCandidates.length === 0) {
+        actionCandidates = this.extractActionsFromJsonLikePayload(aiResponse.content);
+      }
       const tasksContext = [...(context.tasksToday ?? []), ...(context.backlogTasks ?? [])].map(
         task => ({
           id: task.id,
@@ -459,25 +460,18 @@ export class ConversationsService {
         dayId: conversation.dayId,
         tasks: tasksContext,
       };
-      storedActions =
+      const preparedActions =
         actionCandidates.length > 0
           ? this.actionsService.prepareCandidates(actionCandidates, actionContext)
           : [];
-      if (storedActions.length > 0) {
-        actionPersistenceTask = {
-          name: 'persist-actions',
-          run: async () => {
-            await this.actionsService.createCandidates(userId, storedActions, actionContext);
-          },
-        };
-      }
+      storedActions =
+        preparedActions.length > 0
+          ? await this.actionsService.createCandidates(userId, preparedActions, actionContext)
+          : [];
     }
     const actionPrepareMs = Date.now() - actionPreparedStartedAt;
 
     const backgroundTasks: Array<{ name: string; run: () => Promise<void> }> = [];
-    if (actionPersistenceTask) {
-      backgroundTasks.push(actionPersistenceTask);
-    }
     if (aiResponse.memoryCandidates && aiResponse.memoryCandidates.length > 0) {
       const mappedCandidates = this.mapMemoryCandidates(aiResponse.memoryCandidates);
       if (conversation.mode === ConversationMode.REFLECTION) {
@@ -695,7 +689,15 @@ export class ConversationsService {
       /\bcomplete\b.*\b(task|todo)\b/,
       /\bmove\b.*\b(task|deadline|due)\b/,
     ];
-    return mutationPatterns.some(pattern => pattern.test(normalized));
+    if (mutationPatterns.some(pattern => pattern.test(normalized))) {
+      return true;
+    }
+
+    const inferredRaw = this.intentDetector.detect(message, []);
+    const inferred = Array.isArray(inferredRaw) ? inferredRaw : [];
+    return inferred.some(
+      action => action.type.startsWith('TASK_') || action.type.startsWith('DAY_'),
+    );
   }
 
   private isTaskCompletionMutationRequest(message: string): boolean {
@@ -708,13 +710,23 @@ export class ConversationsService {
 
   private normalizeAssistantContent(content: string, completionIntent: boolean): string {
     const extracted = this.extractTextFromJsonLikePayload(content);
-    const normalized = extracted ?? content;
+    const normalized = this.stripAssistantEchoPrefix(extracted ?? content);
     const trimmed = normalized.trim();
 
     if (completionIntent && this.isGenericPlaceholderResponse(trimmed)) {
       return 'Got it. I can mark those tasks as done. Please confirm and I will apply it.';
     }
 
+    return normalized;
+  }
+
+  private stripAssistantEchoPrefix(content: string): string {
+    let normalized = content.trimStart();
+    let previous = '';
+    while (normalized !== previous) {
+      previous = normalized;
+      normalized = normalized.replace(/^(assistant|mira)\s*:\s*/i, '').trimStart();
+    }
     return normalized;
   }
 
@@ -731,7 +743,12 @@ export class ConversationsService {
     }
 
     const sanitized = this.sanitizeJsonStringNewlines(candidate);
-    return this.tryParseJsonText(sanitized);
+    const parsedSanitized = this.tryParseJsonText(sanitized);
+    if (parsedSanitized) {
+      return parsedSanitized;
+    }
+
+    return this.extractQuotedStringValue(candidate, 'text');
   }
 
   private tryParseJsonText(candidate: string): string | null {
@@ -826,6 +843,212 @@ export class ConversationsService {
         depth -= 1;
         if (depth === 0) {
           return content.slice(start, index + 1);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private extractActionsFromJsonLikePayload(content: string): ActionCandidate[] {
+    const candidate = this.extractFirstJsonObject(content.trim());
+    if (!candidate) {
+      return [];
+    }
+
+    const parsed = this.tryParseJsonObject<{ actions?: unknown }>(candidate);
+    if (parsed && Array.isArray(parsed.actions)) {
+      return this.normalizeActionCandidates(parsed.actions);
+    }
+
+    const sanitized = this.sanitizeJsonStringNewlines(candidate);
+    const parsedSanitized = this.tryParseJsonObject<{ actions?: unknown }>(sanitized);
+    if (parsedSanitized && Array.isArray(parsedSanitized.actions)) {
+      return this.normalizeActionCandidates(parsedSanitized.actions);
+    }
+
+    const arrayLiteral = this.extractArrayAfterKey(candidate, 'actions');
+    if (!arrayLiteral) {
+      return [];
+    }
+    try {
+      const parsedActions = JSON.parse(this.sanitizeJsonStringNewlines(arrayLiteral));
+      if (!Array.isArray(parsedActions)) {
+        return [];
+      }
+      return this.normalizeActionCandidates(parsedActions);
+    } catch {
+      return [];
+    }
+  }
+
+  private normalizeActionCandidates(candidates: unknown[]): ActionCandidate[] {
+    return candidates
+      .map(candidate => this.normalizeActionCandidate(candidate))
+      .filter((candidate): candidate is ActionCandidate => candidate !== null);
+  }
+
+  private normalizeActionCandidate(candidate: unknown): ActionCandidate | null {
+    if (!candidate || typeof candidate !== 'object') {
+      return null;
+    }
+    const record = candidate as Record<string, unknown>;
+    const type = typeof record.type === 'string' ? record.type.toUpperCase() : '';
+    const allowedTypes = new Set([
+      'TASK_CREATE',
+      'TASK_UPDATE_STATUS',
+      'TASK_SET_PRIORITY',
+      'TASK_SET_DUE_DATE',
+      'TASK_COMPLETE',
+      'DAY_START',
+      'DAY_END',
+      'SUGGEST_DIGEST_SUBSCRIPTION',
+      'SIMPLIFY_DAY',
+      'SPLIT_TASK',
+      'RESCHEDULE_TASK',
+    ]);
+    if (!allowedTypes.has(type)) {
+      return null;
+    }
+
+    const payload =
+      typeof record.payload === 'object' &&
+      record.payload !== null &&
+      !Array.isArray(record.payload)
+        ? (record.payload as Record<string, unknown>)
+        : {};
+    const confidenceRaw = typeof record.confidence === 'number' ? record.confidence : 0.5;
+    const confidence = Math.min(1, Math.max(0, confidenceRaw));
+    const idRaw = typeof record.id === 'string' ? record.id : '';
+    const id = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idRaw)
+      ? idRaw
+      : randomUUID();
+
+    return {
+      id,
+      type: type as ActionCandidate['type'],
+      payload,
+      confidence,
+      requiresConfirmation: true,
+    };
+  }
+
+  private tryParseJsonObject<T>(candidate: string): T | null {
+    try {
+      return JSON.parse(candidate) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  private extractQuotedStringValue(content: string, key: string): string | null {
+    const keyPattern = `"${key}"`;
+    const keyIndex = content.indexOf(keyPattern);
+    if (keyIndex === -1) {
+      return null;
+    }
+
+    const colonIndex = content.indexOf(':', keyIndex + keyPattern.length);
+    if (colonIndex === -1) {
+      return null;
+    }
+
+    let cursor = colonIndex + 1;
+    while (cursor < content.length && /\s/.test(content[cursor])) {
+      cursor += 1;
+    }
+    if (content[cursor] !== '"') {
+      return null;
+    }
+    cursor += 1;
+
+    let extracted = '';
+    let escaped = false;
+    while (cursor < content.length) {
+      const ch = content[cursor];
+      if (escaped) {
+        if (ch === 'n') {
+          extracted += '\n';
+        } else if (ch === 'r') {
+          extracted += '\r';
+        } else if (ch === 't') {
+          extracted += '\t';
+        } else {
+          extracted += ch;
+        }
+        escaped = false;
+        cursor += 1;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        cursor += 1;
+        continue;
+      }
+      if (ch === '"') {
+        return extracted;
+      }
+      extracted += ch;
+      cursor += 1;
+    }
+
+    return null;
+  }
+
+  private extractArrayAfterKey(content: string, key: string): string | null {
+    const keyPattern = `"${key}"`;
+    const keyIndex = content.indexOf(keyPattern);
+    if (keyIndex === -1) {
+      return null;
+    }
+
+    const colonIndex = content.indexOf(':', keyIndex + keyPattern.length);
+    if (colonIndex === -1) {
+      return null;
+    }
+
+    let cursor = colonIndex + 1;
+    while (cursor < content.length && /\s/.test(content[cursor])) {
+      cursor += 1;
+    }
+    if (content[cursor] !== '[') {
+      return null;
+    }
+
+    const start = cursor;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (; cursor < content.length; cursor += 1) {
+      const ch = content[cursor];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === '\\') {
+          escaped = true;
+          continue;
+        }
+        if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+      if (ch === '[') {
+        depth += 1;
+        continue;
+      }
+      if (ch === ']') {
+        depth -= 1;
+        if (depth === 0) {
+          return content.slice(start, cursor + 1);
         }
       }
     }

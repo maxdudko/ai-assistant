@@ -6,6 +6,8 @@ import { PatternDetectionService } from '../memory/pattern-detection.service';
 import { DailyEngineService } from '../daily/daily-engine.service';
 import { getUserLocalDateInfo } from '../daily/daily-timezone.util';
 
+import { DailySchedulerEventResolver } from './daily-scheduler-event-resolver';
+
 @Injectable()
 export class DailyFlowScheduler {
   private readonly logger = new Logger(DailyFlowScheduler.name);
@@ -14,6 +16,7 @@ export class DailyFlowScheduler {
     private readonly prisma: PrismaService,
     private readonly patternDetection: PatternDetectionService,
     private readonly dailyEngine: DailyEngineService,
+    private readonly eventResolver: DailySchedulerEventResolver,
   ) {}
 
   @Cron('0 * * * *', { name: 'daily-time-trigger', timeZone: 'UTC' })
@@ -64,6 +67,7 @@ export class DailyFlowScheduler {
         timezone: true,
         dayPlanningTime: true,
         reflectionTime: true,
+        helpStyle: true,
       },
     });
 
@@ -78,17 +82,21 @@ export class DailyFlowScheduler {
           continue;
         }
 
-        const primary = await this.dailyEngine.handleEvent(
-          profile.userId,
-          { type: 'TIME_TRIGGER' },
+        const event = this.eventResolver.resolve({
           now,
-        );
-        const inactivity =
-          window === 'all'
-            ? await this.dailyEngine.handleEvent(profile.userId, { type: 'INACTIVITY' }, now)
-            : { actions: 0 };
+          lastActivityAt: await this.getLastActivityForToday(
+            profile.userId,
+            now,
+            profile.timezone ?? 'UTC',
+          ),
+          dayPlanningTime: profile.dayPlanningTime,
+          reflectionTime: profile.reflectionTime,
+          helpStyle: profile.helpStyle,
+        });
 
-        if (primary.actions + inactivity.actions > 0) {
+        const result = await this.dailyEngine.handleEvent(profile.userId, event, now);
+
+        if (result.actions > 0) {
           delivered += 1;
         } else {
           skipped += 1;
@@ -143,6 +151,26 @@ export class DailyFlowScheduler {
 
     const inWindow = local.hour >= 19 && local.hour <= 23;
     return inWindow && this.matchesPreference(profile.reflectionTime, 'evening');
+  }
+
+  private async getLastActivityForToday(
+    userId: string,
+    now: Date,
+    timezone: string,
+  ): Promise<Date | null> {
+    const local = getUserLocalDateInfo(now, timezone);
+    const day = await this.prisma.day.findUnique({
+      where: {
+        userId_date: {
+          userId,
+          date: local.dayStartUtc,
+        },
+      },
+      select: {
+        lastActivityAt: true,
+      },
+    });
+    return day?.lastActivityAt ?? null;
   }
 
   private matchesPreference(preference: string | null, target: 'morning' | 'evening'): boolean {

@@ -292,6 +292,8 @@ model ActionExecutionLog {
   payload   Json
   status    String
   error     String?
+  reversible Boolean @default(false)
+  undoPayload Json?
   createdAt DateTime @default(now())
 
   action ActionCandidate? @relation(fields: [actionId], references: [id], onDelete: SetNull)

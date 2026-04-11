@@ -85,7 +85,7 @@ describe('ConversationsService', () => {
     };
 
     const mockActions = {
-      createCandidates: jest.fn(),
+      createCandidates: jest.fn().mockImplementation(async (_userId, candidates) => candidates),
       prepareCandidates: jest.fn().mockReturnValue([]),
     };
 
@@ -768,6 +768,217 @@ Line 2",
         expect.objectContaining({
           data: expect.objectContaining({
             content: 'Line 1\nLine 2',
+          }),
+        }),
+      );
+    });
+
+    it('strips repeated assistant role prefixes from AI content', async () => {
+      const conversationWithUser = loadedForMessage();
+      const assistantMessage = {
+        ...mockMessage,
+        id: 'msg-assistant',
+        role: 'ASSISTANT' as const,
+        content: "Okay Max, let's create a new task.",
+      };
+      const aiResponseWithEchoPrefix = {
+        content: "Assistant: Assistant: Assistant: Okay Max, let's create a new task.",
+        memoryCandidates: [],
+      };
+
+      prisma.conversation.findFirst.mockResolvedValue(conversationWithUser);
+      prisma.message.create
+        .mockResolvedValueOnce(mockMessage)
+        .mockResolvedValueOnce(assistantMessage);
+      prisma.conversation.update.mockResolvedValue({
+        ...conversationWithUser,
+        state: ConversationState.ACTIVE,
+      });
+      prisma.task.findMany.mockResolvedValue([]);
+      ai.generateResponse.mockResolvedValue(aiResponseWithEchoPrefix);
+
+      const result = await service.handleMessage(mockUserId, 'Create new task: Alpha Improvements');
+
+      expect(result.message.content).toBe("Okay Max, let's create a new task.");
+    });
+
+    it('recovers multiple actions from malformed JSON-like AI payload', async () => {
+      const conversationWithUser = loadedForMessage();
+      const assistantMessage = {
+        ...mockMessage,
+        id: 'msg-assistant',
+        role: 'ASSISTANT' as const,
+        content: 'Okay Max, creating those tasks now.',
+      };
+      const malformedJsonLike = `{
+  "text": "Okay Max, creating those tasks now.",
+  "actions": [
+    {
+      "id": "create_enhanced_memory",
+      "type": "TASK_CREATE",
+      "payload": { "title": "Enhanced Memory", "priority": "Medium", "deadline": "Today" },
+      "confidence": 0.8
+    },
+    {
+      "id": "create_smarter_daily_flow",
+      "type": "TASK_CREATE",
+      "payload": { "title": "Smarter Daily Flow", "priority": "Medium", "deadline": "Today" },
+      "confidence": 0.8
+    },
+    {
+      "id": "create_task_intelligence",
+      "type": "TASK_CREATE",
+      "payload": { "title": "Task Intelligence (Lite)", "priority": "Medium", "deadline": "Today" },
+      "confidence": 0.8
+    },
+    {
+      "id": "create_ux",
+      "type": "TASK_CREATE",
+      "payload": { "title": "UX", "priority": "Medium", "deadline": "Today" },
+      "confidence": 0.8
+    }
+  ],
+  "Recent context": {
+    "User timezone is Europe/Kiev.",
+    "Preferred help style is passive."
+  }
+}`;
+      const aiResponseJsonLike = {
+        content: malformedJsonLike,
+        memoryCandidates: [],
+      };
+
+      prisma.conversation.findFirst.mockResolvedValue(conversationWithUser);
+      prisma.message.create
+        .mockResolvedValueOnce(mockMessage)
+        .mockResolvedValueOnce(assistantMessage);
+      prisma.conversation.update.mockResolvedValue({
+        ...conversationWithUser,
+        state: ConversationState.ACTIVE,
+      });
+      prisma.task.findMany.mockResolvedValue([]);
+      actions.prepareCandidates.mockImplementation(candidates => candidates);
+      ai.generateResponse.mockResolvedValue(aiResponseJsonLike);
+
+      const result = await service.handleMessage(
+        mockUserId,
+        'Create tasks for all this tasks, set priority as medium and deadline as today',
+      );
+
+      expect(result.message.content).toBe('Okay Max, creating those tasks now.');
+      expect(result.actions).toHaveLength(4);
+      expect(result.actions.every(action => action.type === 'TASK_CREATE')).toBe(true);
+    });
+
+    it('returns persisted actions so confirmations are immediately valid', async () => {
+      const conversationWithUser = loadedForMessage();
+      const assistantMessage = {
+        ...mockMessage,
+        id: 'msg-assistant',
+        role: 'ASSISTANT' as const,
+        content: 'Actions prepared.',
+      };
+      const aiResponseWithActions = {
+        content: 'Actions prepared.',
+        actionCandidates: [
+          {
+            id: 'cd2e7950-7534-4f8f-92f1-00d924acae8e',
+            type: 'TASK_CREATE' as const,
+            confidence: 0.9,
+            requiresConfirmation: true,
+            payload: {
+              title: 'Enhanced Memory',
+              due_date: '2026-05-01T00:00:00.000Z',
+              priority: 1,
+            },
+          },
+        ],
+        memoryCandidates: [],
+      };
+
+      prisma.conversation.findFirst.mockResolvedValue(conversationWithUser);
+      prisma.message.create
+        .mockResolvedValueOnce(mockMessage)
+        .mockResolvedValueOnce(assistantMessage);
+      prisma.conversation.update.mockResolvedValue({
+        ...conversationWithUser,
+        state: ConversationState.ACTIVE,
+      });
+      prisma.task.findMany.mockResolvedValue([]);
+      actions.prepareCandidates.mockImplementation(candidates => candidates);
+      actions.createCandidates.mockResolvedValue([
+        {
+          id: 'persisted-action-1',
+          type: 'TASK_CREATE',
+          confidence: 0.9,
+          requiresConfirmation: true,
+          payload: { title: 'Enhanced Memory' },
+        },
+      ]);
+      ai.generateResponse.mockResolvedValue(aiResponseWithActions);
+
+      const result = await service.handleMessage(
+        mockUserId,
+        'Create tasks for all this tasks, set priority as medium and deadline as today',
+      );
+
+      expect(actions.createCandidates).toHaveBeenCalled();
+      expect(result.actions).toHaveLength(1);
+      expect(result.actions[0].id).toBe('persisted-action-1');
+    });
+
+    it('generates task-create action for polite create request when AI returns plain text', async () => {
+      const conversationWithUser = loadedForMessage();
+      const assistantMessage = {
+        ...mockMessage,
+        id: 'msg-assistant',
+        role: 'ASSISTANT' as const,
+        content: "Okay Max, let’s create a new task. What does 'Alpha Improvements' mean to you?",
+      };
+      const aiResponseNoActions = {
+        content: "Okay Max, let’s create a new task. What does 'Alpha Improvements' mean to you?",
+        memoryCandidates: [],
+      };
+
+      prisma.conversation.findFirst.mockResolvedValue(conversationWithUser);
+      prisma.message.create
+        .mockResolvedValueOnce(mockMessage)
+        .mockResolvedValueOnce(assistantMessage);
+      prisma.conversation.update.mockResolvedValue({
+        ...conversationWithUser,
+        state: ConversationState.ACTIVE,
+      });
+      prisma.task.findMany.mockResolvedValue([]);
+      actions.prepareCandidates.mockImplementation(candidates => candidates);
+      actions.createCandidates.mockImplementation(async (_userId, candidates) => candidates);
+      intentDetector.detect.mockReturnValue([
+        {
+          id: 'detected-task-create-1',
+          type: 'TASK_CREATE',
+          confidence: 0.82,
+          requiresConfirmation: true,
+          payload: {
+            title: 'Alpha Improvements',
+            priority: 'HIGH',
+            deadline: 'April 25',
+          },
+        },
+      ]);
+      ai.generateResponse.mockResolvedValue(aiResponseNoActions);
+
+      const result = await service.handleMessage(
+        mockUserId,
+        'Could you create new task: name: Alpha Improvements, priority: High deadline: April 25',
+      );
+
+      expect(result.actions).toHaveLength(1);
+      expect(result.actions[0]).toEqual(
+        expect.objectContaining({
+          type: 'TASK_CREATE',
+          payload: expect.objectContaining({
+            title: 'Alpha Improvements',
+            priority: 'HIGH',
+            deadline: 'April 25',
           }),
         }),
       );

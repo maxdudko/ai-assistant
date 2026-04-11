@@ -176,6 +176,7 @@ export class DecisionEngineService {
           priority: NudgePriority.HIGH,
           createdAt: context.now,
         },
+        targetTaskId: overdueCandidate?.id,
         action: overdueCandidate
           ? {
               type: 'RESCHEDULE_TASK',
@@ -215,6 +216,7 @@ export class DecisionEngineService {
           priority: NudgePriority.HIGH,
           createdAt: context.now,
         },
+        targetTaskId: stuckTask.id,
         action: {
           type: 'SPLIT_TASK',
           payload: { taskId: stuckTask.id, parts: 3 },

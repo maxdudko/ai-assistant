@@ -8,6 +8,8 @@ describe('ActionExecutorService', () => {
         updateMany: jest.fn(),
         findFirst: jest.fn(),
         createMany: jest.fn(),
+        create: jest.fn(),
+        deleteMany: jest.fn(),
       },
     } as any;
     const tasksService = {
@@ -41,7 +43,7 @@ describe('ActionExecutorService', () => {
 
   it('writes lightweight feedback memory after execution', async () => {
     const { service, tasksService, memoryIngestion } = createService();
-    await service.execute('user-1', {
+    const outcome = await service.execute('user-1', {
       id: 'action-1',
       type: 'TASK_COMPLETE',
       payload: {
@@ -65,6 +67,7 @@ describe('ActionExecutorService', () => {
       'CONVERSATION',
       expect.objectContaining({ conversationId: 'conv-1' }),
     );
+    expect(outcome).toEqual({ reversible: false, undoPayload: null });
   });
 
   it('does not fail execution if feedback ingestion fails', async () => {
@@ -82,8 +85,72 @@ describe('ActionExecutorService', () => {
         confidence: 0.9,
         requiresConfirmation: true,
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ reversible: false, undoPayload: null });
 
     expect(tasksService.updateStatus).toHaveBeenCalledWith('user-1', 'task-2', 'DONE');
+  });
+
+  it('undoes reschedule task back to previous deadline', async () => {
+    const { service } = createService() as any;
+
+    await expect(
+      service.undo('user-1', 'RESCHEDULE_TASK', {
+        taskId: 'task-3',
+        previousDeadline: '2026-04-10T09:00:00.000Z',
+      }),
+    ).resolves.toBeUndefined();
+
+    expect((service as any).prisma.task.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'task-3', userId: 'user-1' }),
+      }),
+    );
+  });
+
+  it('normalizes natural language deadline values for task creation', async () => {
+    const { service, tasksService } = createService();
+    await service.execute('user-1', {
+      id: 'action-create',
+      type: 'TASK_CREATE',
+      payload: {
+        title: 'Enhanced Memory',
+        deadline: 'Today',
+        priority: 'Medium',
+      },
+      confidence: 0.8,
+      requiresConfirmation: true,
+    });
+
+    expect(tasksService.create).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({
+        name: 'Enhanced Memory',
+        deadline: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      }),
+    );
+  });
+
+  it('supports snake_case due_date and numeric priority for task creation', async () => {
+    const { service, tasksService } = createService();
+    await service.execute('user-1', {
+      id: 'action-create-2',
+      type: 'TASK_CREATE',
+      payload: {
+        title: 'Smarter Daily Flow',
+        due_date: '2026-05-01T00:00:00.000Z',
+        priority: 2,
+      },
+      confidence: 0.9,
+      requiresConfirmation: true,
+    });
+
+    expect(tasksService.create).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({
+        name: 'Smarter Daily Flow',
+        priority: 'MEDIUM',
+        deadline: '2026-05-01T00:00:00.000Z',
+      }),
+    );
   });
 });

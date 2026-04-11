@@ -94,6 +94,7 @@ describe('DailyEngineService', () => {
     } as any;
     const nudgePolicy = {
       shouldSendNudge: jest.fn(),
+      evaluateNudge: jest.fn().mockResolvedValue({ allowed: true, reason: 'ALLOWED' }),
       recordNudge: jest.fn().mockResolvedValue(true),
     } as any;
     const actionsService = {
@@ -153,8 +154,8 @@ describe('DailyEngineService', () => {
 
     jest
       .spyOn(service as any, 'executeNudgeAction')
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(true);
+      .mockResolvedValueOnce({ sent: false, blockReason: 'POLICY' })
+      .mockResolvedValueOnce({ sent: true });
 
     const result = await service.handleEvent('user-1', { type: 'TIME_TRIGGER' }, now);
 
@@ -179,7 +180,7 @@ describe('DailyEngineService', () => {
         },
       },
     ]);
-    nudgePolicy.shouldSendNudge.mockResolvedValue(true);
+    nudgePolicy.evaluateNudge.mockResolvedValue({ allowed: true, reason: 'ALLOWED' });
 
     prisma.$transaction.mockImplementation(async (callback: any) =>
       callback({
@@ -208,6 +209,85 @@ describe('DailyEngineService', () => {
       expect.objectContaining({
         userId: 'user-1',
         now,
+      }),
+    );
+  });
+
+  it('uses the exact stuck task selected by DecisionEngine', async () => {
+    const { service, prisma, decisionEngine, actionsService, nudgePolicy, unifiedContext } =
+      createService() as any;
+    const targetedTask = {
+      id: 'task-2',
+      userId: 'user-1',
+      dayId: 'day-1',
+      name: 'Targeted stuck task',
+      description: null,
+      status: TaskStatus.IN_PROGRESS,
+      priority: TaskPriority.HIGH,
+      difficulty: 4,
+      estimatedMinutes: 90,
+      deadline: null,
+      source: 'MANUAL',
+      conversationId: null,
+      parentId: null,
+      goalId: null,
+      createdAt: new Date('2026-04-10T06:00:00.000Z'),
+      updatedAt: new Date('2026-04-10T06:00:00.000Z'),
+    };
+    const otherTask = {
+      ...targetedTask,
+      id: 'task-1',
+      name: 'Other stuck task',
+      updatedAt: new Date('2026-04-10T05:00:00.000Z'),
+    };
+    unifiedContext.getContext.mockResolvedValue({
+      ...buildUnifiedContext(),
+      tasks: [otherTask, targetedTask],
+    });
+
+    decisionEngine.rankDecisions.mockReturnValue([
+      {
+        reason: 'STUCK_TASK',
+        action: {
+          type: 'SEND_NUDGE',
+          nudge: { type: NudgeType.STUCK_TASK, priority: 'HIGH', createdAt: now },
+          targetTaskId: 'task-2',
+          action: {
+            type: 'SPLIT_TASK',
+            payload: { taskId: 'task-2', parts: 3 },
+            requiresConfirmation: true,
+          },
+        },
+      },
+    ]);
+    nudgePolicy.evaluateNudge.mockResolvedValue({ allowed: true, reason: 'ALLOWED' });
+
+    const tx = {
+      day: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      message: {
+        create: jest.fn().mockResolvedValue({ id: 'msg-1' }),
+      },
+    };
+    prisma.$transaction.mockImplementation(async (callback: any) => callback(tx));
+
+    await service.handleEvent('user-1', { type: 'TIME_TRIGGER' }, now);
+
+    expect(actionsService.createCandidate).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({
+        type: 'SPLIT_TASK',
+        payload: expect.objectContaining({ taskId: 'task-2' }),
+      }),
+      expect.anything(),
+      expect.anything(),
+    );
+    expect(tx.message.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          content: expect.stringContaining('Targeted stuck task'),
+        }),
       }),
     );
   });

@@ -13,18 +13,47 @@ export class IntentDetectorService {
   detect(text: string, tasks: TaskSummary[] = []): ActionCandidate[] {
     const normalized = this.normalize(text);
     const actions: ActionCandidate[] = [];
+    const batchTaskTitles = this.extractBatchTaskTitles(text);
 
-    if (normalized.startsWith('add ') || normalized.startsWith('create task')) {
-      const title = this.extractTitle(normalized);
-      if (title) {
+    if (batchTaskTitles.length > 0) {
+      for (const title of batchTaskTitles) {
+        actions.push({
+          id: randomUUID(),
+          type: 'TASK_CREATE',
+          confidence: 0.86,
+          requiresConfirmation: true,
+          payload: {
+            title,
+          },
+        });
+      }
+    }
+
+    if (
+      actions.length === 0 &&
+      (normalized.startsWith('add ') || normalized.startsWith('create task'))
+    ) {
+      const payload = this.extractSingleTaskCreatePayload(text);
+      if (payload?.title) {
         actions.push({
           id: randomUUID(),
           type: 'TASK_CREATE',
           confidence: 0.8,
           requiresConfirmation: true,
-          payload: {
-            title,
-          },
+          payload,
+        });
+      }
+    }
+
+    if (actions.length === 0) {
+      const payload = this.extractSingleTaskCreatePayload(text);
+      if (payload?.title) {
+        actions.push({
+          id: randomUUID(),
+          type: 'TASK_CREATE',
+          confidence: 0.82,
+          requiresConfirmation: true,
+          payload,
         });
       }
     }
@@ -67,6 +96,46 @@ export class IntentDetectorService {
 
   private extractTitle(text: string): string {
     return text.replace(/add|create task/gi, '').trim();
+  }
+
+  private extractSingleTaskCreatePayload(text: string): Record<string, unknown> | null {
+    const normalizedText = text.replace(/_/g, ' ').trim();
+    const createMatch = normalizedText.match(
+      /\b(?:create|add)(?:\s+an?\s+action)?\s*:\s*(?:create\s+)?(?:new\s+)?task\b\s*:?\s*(.+)$/i,
+    );
+    const directMatch =
+      createMatch ?? normalizedText.match(/\b(?:create|add)\s+(?:new\s+)?task\b\s*:?\s*(.+)$/i);
+
+    if (!directMatch?.[1]) {
+      return null;
+    }
+
+    const body = directMatch[1].trim();
+    const nameField = this.extractField(body, 'name');
+    const titleField = this.extractField(body, 'title');
+    const priorityField = this.extractField(body, 'priority');
+    const deadlineField = this.extractField(body, 'deadline');
+
+    const titleCandidate =
+      nameField ??
+      titleField ??
+      body
+        .split(/\b(?:priority|deadline|description)\b\s*:/i)[0]
+        .replace(/^(task\s*:?\s*)/i, '')
+        .trim();
+    const title = titleCandidate.replace(/[.?!]+$/g, '').trim();
+    if (!title) {
+      return null;
+    }
+
+    const payload: Record<string, unknown> = { title };
+    if (priorityField) {
+      payload.priority = this.normalizePriority(priorityField);
+    }
+    if (deadlineField) {
+      payload.deadline = deadlineField;
+    }
+    return payload;
   }
 
   private extractCompletionTitle(text: string): string | undefined {
@@ -112,5 +181,43 @@ export class IntentDetectorService {
 
   private normalize(value: string): string {
     return value.toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  private extractBatchTaskTitles(text: string): string[] {
+    const match = text.match(/(?:^|\b)(?:just\s+)?(?:create|add)\s+(?:\d+\s+)?tasks?\s*:\s*(.+)$/i);
+    if (!match?.[1]) {
+      return [];
+    }
+
+    const list = match[1]
+      .split(/,| and /i)
+      .map(item => item.replace(/[.!?]+$/g, '').trim())
+      .map(item => item.replace(/^[-*]\s*/, '').trim())
+      .filter(item => item.length > 0 && item.length <= 120);
+
+    return Array.from(new Set(list));
+  }
+
+  private extractField(body: string, field: string): string | null {
+    const pattern = new RegExp(
+      `\\b${field}\\s*:\\s*([^\\n]+?)(?=((?:[,;]\\s*|\\s+)\\b(?:name|title|priority|deadline|description)\\b\\s*:)|$)`,
+      'i',
+    );
+    const match = body.match(pattern);
+    if (!match?.[1]) {
+      return null;
+    }
+    return match[1]
+      .trim()
+      .replace(/[.,;]+$/g, '')
+      .trim();
+  }
+
+  private normalizePriority(raw: string): string {
+    const value = raw.trim().toLowerCase();
+    if (value === 'high' || value === '1') return 'HIGH';
+    if (value === 'medium' || value === '2') return 'MEDIUM';
+    if (value === 'low' || value === '3') return 'LOW';
+    return raw;
   }
 }

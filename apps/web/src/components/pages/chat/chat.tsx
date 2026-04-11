@@ -19,7 +19,11 @@ import {
   sendMessageStream as sendMessageStreamApi,
   switchMode as switchModeApi,
 } from '@/lib/api/conversations';
-import { confirmAction as confirmActionApi } from '@/lib/api/actions';
+import {
+  confirmAction as confirmActionApi,
+  dismissAction as dismissActionApi,
+  getPendingActions,
+} from '@/lib/api/actions';
 import Container from '@/components/common/container';
 import { useAuth } from '@/lib/api/AuthContext';
 import { queryKeys } from '@/lib/query-keys';
@@ -31,6 +35,7 @@ interface ChatProps {
 type ChatMessage = MessageDto & { actions?: ActionCandidate[] };
 
 const STREAM_CHUNK_CHARS = 16;
+const AUTO_DISMISS_INLINE_MS = 4000;
 
 function MessageBody({
   message,
@@ -64,7 +69,10 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmingActionId, setConfirmingActionId] = useState<string | null>(null);
+  const [dismissingActionId, setDismissingActionId] = useState<string | null>(null);
   const [executedActionIds, setExecutedActionIds] = useState<string[]>([]);
+  const [dismissedActionIds, setDismissedActionIds] = useState<string[]>([]);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
 
   const messagesScrollRef = useRef<HTMLDivElement>(null);
@@ -83,6 +91,14 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
     queryKey: queryKeys.conversation(convIdKey),
     queryFn: () => (conversationId ? getConversation(conversationId) : getDailyConversation()),
   });
+  const { data: pendingActionsResponse } = useQuery({
+    queryKey: queryKeys.pendingActions(conversation?.id ?? convIdKey),
+    queryFn: () => getPendingActions({ conversationId: conversation?.id, limit: 50 }),
+    enabled: Boolean(conversation?.id),
+  });
+  const pendingActions = (pendingActionsResponse?.items ?? []).filter(
+    action => !executedActionIds.includes(action.id) && !dismissedActionIds.includes(action.id),
+  );
 
   useLayoutEffect(() => {
     if (!queryConversation) {
@@ -101,6 +117,18 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
       el.scrollTop = el.scrollHeight;
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (!actionFeedback) return;
+    const id = window.setTimeout(() => setActionFeedback(null), AUTO_DISMISS_INLINE_MS);
+    return () => window.clearTimeout(id);
+  }, [actionFeedback]);
+
+  useEffect(() => {
+    if (!error) return;
+    const id = window.setTimeout(() => setError(null), AUTO_DISMISS_INLINE_MS);
+    return () => window.clearTimeout(id);
+  }, [error]);
 
   const resetStreamingAnimation = useCallback(() => {
     if (rafIdRef.current != null) {
@@ -265,18 +293,22 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
   );
 
   const handleConfirmAction = useCallback(
-    async (action: ActionCandidate) => {
-      if (confirmingActionId || executedActionIds.includes(action.id)) {
+    async (actionId: string) => {
+      if (confirmingActionId || executedActionIds.includes(actionId)) {
         return;
       }
 
       try {
-        setConfirmingActionId(action.id);
+        setConfirmingActionId(actionId);
         setError(null);
-        const result = await confirmActionApi({ actionId: action.id });
+        const result = await confirmActionApi({ actionId });
         if (result.status === 'EXECUTED') {
-          setExecutedActionIds(prev => (prev.includes(action.id) ? prev : [...prev, action.id]));
+          setExecutedActionIds(prev => (prev.includes(actionId) ? prev : [...prev, actionId]));
+          setActionFeedback('Action completed successfully.');
           void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.pendingActions(conversation?.id ?? convIdKey),
+          });
         }
       } catch (err) {
         console.error('Failed to confirm action:', err);
@@ -285,11 +317,33 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         setConfirmingActionId(null);
       }
     },
-    [confirmingActionId, executedActionIds, queryClient],
+    [confirmingActionId, convIdKey, conversation?.id, executedActionIds, queryClient],
   );
 
-  const getActionLabel = (action: ActionCandidate): string => {
-    const payload = action.payload as Record<string, unknown>;
+  const handleDismissAction = useCallback(
+    async (actionId: string) => {
+      if (dismissingActionId || dismissedActionIds.includes(actionId)) {
+        return;
+      }
+      try {
+        setDismissingActionId(actionId);
+        setError(null);
+        await dismissActionApi(actionId);
+        setDismissedActionIds(prev => (prev.includes(actionId) ? prev : [...prev, actionId]));
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.pendingActions(conversation?.id ?? convIdKey),
+        });
+      } catch (err) {
+        console.error('Failed to dismiss action:', err);
+        setError('Failed to dismiss action');
+      } finally {
+        setDismissingActionId(null);
+      }
+    },
+    [convIdKey, conversation?.id, dismissedActionIds, dismissingActionId, queryClient],
+  );
+
+  const getActionLabel = (type: string, payload: Record<string, unknown>): string => {
     const title =
       (typeof payload.title === 'string' && payload.title) ||
       (typeof payload.name === 'string' && payload.name) ||
@@ -297,7 +351,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
       (typeof payload.task === 'string' && payload.task) ||
       (typeof payload.topic === 'string' && payload.topic);
 
-    switch (action.type) {
+    switch (type) {
       case 'TASK_CREATE':
         return `Create task${title ? `: ${title}` : ''}`;
       case 'TASK_UPDATE_STATUS':
@@ -449,27 +503,84 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
                     message.actions.length > 0 && (
                       <div className="mt-3 flex flex-col gap-2">
                         {message.actions.map(action => {
-                          console.log(action);
                           const executed = executedActionIds.includes(action.id);
                           const confirming = confirmingActionId === action.id;
+                          const dismissing = dismissingActionId === action.id;
                           return (
-                            <button
+                            <div
                               key={action.id}
-                              type="button"
-                              onClick={() => handleConfirmAction(action)}
-                              disabled={executed || confirming}
-                              className={`rounded border px-3 py-1 text-xs text-left cursor-pointer ${
-                                executed
-                                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
-                                  : 'border-indigo-600/40 bg-indigo-600/10 text-indigo-200 hover:bg-indigo-600/20'
-                              } disabled:cursor-not-allowed disabled:opacity-60`}
+                              className="rounded border border-indigo-600/20 p-2"
                             >
-                              {executed ? 'Action completed' : 'Confirm'}: {getActionLabel(action)}
-                            </button>
+                              <div className="text-xs text-indigo-100">
+                                {getActionLabel(
+                                  action.type,
+                                  action.payload as Record<string, unknown>,
+                                )}
+                              </div>
+                              <div className="mt-2 flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleConfirmAction(action.id)}
+                                  disabled={executed || confirming || dismissing}
+                                  className={`rounded border px-3 py-1 text-xs text-left cursor-pointer ${
+                                    executed
+                                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                                      : 'border-indigo-600/40 bg-indigo-600/10 text-indigo-200 hover:bg-indigo-600/20'
+                                  } disabled:cursor-not-allowed disabled:opacity-60`}
+                                >
+                                  {executed ? 'Action completed' : 'Confirm'}
+                                </button>
+                                {!executed && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDismissAction(action.id)}
+                                    disabled={confirming || dismissing}
+                                    className="rounded border border-neutral-500/40 bg-neutral-500/10 px-3 py-1 text-xs text-neutral-200 hover:bg-neutral-500/20 disabled:opacity-60"
+                                  >
+                                    Dismiss
+                                  </button>
+                                )}
+                              </div>
+                            </div>
                           );
                         })}
                       </div>
                     )}
+                  {message.role === 'ASSISTANT' &&
+                    pendingActions
+                      .filter(action => action.relatedMessageId === message.id)
+                      .map(action => {
+                        const confirming = confirmingActionId === action.id;
+                        const dismissing = dismissingActionId === action.id;
+                        return (
+                          <div
+                            key={action.id}
+                            className="mt-3 rounded border border-indigo-600/30 bg-indigo-600/10 p-2"
+                          >
+                            <div className="text-xs text-indigo-200">
+                              Pending action: {getActionLabel(action.type, action.payload)}
+                            </div>
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleConfirmAction(action.id)}
+                                disabled={confirming || dismissing}
+                                className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-60"
+                              >
+                                Confirm
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDismissAction(action.id)}
+                                disabled={confirming || dismissing}
+                                className="rounded border border-neutral-500/40 bg-neutral-500/10 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-500/20 disabled:opacity-60"
+                              >
+                                Dismiss
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                   <p className="text-xs text-right mt-2">
                     {new Date(message.createdAt).toLocaleTimeString()}
                   </p>
@@ -480,13 +591,58 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         </div>
       </Container>
 
+      {pendingActions.filter(action => !action.relatedMessageId).length > 0 && (
+        <Container className="mb-2 p-3 flex-shrink-0">
+          <div className="text-sm font-medium text-neutral-300">Pending actions</div>
+          <div className="mt-2 space-y-2">
+            {pendingActions
+              .filter(action => !action.relatedMessageId)
+              .map(action => {
+                const confirming = confirmingActionId === action.id;
+                const dismissing = dismissingActionId === action.id;
+                return (
+                  <div key={action.id} className="rounded border border-neutral-700 p-2">
+                    <div className="text-xs text-neutral-200">
+                      {getActionLabel(action.type, action.payload)}
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleConfirmAction(action.id)}
+                        disabled={confirming || dismissing}
+                        className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-60"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDismissAction(action.id)}
+                        disabled={confirming || dismissing}
+                        className="rounded border border-neutral-500/40 bg-neutral-500/10 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-500/20 disabled:opacity-60"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </Container>
+      )}
+
+      {actionFeedback && (
+        <div className="mb-2 rounded bg-emerald-900/50 p-2 text-sm text-emerald-300 flex-shrink-0">
+          {actionFeedback}
+        </div>
+      )}
+
       {error && (
         <div className="mt-2 rounded bg-red-900/50 p-2 text-sm text-red-300 flex-shrink-0">
           {error}
         </div>
       )}
 
-      <Container className="absolute left-0 bottom-0 w-full mt-2 flex-shrink-0 bg-neutral-700">
+      <Container className="w-full mt-2 flex-shrink-0 bg-neutral-700">
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <textarea
             rows={3}

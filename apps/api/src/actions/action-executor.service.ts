@@ -9,6 +9,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MemoryIngestionService } from '../memory/memory-ingestion.service';
 import { MemoryLayer, MemoryType } from '../memory/dto/memory-candidate.dto';
 
+export type ActionExecutionOutcome = {
+  reversible: boolean;
+  undoPayload: Record<string, unknown> | null;
+};
+
 @Injectable()
 export class ActionExecutorService {
   private readonly logger = new Logger(ActionExecutorService.name);
@@ -22,13 +27,19 @@ export class ActionExecutorService {
     private readonly memoryIngestion: MemoryIngestionService,
   ) {}
 
-  async execute(userId: string, action: ActionCandidate): Promise<void> {
+  async execute(userId: string, action: ActionCandidate): Promise<ActionExecutionOutcome> {
+    let outcome: ActionExecutionOutcome = { reversible: false, undoPayload: null };
+
     switch (action.type) {
       case 'TASK_CREATE':
         await this.tasksService.create(userId, {
           name: this.getRequiredString(action.payload, ['title', 'name']),
           priority: this.getOptionalTaskPriority(action.payload, ['priority']),
-          deadline: this.getOptionalString(action.payload, ['dueDate', 'deadline']),
+          deadline: this.getOptionalDeadlineIso(action.payload, [
+            'dueDate',
+            'deadline',
+            'due_date',
+          ]),
           dayId: this.getOptionalString(action.payload, ['dayId']),
           conversationId: this.getOptionalString(action.payload, ['conversationId']),
           source: 'CHAT',
@@ -84,15 +95,24 @@ export class ActionExecutorService {
         break;
 
       case 'SIMPLIFY_DAY':
-        await this.simplifyDay(userId, action.payload);
+        outcome = {
+          reversible: true,
+          undoPayload: await this.simplifyDay(userId, action.payload),
+        };
         break;
 
       case 'SPLIT_TASK':
-        await this.splitTask(userId, action.payload);
+        outcome = {
+          reversible: true,
+          undoPayload: await this.splitTask(userId, action.payload),
+        };
         break;
 
       case 'RESCHEDULE_TASK':
-        await this.rescheduleTask(userId, action.payload);
+        outcome = {
+          reversible: true,
+          undoPayload: await this.rescheduleTask(userId, action.payload),
+        };
         break;
 
       default:
@@ -105,6 +125,29 @@ export class ActionExecutorService {
       const reason = error instanceof Error ? error.message : String(error);
       this.logger.warn(`Feedback memory failed for action ${action.id}: ${reason}`);
     }
+
+    return outcome;
+  }
+
+  async undo(
+    userId: string,
+    actionType: ActionCandidate['type'],
+    undoPayload: Record<string, unknown>,
+  ): Promise<void> {
+    if (actionType === 'SIMPLIFY_DAY') {
+      await this.undoSimplifyDay(userId, undoPayload);
+      return;
+    }
+    if (actionType === 'SPLIT_TASK') {
+      await this.undoSplitTask(userId, undoPayload);
+      return;
+    }
+    if (actionType === 'RESCHEDULE_TASK') {
+      await this.undoRescheduleTask(userId, undoPayload);
+      return;
+    }
+
+    throw new BadRequestException(`Action type ${actionType} does not support undo`);
   }
 
   private getRequiredString(payload: Record<string, unknown>, keys: string[]): string {
@@ -128,6 +171,36 @@ export class ActionExecutorService {
     return undefined;
   }
 
+  private getOptionalDeadlineIso(
+    payload: Record<string, unknown>,
+    keys: string[],
+  ): string | undefined {
+    const raw = this.getOptionalString(payload, keys);
+    if (!raw) {
+      return undefined;
+    }
+
+    const normalized = raw.trim().toLowerCase();
+    if (normalized === 'today') {
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      return today.toISOString();
+    }
+    if (normalized === 'tomorrow') {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(23, 59, 59, 999);
+      return tomorrow.toISOString();
+    }
+
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString();
+    }
+
+    throw new BadRequestException(`Invalid deadline value: ${raw}`);
+  }
+
   private getTaskStatus(payload: Record<string, unknown>, fallbackStatus?: TaskStatus): TaskStatus {
     const rawStatus = this.getOptionalString(payload, ['status', 'state']);
     if (!rawStatus) {
@@ -148,25 +221,54 @@ export class ActionExecutorService {
     payload: Record<string, unknown>,
     keys: string[],
   ): TaskPriority | undefined {
-    const value = this.getOptionalString(payload, keys);
-    if (!value) return undefined;
-    return this.parseTaskPriority(value);
+    for (const key of keys) {
+      const value = payload[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return this.parseTaskPriority(value);
+      }
+      if (typeof value === 'string' && value.trim().length > 0) {
+        return this.parseTaskPriority(value);
+      }
+    }
+    return undefined;
   }
 
   private getRequiredTaskPriority(payload: Record<string, unknown>, keys: string[]): TaskPriority {
-    const value = this.getRequiredString(payload, keys);
-    return this.parseTaskPriority(value);
+    for (const key of keys) {
+      const value = payload[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return this.parseTaskPriority(value);
+      }
+      if (typeof value === 'string' && value.trim().length > 0) {
+        return this.parseTaskPriority(value);
+      }
+    }
+    throw new BadRequestException(`Missing required field: ${keys.join(' | ')}`);
   }
 
-  private parseTaskPriority(value: string): TaskPriority {
-    const upper = value.toUpperCase();
+  private parseTaskPriority(value: string | number): TaskPriority {
+    if (typeof value === 'number') {
+      if (value <= 1) return TaskPriority.HIGH;
+      if (value === 2) return TaskPriority.MEDIUM;
+      return TaskPriority.LOW;
+    }
+
+    const normalized = value.trim();
+    if (/^\d+$/.test(normalized)) {
+      return this.parseTaskPriority(Number(normalized));
+    }
+
+    const upper = normalized.toUpperCase();
     if (upper === TaskPriority.LOW) return TaskPriority.LOW;
     if (upper === TaskPriority.MEDIUM) return TaskPriority.MEDIUM;
     if (upper === TaskPriority.HIGH) return TaskPriority.HIGH;
     throw new BadRequestException(`Invalid task priority: ${value}`);
   }
 
-  private async simplifyDay(userId: string, payload: Record<string, unknown>): Promise<void> {
+  private async simplifyDay(
+    userId: string,
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
     const dayId = this.getOptionalString(payload, ['dayId']);
     if (!dayId) {
       throw new BadRequestException('Missing required field: dayId');
@@ -190,7 +292,11 @@ export class ActionExecutorService {
     });
 
     if (tasks.length <= keepLimit) {
-      return;
+      return {
+        type: 'SIMPLIFY_DAY',
+        dayId,
+        movedTaskIds: [],
+      };
     }
 
     const sorted = [...tasks].sort((a, b) => {
@@ -204,7 +310,13 @@ export class ActionExecutorService {
 
     const keep = new Set(sorted.slice(0, keepLimit).map(task => task.id));
     const toMove = tasks.filter(task => !keep.has(task.id)).map(task => task.id);
-    if (toMove.length === 0) return;
+    if (toMove.length === 0) {
+      return {
+        type: 'SIMPLIFY_DAY',
+        dayId,
+        movedTaskIds: [],
+      };
+    }
 
     await this.prisma.task.updateMany({
       where: {
@@ -215,9 +327,18 @@ export class ActionExecutorService {
         dayId: null,
       },
     });
+
+    return {
+      type: 'SIMPLIFY_DAY',
+      dayId,
+      movedTaskIds: toMove,
+    };
   }
 
-  private async splitTask(userId: string, payload: Record<string, unknown>): Promise<void> {
+  private async splitTask(
+    userId: string,
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
     const taskId = this.getRequiredString(payload, ['taskId', 'task_id']);
     const parent = await this.prisma.task.findFirst({
       where: {
@@ -247,20 +368,36 @@ export class ActionExecutorService {
       throw new BadRequestException('SPLIT_TASK requires 2-4 subtasks');
     }
 
-    await this.prisma.task.createMany({
-      data: subtasks.map(name => ({
-        userId,
-        dayId: parent.dayId,
-        parentId: parent.id,
-        name,
-        status: TaskStatus.TODO,
-        priority: parent.priority,
-        source: 'CHAT',
-      })),
-    });
+    const created = await Promise.all(
+      subtasks.map(name =>
+        this.prisma.task.create({
+          data: {
+            userId,
+            dayId: parent.dayId,
+            parentId: parent.id,
+            name,
+            status: TaskStatus.TODO,
+            priority: parent.priority,
+            source: 'CHAT',
+          },
+          select: {
+            id: true,
+          },
+        }),
+      ),
+    );
+
+    return {
+      type: 'SPLIT_TASK',
+      parentTaskId: parent.id,
+      createdTaskIds: created.map(task => task.id),
+    };
   }
 
-  private async rescheduleTask(userId: string, payload: Record<string, unknown>): Promise<void> {
+  private async rescheduleTask(
+    userId: string,
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
     const taskId = this.getRequiredString(payload, ['taskId', 'task_id']);
     const task = await this.prisma.task.findFirst({
       where: {
@@ -283,6 +420,12 @@ export class ActionExecutorService {
     await this.tasksService.update(userId, task.id, {
       deadline: nextDay.toISOString(),
     });
+
+    return {
+      type: 'RESCHEDULE_TASK',
+      taskId: task.id,
+      previousDeadline: task.deadline ? task.deadline.toISOString() : null,
+    };
   }
 
   private getOptionalNumber(payload: Record<string, unknown>, keys: string[]): number | undefined {
@@ -360,5 +503,59 @@ export class ActionExecutorService {
       return 'User accepted rescheduling a task';
     }
     return `User confirmed and executed action: ${actionType}`;
+  }
+
+  private async undoSimplifyDay(userId: string, payload: Record<string, unknown>): Promise<void> {
+    const dayId = this.getRequiredString(payload, ['dayId']);
+    const movedTaskIds = this.getOptionalStringArray(payload, ['movedTaskIds']) ?? [];
+    if (movedTaskIds.length === 0) {
+      return;
+    }
+
+    await this.prisma.task.updateMany({
+      where: {
+        userId,
+        id: { in: movedTaskIds },
+      },
+      data: {
+        dayId,
+      },
+    });
+  }
+
+  private async undoSplitTask(userId: string, payload: Record<string, unknown>): Promise<void> {
+    const createdTaskIds = this.getOptionalStringArray(payload, ['createdTaskIds']) ?? [];
+    if (createdTaskIds.length === 0) {
+      return;
+    }
+
+    await this.prisma.task.deleteMany({
+      where: {
+        userId,
+        id: { in: createdTaskIds },
+      },
+    });
+  }
+
+  private async undoRescheduleTask(
+    userId: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    const taskId = this.getRequiredString(payload, ['taskId']);
+    const previousDeadlineRaw = payload.previousDeadline;
+    const previousDeadline =
+      typeof previousDeadlineRaw === 'string' && previousDeadlineRaw.length > 0
+        ? new Date(previousDeadlineRaw)
+        : null;
+
+    await this.prisma.task.updateMany({
+      where: {
+        id: taskId,
+        userId,
+      },
+      data: {
+        deadline: previousDeadline,
+      },
+    });
   }
 }

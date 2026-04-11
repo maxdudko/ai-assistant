@@ -47,12 +47,7 @@ export class MemoryRetrieverService {
       similarityWeight?: number;
     },
   ): Promise<RetrievedMemory[]> {
-    const {
-      limit = 3,
-      maxDistance = 0.8,
-      importanceWeight = 0.3,
-      similarityWeight = 0.7,
-    } = options ?? {};
+    const { limit = 3, maxDistance = 0.8 } = options ?? {};
 
     // 1. Embed query
     const embedding = await this.embeddings.embed(query);
@@ -102,7 +97,11 @@ export class MemoryRetrieverService {
     // 4. Rerank (importance + similarity)
     const reranked: RetrievedMemory[] = relevant.map(m => {
       const similarity = 1 - m.distance;
-      const score = similarity * similarityWeight + (m.importance / 10) * importanceWeight;
+      const score =
+        similarity * 0.6 +
+        (m.importance / 10) * 0.25 +
+        this.recencyBoost(m.lastUsedAt, m.createdAt) * 0.1 +
+        this.usageBoost(m.usageCount) * 0.05;
 
       return {
         id: m.id,
@@ -121,7 +120,25 @@ export class MemoryRetrieverService {
     });
 
     // 5. Sort and return top-k
-    return reranked.sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, limit);
+    return reranked
+      .sort((a, b) => {
+        const scoreDiff = (b.score ?? 0) - (a.score ?? 0);
+        if (Math.abs(scoreDiff) > 1e-8) {
+          return scoreDiff;
+        }
+
+        const distanceDiff =
+          (a.distance ?? Number.POSITIVE_INFINITY) - (b.distance ?? Number.POSITIVE_INFINITY);
+        if (Math.abs(distanceDiff) > 1e-8) {
+          return distanceDiff;
+        }
+
+        if (a.importance !== b.importance) {
+          return b.importance - a.importance;
+        }
+        return b.createdAt.getTime() - a.createdAt.getTime();
+      })
+      .slice(0, limit);
   }
 
   async getMemoryContext(
@@ -295,5 +312,21 @@ export class MemoryRetrieverService {
       deduped.push(memory);
     }
     return deduped;
+  }
+
+  private recencyBoost(lastUsedAt: Date | null, createdAt: Date): number {
+    const baseline = lastUsedAt ?? createdAt;
+    const hoursSince = (Date.now() - baseline.getTime()) / (60 * 60 * 1000);
+    if (hoursSince <= 24) return 1;
+    if (hoursSince <= 72) return 0.75;
+    if (hoursSince <= 168) return 0.5;
+    if (hoursSince <= 720) return 0.2;
+    return 0.05;
+  }
+
+  private usageBoost(usageCount: number): number {
+    const safeCount = Math.max(0, usageCount);
+    const normalized = Math.log1p(safeCount) / Math.log(10);
+    return Math.min(1, normalized);
   }
 }

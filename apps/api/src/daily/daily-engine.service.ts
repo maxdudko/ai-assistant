@@ -13,7 +13,7 @@ import { addUtcDays, getUserLocalDateInfo } from './daily-timezone.util';
 import { DailyConversationService } from './daily-conversation.service';
 import { DailyEvent, DailyEventResult } from './daily.types';
 import { DecisionEngineService } from './decision-engine.service';
-import { DecisionContext, DecisionMessageTemplate } from './decision.types';
+import { DecisionAction, DecisionContext, DecisionMessageTemplate } from './decision.types';
 import { NudgePolicyService } from './nudge-policy.service';
 import { NudgePriority, NudgeType } from './nudge.types';
 import type { DailyAction } from './action.types';
@@ -24,6 +24,7 @@ type DailyProfile = {
   onboardingCompleted: boolean;
   dayPlanningTime: string | null;
   reflectionTime: string | null;
+  helpStyle: string | null;
   timezone: string;
 };
 
@@ -53,6 +54,11 @@ type DayUpdateGate = {
 @Injectable()
 export class DailyEngineService {
   private readonly logger = new Logger(DailyEngineService.name);
+  private readonly counters = {
+    nudgesSent: 0,
+    nudgesBlocked: 0,
+    actionsCreated: 0,
+  };
 
   constructor(
     private readonly prisma: PrismaService,
@@ -124,6 +130,12 @@ export class DailyEngineService {
 
     const result = this.emptyResult();
     const sortedDecisions = this.decisionEngine.rankDecisions(context);
+    this.logStructured('daily_event_received', {
+      userId,
+      eventType: decisionEvent.type,
+      phase: day.phase,
+      candidateReasons: sortedDecisions.map(decision => decision.reason ?? 'PHASE_PROGRESSION'),
+    });
     let selectedDecision: (typeof sortedDecisions)[number] | null = null;
     let sent = false;
 
@@ -134,20 +146,26 @@ export class DailyEngineService {
       }
 
       if (decision.action.type === 'SEND_NUDGE') {
-        const sentNudge = await this.executeNudgeAction(
+        const nudgeOutcome = await this.executeNudgeAction(
           userId,
           day.id,
           now,
           context,
-          decision.action.nudge.type,
-          decision.action.action,
+          decision.action,
         );
-        if (!sentNudge) {
-          this.logger.log(
-            `Skipped decision reason=${decision.reason ?? 'UNKNOWN'} action=SEND_NUDGE userId=${userId}`,
-          );
+        if (!nudgeOutcome.sent) {
+          this.counters.nudgesBlocked += 1;
+          this.logStructured('daily_decision_rejected', {
+            userId,
+            eventType: decisionEvent.type,
+            reason: decision.reason ?? 'UNKNOWN',
+            actionType: 'SEND_NUDGE',
+            rejectionReason: nudgeOutcome.blockReason ?? 'UNKNOWN',
+            metrics: this.counters,
+          });
           continue;
         }
+        this.counters.nudgesSent += 1;
         sent = true;
         selectedDecision = decision;
         this.applyNudgeResult(result, decision.action.nudge.type);
@@ -171,9 +189,14 @@ export class DailyEngineService {
         decision.action.template,
       );
       if (!sentMessage) {
-        this.logger.log(
-          `Skipped decision reason=${decision.reason ?? 'UNKNOWN'} action=SEND_MESSAGE userId=${userId}`,
-        );
+        this.logStructured('daily_decision_rejected', {
+          userId,
+          eventType: decisionEvent.type,
+          reason: decision.reason ?? 'UNKNOWN',
+          actionType: 'SEND_MESSAGE',
+          rejectionReason: 'MESSAGE_GUARD_FAILED',
+          metrics: this.counters,
+        });
         continue;
       }
       sent = true;
@@ -200,6 +223,15 @@ export class DailyEngineService {
     }
 
     result.actions = sent ? 1 : 0;
+    this.logStructured('daily_event_completed', {
+      userId,
+      eventType: decisionEvent.type,
+      selectedDecision: selectedDecision?.reason ?? null,
+      selectedActionType: selectedDecision?.action?.type ?? null,
+      phaseAfter: day.phase,
+      actionsSent: result.actions,
+      metrics: this.counters,
+    });
     return result;
   }
 
@@ -208,83 +240,92 @@ export class DailyEngineService {
     dayId: string,
     now: Date,
     context: DecisionContext,
-    type: NudgeType,
-    action?: DailyAction,
-  ): Promise<boolean> {
+    decisionAction: Extract<DecisionAction, { type: 'SEND_NUDGE' }>,
+  ): Promise<{ sent: boolean; blockReason?: string }> {
+    const type = decisionAction.nudge.type;
+    const action = decisionAction.action;
+    const targetTaskId =
+      decisionAction.targetTaskId ??
+      (action?.payload && typeof action.payload.taskId === 'string'
+        ? action.payload.taskId
+        : undefined);
     const nudge = { type, priority: this.nudgePriority(type), createdAt: now };
-    const allowed = await this.nudgePolicy.shouldSendNudge(userId, nudge, { dayId });
-    if (!allowed) {
-      return false;
+    const policyResult = await this.nudgePolicy.evaluateNudge(userId, nudge, { dayId });
+    if (!policyResult.allowed) {
+      return { sent: false, blockReason: policyResult.reason };
     }
 
     if (type === NudgeType.PLAN_OVERLOAD) {
-      return this.sendNudgeMessage({
-        userId,
-        dayId,
-        now,
-        nudge,
-        mode: ConversationMode.MANAGER,
-        content: this.buildOverloadNudgeContent(context),
-        suggestedAction: action,
-        where: { planningSuggestionSentAt: null },
-        dayUpdate: {
-          planningSuggestionSentAt: now,
-          nudgesSentCount: { increment: 1 },
-        },
-      });
+      return {
+        sent: await this.sendNudgeMessage({
+          userId,
+          dayId,
+          now,
+          nudge,
+          mode: ConversationMode.MANAGER,
+          content: this.buildOverloadNudgeContent(context),
+          suggestedAction: action,
+          where: { planningSuggestionSentAt: null },
+          dayUpdate: {
+            planningSuggestionSentAt: now,
+            nudgesSentCount: { increment: 1 },
+          },
+        }),
+      };
     }
 
     if (type === NudgeType.NO_PROGRESS) {
-      return this.sendNudgeMessage({
-        userId,
-        dayId,
-        now,
-        nudge,
-        mode: ConversationMode.MANAGER,
-        content: [
-          'Quick check-in: no tasks are completed yet today.',
-          'Would it help if we pick one tiny win to unlock momentum?',
-        ].join('\n'),
-        suggestedAction: action,
-        where: { noProgressNudgeSentAt: null },
-        dayUpdate: {
-          noProgressNudgeSentAt: now,
-          nudgesSentCount: { increment: 1 },
-        },
-      });
+      return {
+        sent: await this.sendNudgeMessage({
+          userId,
+          dayId,
+          now,
+          nudge,
+          mode: ConversationMode.MANAGER,
+          content: [
+            'Quick check-in: no tasks are completed yet today.',
+            'Would it help if we pick one tiny win to unlock momentum?',
+          ].join('\n'),
+          suggestedAction: action,
+          where: { noProgressNudgeSentAt: null },
+          dayUpdate: {
+            noProgressNudgeSentAt: now,
+            nudgesSentCount: { increment: 1 },
+          },
+        }),
+      };
     }
 
     if (type === NudgeType.STUCK_TASK) {
-      const thresholdMs = 3 * 60 * 60 * 1000;
-      const stuckTask = context.tasks
-        .filter(task => task.status === TaskStatus.IN_PROGRESS)
-        .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())
-        .find(task => now.getTime() - task.updatedAt.getTime() >= thresholdMs);
-
+      const stuckTask = targetTaskId
+        ? context.tasks.find(task => task.id === targetTaskId)
+        : undefined;
       if (!stuckTask) {
-        return false;
+        return { sent: false, blockReason: 'TARGET_TASK_NOT_FOUND' };
       }
 
-      return this.sendNudgeMessage({
-        userId,
-        dayId,
-        now,
-        nudge,
-        mode: ConversationMode.MANAGER,
-        content: [
-          `You've been on "${stuckTask.name}" for a while.`,
-          'Want to split it into a smaller next step or take a short break first?',
-        ].join('\n'),
-        suggestedAction: action,
-        where: { stuckTaskNudgeSentAt: null },
-        dayUpdate: {
-          stuckTaskNudgeSentAt: now,
-          nudgesSentCount: { increment: 1 },
-        },
-      });
+      return {
+        sent: await this.sendNudgeMessage({
+          userId,
+          dayId,
+          now,
+          nudge,
+          mode: ConversationMode.MANAGER,
+          content: [
+            `You've been on "${stuckTask.name}" for a while.`,
+            'Want to split it into a smaller next step or take a short break first?',
+          ].join('\n'),
+          suggestedAction: action,
+          where: { stuckTaskNudgeSentAt: null },
+          dayUpdate: {
+            stuckTaskNudgeSentAt: now,
+            nudgesSentCount: { increment: 1 },
+          },
+        }),
+      };
     }
 
-    return false;
+    return { sent: false, blockReason: 'UNSUPPORTED_NUDGE_TYPE' };
   }
 
   private async executeMessageAction(
@@ -404,6 +445,9 @@ export class DailyEngineService {
                 { client: tx },
               )
             : null;
+        if (actionCandidate) {
+          this.counters.actionsCreated += 1;
+        }
 
         const contentWithActionHint = this.appendActionHint(input.content, actionCandidate);
 
@@ -691,6 +735,7 @@ export class DailyEngineService {
         onboardingCompleted: true,
         dayPlanningTime: true,
         reflectionTime: true,
+        helpStyle: true,
         timezone: true,
       },
     });
@@ -700,8 +745,13 @@ export class DailyEngineService {
       onboardingCompleted: Boolean(profile?.onboardingCompleted),
       dayPlanningTime: profile?.dayPlanningTime ?? null,
       reflectionTime: profile?.reflectionTime ?? null,
+      helpStyle: profile?.helpStyle ?? null,
       timezone: profile?.timezone ?? 'UTC',
     };
+  }
+
+  private logStructured(event: string, payload: Record<string, unknown>): void {
+    this.logger.log(JSON.stringify({ event, ...payload }));
   }
 
   private shouldRunMorningFallback(preference: string | null, localHour: number): boolean {

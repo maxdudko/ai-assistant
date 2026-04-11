@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { parseListPagination } from '../common/parse-list-pagination';
@@ -21,5 +21,15 @@ export class ActionsController {
   @Post('confirm')
   async confirm(@Req() req, @Body() body: ConfirmActionDto) {
     return this.actionsService.confirmAction(req.user.id, body.actionId);
+  }
+
+  @Post(':id/dismiss')
+  async dismiss(@Req() req, @Param('id') id: string) {
+    return this.actionsService.dismissAction(req.user.id, id);
+  }
+
+  @Post(':id/undo')
+  async undo(@Req() req, @Param('id') id: string) {
+    return this.actionsService.undoAction(req.user.id, id);
   }
 }

@@ -48,7 +48,7 @@ export type DecisionContext = {
 export type DecisionMessageTemplate = 'MORNING_BRIEFING' | 'EVENING_REFLECTION';
 
 export type DecisionAction =
-  | { type: 'SEND_NUDGE'; nudge: Nudge; action?: DailyAction }
+  | { type: 'SEND_NUDGE'; nudge: Nudge; action?: DailyAction; targetTaskId?: string }
   | {
       type: 'SEND_MESSAGE';
       mode: 'MANAGER' | 'REFLECTION';

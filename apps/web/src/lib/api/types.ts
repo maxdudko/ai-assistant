@@ -302,6 +302,32 @@ export interface MorningBriefingDto {
   }>;
 }
 
+export interface DayIntelligenceDto {
+  phase: DayPhase;
+  load: {
+    plannedMinutes: number;
+    availableMinutes: number;
+    overload: boolean;
+  };
+  topTasks: Array<{
+    id: string;
+    name: string;
+    priority: TaskPriority;
+    estimatedMinutes: number;
+    score: number;
+    reason: string;
+  }>;
+  suggestedActions: Array<{
+    id: string;
+    type: string;
+    payload: Record<string, unknown>;
+    confidence: number;
+    createdAt: string;
+  }>;
+  insights: string[];
+  reasoning: string[];
+}
+
 export type MemoryType = 'FACTUAL' | 'REFLECTION';
 export type MemorySource = 'CONVERSATION' | 'REFLECTION' | 'ONBOARDING';
 export type MemoryLayer = 'EPISODIC' | 'SEMANTIC' | 'PATTERN';
