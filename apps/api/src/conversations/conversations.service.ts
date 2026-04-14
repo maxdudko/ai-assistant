@@ -682,12 +682,12 @@ export class ConversationsService {
     const normalized = message.trim().toLowerCase();
 
     const mutationPatterns = [
-      /\b(add|create|new)\b.*\b(task|todo)\b/,
+      /\b(add|create|new)\b.*\b(tasks?|todos?|to-?dos?)\b/,
       /\b(mark|set|update|change)\b.*\b(done|complete|priority|deadline|due|status)\b/,
       /\b(reschedule|split|simplify|defer|postpone)\b/,
       /\b(start|end)\b.*\bday\b/,
-      /\bcomplete\b.*\b(task|todo)\b/,
-      /\bmove\b.*\b(task|deadline|due)\b/,
+      /\bcomplete\b.*\b(tasks?|todos?|to-?dos?)\b/,
+      /\bmove\b.*\b(tasks?|deadline|due)\b/,
     ];
     if (mutationPatterns.some(pattern => pattern.test(normalized))) {
       return true;

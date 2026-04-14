@@ -1,7 +1,7 @@
 'use client';
 
 import type { FC } from 'react';
-import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -100,6 +100,17 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
     action => !executedActionIds.includes(action.id) && !dismissedActionIds.includes(action.id),
   );
 
+  const actionIdsOnMessages = useMemo(
+    () => new Set(messages.flatMap(m => (m.actions ?? []).map(a => a.id))),
+    [messages],
+  );
+
+  /** Pending rows not already shown inline on a message (avoids duplicate Confirm UI). */
+  const pendingActionsForPanel = useMemo(
+    () => pendingActions.filter(a => !actionIdsOnMessages.has(a.id)),
+    [pendingActions, actionIdsOnMessages],
+  );
+
   useLayoutEffect(() => {
     if (!queryConversation) {
       return;
@@ -108,7 +119,23 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
       return;
     }
     setConversation(queryConversation);
-    setMessages((queryConversation.messages || []) as ChatMessage[]);
+    setMessages(prev => {
+      const incoming = (queryConversation.messages || []) as ChatMessage[];
+      const prevById = new Map(prev.map(m => [m.id, m]));
+      return incoming.map(m => {
+        const prior = prevById.get(m.id);
+        const priorActions = prior?.actions;
+        if (
+          m.role === 'ASSISTANT' &&
+          priorActions &&
+          priorActions.length > 0 &&
+          (!m.actions || m.actions.length === 0)
+        ) {
+          return { ...m, actions: priorActions };
+        }
+        return m as ChatMessage;
+      });
+    });
   }, [queryConversation]);
 
   useEffect(() => {
@@ -275,6 +302,10 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
           },
         );
 
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.pendingActions(response.conversationId),
+        });
+
         if (response.conversationId !== conversation?.id) {
           await loadConversation();
         }
@@ -289,7 +320,15 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         setSending(false);
       }
     },
-    [input, sending, conversation, queueStreamingDelta, resetStreamingAnimation, loadConversation],
+    [
+      input,
+      sending,
+      conversation,
+      queueStreamingDelta,
+      resetStreamingAnimation,
+      loadConversation,
+      queryClient,
+    ],
   );
 
   const handleConfirmAction = useCallback(
@@ -547,7 +586,7 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
                       </div>
                     )}
                   {message.role === 'ASSISTANT' &&
-                    pendingActions
+                    pendingActionsForPanel
                       .filter(action => action.relatedMessageId === message.id)
                       .map(action => {
                         const confirming = confirmingActionId === action.id;
@@ -591,11 +630,11 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         </div>
       </Container>
 
-      {pendingActions.filter(action => !action.relatedMessageId).length > 0 && (
+      {pendingActionsForPanel.filter(action => !action.relatedMessageId).length > 0 && (
         <Container className="mb-2 p-3 flex-shrink-0">
           <div className="text-sm font-medium text-neutral-300">Pending actions</div>
           <div className="mt-2 space-y-2">
-            {pendingActions
+            {pendingActionsForPanel
               .filter(action => !action.relatedMessageId)
               .map(action => {
                 const confirming = confirmingActionId === action.id;

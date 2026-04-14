@@ -184,18 +184,32 @@ export class IntentDetectorService {
   }
 
   private extractBatchTaskTitles(text: string): string[] {
-    const match = text.match(/(?:^|\b)(?:just\s+)?(?:create|add)\s+(?:\d+\s+)?tasks?\s*:\s*(.+)$/i);
+    const match = text.match(
+      /(?:^|\b)(?:just\s+)?(?:create|add)\s+(?:\d+\s+)?tasks?(?:\s*:\s*|\s*\n+)\s*([\s\S]+)$/i,
+    );
     if (!match?.[1]) {
       return [];
     }
 
     const list = match[1]
-      .split(/,| and /i)
-      .map(item => item.replace(/[.!?]+$/g, '').trim())
-      .map(item => item.replace(/^[-*]\s*/, '').trim())
+      .split(/\r?\n|,|\s+\band\s+/i)
+      .map(item => this.cleanBatchTitleLine(item))
       .filter(item => item.length > 0 && item.length <= 120);
 
     return Array.from(new Set(list));
+  }
+
+  /** Strip list markers, markdown emphasis, and assistant-style "(High Priority - …)" suffixes. */
+  private cleanBatchTitleLine(raw: string): string {
+    let line = raw.trim();
+    line = line.replace(/^\s*\d+[.)]\s+/, '');
+    line = line.replace(/^\s*[-*]\s+/, '');
+    line = line.replace(/\*{1,2}([^*]*)\*{1,2}/g, '$1').trim();
+    const prioritySplit = line.split(/\s+\((?:High|Medium|Low)\s+Priority\b/i);
+    if (prioritySplit.length > 1) {
+      line = prioritySplit[0].trim();
+    }
+    return line.replace(/[.!?]+$/g, '').trim();
   }
 
   private extractField(body: string, field: string): string | null {

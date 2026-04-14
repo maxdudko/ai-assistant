@@ -26,7 +26,7 @@ const MeDashboardCalendar: FC<MeDashboardCalendarProps> = ({ events, tasks, onTa
     }}
     events={events}
     height="auto"
-    dayMaxEventRows={3}
+    dayMaxEventRows={2}
     moreLinkClick="popover"
     eventDidMount={info => {
       info.el.setAttribute('title', info.event.title ?? '');

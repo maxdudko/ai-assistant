@@ -42,6 +42,29 @@ describe('IntentDetectorService', () => {
     ]);
   });
 
+  it('detects batch task creation from multiline bullet list after create N tasks', () => {
+    const actions = service.detect(
+      'Could you create 7 tasks:\n- Functionality testing\n- Bug fixing\n- Test coverage',
+    );
+
+    expect(actions).toHaveLength(3);
+    expect(actions.every(action => action.type === 'TASK_CREATE')).toBe(true);
+    expect(actions.map(action => action.payload.title)).toEqual([
+      'Functionality testing',
+      'Bug fixing',
+      'Test coverage',
+    ]);
+  });
+
+  it('detects batch titles from numbered lines with priority suffix', () => {
+    const actions = service.detect(
+      'Create 2 tasks:\n1. **Alpha** (High Priority - 2026-04-20T00:00:00.000Z)\n2. **Beta** (Medium Priority - 2026-04-20T00:00:00.000Z)',
+    );
+
+    expect(actions).toHaveLength(2);
+    expect(actions.map(action => action.payload.title)).toEqual(['Alpha', 'Beta']);
+  });
+
   it('detects single create task with inline priority and deadline fields', () => {
     const actions = service.detect(
       'Create new task: Alpha Improvements Priority: High Deadline: April 25',
