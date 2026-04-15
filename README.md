@@ -125,11 +125,22 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:5432/pma"
 # JWT
 JWT_SECRET="your-secret-key-change-in-production"
 
-# LLM Provider (choose one)
+# LLM Provider
+LLM_PROVIDER="ollama" # ollama | openai
+
+# Ollama
 OLLAMA_URL="http://localhost:11434"
 OLLAMA_MODEL="gemma3:1b"
-# OR
-# OPENAI_API_KEY="sk-..."
+
+# OpenAI
+OPENAI_API_KEY="sk-..."
+OPENAI_MODEL="gpt-4o-mini"
+OPENAI_BASE_URL="https://api.openai.com/v1"
+
+# Embeddings provider (defaults to LLM_PROVIDER when omitted)
+# EMBEDDINGS_PROVIDER="ollama" # ollama | openai
+# OPENAI_EMBED_MODEL="text-embedding-3-large"
+# OLLAMA_EMBED_MODEL="nomic-embed-text"
 
 # CORS
 CORS_ORIGIN="http://localhost:3000"

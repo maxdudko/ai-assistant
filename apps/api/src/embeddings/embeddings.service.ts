@@ -141,3 +141,91 @@ export class OllamaEmbeddingsService implements EmbeddingsService {
     return vector.concat(Array(this.dimension - vector.length).fill(0));
   }
 }
+
+@Injectable()
+export class OpenAIEmbeddingsService implements EmbeddingsService {
+  private readonly logger = new Logger(OpenAIEmbeddingsService.name);
+  private readonly apiKey: string;
+  private readonly baseUrl: string;
+  private readonly model: string;
+  private readonly dimension: number;
+  private readonly requestTimeoutMs: number;
+
+  constructor(private readonly configService: ConfigService) {
+    this.apiKey = this.configService.get<string>('OPENAI_API_KEY', '').trim();
+    this.baseUrl = this.configService.get<string>('OPENAI_BASE_URL', 'https://api.openai.com/v1');
+    this.model = this.configService.get<string>('OPENAI_EMBED_MODEL', 'text-embedding-3-large');
+    this.dimension = Number(this.configService.get<string>('EMBEDDING_DIM', '3072'));
+    this.requestTimeoutMs = Number(
+      this.configService.get<string>('OPENAI_EMBED_TIMEOUT_MS', '5000'),
+    );
+  }
+
+  async embed(text: string): Promise<number[]> {
+    if (!this.apiKey) {
+      this.logger.error(
+        'OPENAI_API_KEY is missing while OpenAI embeddings are enabled. Returning zero vector.',
+      );
+      return Array(this.dimension).fill(0);
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+      let response: Response;
+      try {
+        response = await fetch(`${this.baseUrl}/embeddings`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.apiKey}`,
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            model: this.model,
+            input: text,
+          }),
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unable to read error response');
+        throw new Error(`OpenAI embeddings failed with status ${response.status}: ${errorText}`);
+      }
+
+      const data = (await response.json()) as {
+        data?: Array<{ embedding?: unknown }>;
+      };
+      const embedding = Array.isArray(data.data) ? data.data[0]?.embedding : null;
+      if (!Array.isArray(embedding)) {
+        throw new Error('OpenAI embeddings response missing embedding array');
+      }
+
+      return this.normalizeEmbedding(embedding);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'unknown error';
+      this.logger.warn(
+        `Falling back to zero embeddings: ${errorMessage}. ` +
+          `This will result in non-functional vector search. Please fix OpenAI embeddings configuration.`,
+      );
+      return Array(this.dimension).fill(0);
+    }
+  }
+
+  private normalizeEmbedding(raw: unknown[]): number[] {
+    const vector = raw.map(value => (typeof value === 'number' ? value : 0));
+    if (vector.length === this.dimension) {
+      return vector;
+    }
+
+    if (vector.length > this.dimension) {
+      this.logger.warn(`Embedding length ${vector.length} > ${this.dimension}, truncating.`);
+      return vector.slice(0, this.dimension);
+    }
+
+    this.logger.warn(`Embedding length ${vector.length} < ${this.dimension}, padding.`);
+    return vector.concat(Array(this.dimension - vector.length).fill(0));
+  }
+}

@@ -4,6 +4,7 @@ import { ConversationMode, MessageRole } from '@prisma/client';
 import {
   AiService as CoreAiService,
   OllamaProvider,
+  OpenAIProvider,
   type ConversationContext,
   type AiResponse,
   type Message as CoreMessage,
@@ -74,22 +75,47 @@ export class AiService implements OnModuleInit {
   constructor(private readonly configService: ConfigService) {}
 
   onModuleInit() {
-    // Initialize Ollama provider with config
-    const ollamaUrl = this.configService.get<string>('OLLAMA_URL', 'http://localhost:11434');
-    const ollamaModel = this.configService.get<string>('OLLAMA_MODEL', 'gemma3:1b');
-
-    const ollamaProvider = new OllamaProvider({
-      url: ollamaUrl,
-      model: ollamaModel,
-      temperature: 0.7,
-      topP: 0.9,
-      topK: 40,
-    });
+    const provider = this.createLlmProvider();
 
     // Initialize core AI service
     this.coreAiService = new CoreAiService({
-      provider: ollamaProvider,
+      provider,
       enableStubFallback: true,
+    });
+
+    this.logger.log(`AI provider initialized: ${provider.getName()}`);
+  }
+
+  private createLlmProvider() {
+    const selectedProvider = this.configService.get<string>('LLM_PROVIDER', 'ollama').toLowerCase();
+
+    if (selectedProvider === 'openai') {
+      const openaiApiKey = this.configService.get<string>('OPENAI_API_KEY', '').trim();
+      if (!openaiApiKey) {
+        throw new Error('OPENAI_API_KEY is required when LLM_PROVIDER=openai');
+      }
+
+      return new OpenAIProvider({
+        apiKey: openaiApiKey,
+        model: this.configService.get<string>('OPENAI_MODEL', 'gpt-4o-mini'),
+        baseURL: this.configService.get<string>('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
+        temperature: 0.7,
+        maxTokens: Number(this.configService.get<string>('OPENAI_MAX_TOKENS', '2000')),
+      });
+    }
+
+    if (selectedProvider !== 'ollama') {
+      this.logger.warn(
+        `Unknown LLM_PROVIDER value "${selectedProvider}". Falling back to "ollama".`,
+      );
+    }
+
+    return new OllamaProvider({
+      url: this.configService.get<string>('OLLAMA_URL', 'http://localhost:11434'),
+      model: this.configService.get<string>('OLLAMA_MODEL', 'gemma3:1b'),
+      temperature: 0.7,
+      topP: 0.9,
+      topK: 40,
     });
   }
 
