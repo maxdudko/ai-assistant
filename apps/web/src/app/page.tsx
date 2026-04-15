@@ -28,7 +28,8 @@ export default function Home() {
   const differentiators = [
     {
       title: 'Real Daily Engine',
-      description: 'Not reminders. A system that reacts to your activity, time of day, and energy patterns.',
+      description:
+        'Not reminders. A system that reacts to your activity, time of day, and energy patterns.',
     },
     {
       title: 'Smart Decisions',
@@ -71,7 +72,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="space-y-6 border-t border-white-200 pt-10">
+        <section className="space-y-6 border-t border-[#6366F133] pt-10">
           <h3 className="text-2xl md:text-3xl font-semibold text-white-900 text-center">
             How It Works
           </h3>
@@ -79,11 +80,14 @@ export default function Home() {
             AI Daily OS is not a todo app. It is a system that continuously understands your day.
           </p>
           <div className="grid gap-6 md:grid-cols-3">
-            {howItWorks.map((step) => (
-              <article key={step.title} className="rounded-lg border border-white-200 p-5 space-y-3">
+            {howItWorks.map(step => (
+              <article
+                key={step.title}
+                className="rounded-lg border border-[#6366F133] p-5 space-y-3"
+              >
                 <h4 className="text-lg font-semibold text-white-800">{step.title}</h4>
                 <ul className="space-y-2 text-sm text-white-600">
-                  {step.points.map((point) => (
+                  {step.points.map(point => (
                     <li key={point} className="flex items-start gap-2">
                       <span className="text-green-500 mt-0.5">-</span>
                       <span>{point}</span>
@@ -95,39 +99,44 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="space-y-6 border-t border-white-200 pt-10">
+        <section className="space-y-6 border-t border-[#6366F133] pt-10">
           <h3 className="text-2xl md:text-3xl font-semibold text-white-900 text-center">
             What Makes It Different
           </h3>
           <div className="grid gap-4 md:grid-cols-2">
-            {differentiators.map((item) => (
-              <article key={item.title} className="rounded-lg border border-white-200 p-5 space-y-2">
+            {differentiators.map(item => (
+              <article
+                key={item.title}
+                className="rounded-lg border border-[#6366F133] p-5 space-y-2"
+              >
                 <h4 className="text-lg font-semibold text-white-800">{item.title}</h4>
-                <p className="text-sm md:text-base text-white-600 leading-relaxed">{item.description}</p>
+                <p className="text-sm md:text-base text-white-600 leading-relaxed">
+                  {item.description}
+                </p>
               </article>
             ))}
           </div>
         </section>
 
-        <section className="space-y-5 border-t border-white-200 pt-10">
+        <section className="space-y-5 border-t border-[#6366F133] pt-10">
           <h3 className="text-2xl md:text-3xl font-semibold text-white-900 text-center">
             Example Flow
           </h3>
           <div className="grid gap-4 md:grid-cols-3">
-            <article className="rounded-lg border border-white-200 p-5 space-y-3">
+            <article className="rounded-lg border border-[#6366F133] p-5 space-y-3">
               <h4 className="text-lg font-semibold text-white-800">Morning</h4>
               <p className="text-sm text-white-600">
                 You planned 6 hours, but only have 3 available. Keep 2 tasks and move the rest.
               </p>
             </article>
-            <article className="rounded-lg border border-white-200 p-5 space-y-3">
+            <article className="rounded-lg border border-[#6366F133] p-5 space-y-3">
               <h4 className="text-lg font-semibold text-white-800">Afternoon</h4>
               <p className="text-sm text-white-600">
                 The system detects you have been stuck for 2 hours and suggests smaller concrete
                 steps.
               </p>
             </article>
-            <article className="rounded-lg border border-white-200 p-5 space-y-3">
+            <article className="rounded-lg border border-[#6366F133] p-5 space-y-3">
               <h4 className="text-lg font-semibold text-white-800">Evening</h4>
               <p className="text-sm text-white-600">
                 You reflect on what worked and what did not while patterns are updated
@@ -137,7 +146,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="space-y-6 border-t border-white-200 pt-10">
+        <section className="space-y-6 border-t border-[#6366F133] pt-10">
           <h3 className="text-2xl md:text-3xl font-semibold text-white-900 text-center">
             Built for Control
           </h3>
@@ -148,7 +157,7 @@ export default function Home() {
           </ul>
         </section>
 
-        <section className="space-y-6 border-t border-white-200 pt-10 text-center">
+        <section className="space-y-6 border-t border-[#6366F133] pt-10 text-center">
           <h3 className="text-2xl md:text-3xl font-semibold text-white-900">Who Is It For?</h3>
           <p className="text-white-600 max-w-2xl mx-auto">
             Engineers and builders, founders, knowledge workers, and anyone tired of managing tasks
@@ -161,8 +170,10 @@ export default function Home() {
           </p>
         </section>
 
-        <section className="space-y-5 border-t border-white-200 pt-10 text-center">
-          <h3 className="text-2xl md:text-3xl font-semibold text-white-900">Start Running Your Day</h3>
+        <section className="space-y-5 border-t border-[#6366F133] pt-10 text-center">
+          <h3 className="text-2xl md:text-3xl font-semibold text-white-900">
+            Start Running Your Day
+          </h3>
           <p className="text-white-600 max-w-2xl mx-auto">
             Stop planning endlessly. Start executing intelligently.
           </p>
@@ -182,7 +193,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="space-y-3 border-t border-white-200 pt-8 text-center">
+        <section className="space-y-3 border-t border-[#6366F133] pt-8 text-center">
           <h3 className="text-xl md:text-2xl font-semibold text-white-900">Contact</h3>
           <p className="text-white-600 max-w-2xl mx-auto">
             Built by engineers who were tired of broken productivity systems. Let&apos;s build a

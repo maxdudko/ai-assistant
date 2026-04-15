@@ -11,15 +11,15 @@ AI Daily OS gives you decisions.
 
 Instead of asking:
 
-* What should I do next?
-* Am I doing too much?
-* Why am I stuck?
+- What should I do next?
+- Am I doing too much?
+- Why am I stuck?
 
 You get:
 
-* Clear priorities
-* Smart nudges
-* Automatic planning
+- Clear priorities
+- Smart nudges
+- Automatic planning
 
 ---
 
@@ -30,22 +30,22 @@ It’s a system that continuously understands your day.
 
 ### 1. Understands Your Context
 
-* Your tasks
-* Your patterns
-* Your past behavior
-* Your available time
+- Your tasks
+- Your patterns
+- Your past behavior
+- Your available time
 
 ### 2. Decides What Matters
 
-* Detects overload
-* Finds your most impactful tasks
-* Identifies when you're stuck
+- Detects overload
+- Finds your most impactful tasks
+- Identifies when you're stuck
 
 ### 3. Takes Action With You
 
-* Suggests concrete actions
-* Waits for your confirmation
-* Executes safely (with undo)
+- Suggests concrete actions
+- Waits for your confirmation
+- Executes safely (with undo)
 
 ---
 
@@ -55,34 +55,34 @@ It’s a system that continuously understands your day.
 
 Not reminders. A system that reacts to:
 
-* Your activity
-* Time of day
-* Your energy patterns
+- Your activity
+- Time of day
+- Your energy patterns
 
 ### 🎯 Smart Decisions
 
 Not random AI advice.
 Deterministic decisions based on:
 
-* Workload
-* Deadlines
-* Behavior patterns
+- Workload
+- Deadlines
+- Behavior patterns
 
 ### 🔄 Action System
 
 Not just suggestions:
 
-* Simplify your day
-* Split complex tasks
-* Reschedule intelligently
+- Simplify your day
+- Split complex tasks
+- Reschedule intelligently
 
 With full control and undo.
 
 ### 🧠 Memory That Learns
 
-* Remembers what works for you
-* Adapts to your habits
-* Improves over time
+- Remembers what works for you
+- Adapts to your habits
+- Improves over time
 
 ---
 
@@ -92,40 +92,40 @@ With full control and undo.
 
 You open your dashboard:
 
-* “You planned 6 hours, but only have 3 available.”
-* Suggested: Keep 2 tasks, move the rest
+- “You planned 6 hours, but only have 3 available.”
+- Suggested: Keep 2 tasks, move the rest
 
 ### Afternoon
 
 System detects no progress:
 
-* “You’ve been stuck for 2 hours.”
-* Suggests breaking task into smaller steps
+- “You’ve been stuck for 2 hours.”
+- Suggests breaking task into smaller steps
 
 ### Evening
 
 You reflect:
 
-* What worked
-* What didn’t
-* Patterns are updated automatically
+- What worked
+- What didn’t
+- Patterns are updated automatically
 
 ---
 
 ## 🛡️ Built for Control
 
-* Nothing executes without confirmation
-* Every action can be undone
-* Full transparency on why decisions are made
+- Nothing executes without confirmation
+- Every action can be undone
+- Full transparency on why decisions are made
 
 ---
 
 ## 🧑‍💻 Who Is It For?
 
-* Engineers & builders
-* Founders
-* Knowledge workers
-* Anyone tired of managing tasks manually
+- Engineers & builders
+- Founders
+- Knowledge workers
+- Anyone tired of managing tasks manually
 
 ---
 
@@ -135,9 +135,9 @@ AI Daily OS is not just a productivity tool.
 
 It’s a personal operating system that:
 
-* Understands your behavior
-* Helps you make better decisions
-* Evolves with you
+- Understands your behavior
+- Helps you make better decisions
+- Evolves with you
 
 ---
 
