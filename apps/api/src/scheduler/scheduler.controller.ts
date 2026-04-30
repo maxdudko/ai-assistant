@@ -36,6 +36,22 @@ export class SchedulerController {
     return this.scheduler.runEveningReflections();
   }
 
+  @Post('time-trigger')
+  @HttpCode(200)
+  async triggerTimeTrigger(@Req() req: Request) {
+    this.validateCronSecret(req);
+    this.logger.log('Adaptive time trigger fired via HTTP');
+    return this.scheduler.runTimeTriggers('all');
+  }
+
+  @Post('pattern-detection')
+  @HttpCode(200)
+  async triggerPatternDetection(@Req() req: Request) {
+    this.validateCronSecret(req);
+    this.logger.log('Pattern detection triggered via HTTP');
+    return this.scheduler.runPatternDetection();
+  }
+
   private validateCronSecret(req: Request): void {
     const secret = process.env.CRON_SECRET;
     if (!secret) return; // Skip validation if not configured (local dev)

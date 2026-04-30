@@ -1,0 +1,35 @@
+# Dependencies (installed in image)
+node_modules
+**/node_modules
+
+# VCS and editor
+.git
+.gitignore
+.cursor
+
+# Build outputs and caches
+.next
+**/.next
+dist
+**/dist
+.turbo
+**/.turbo
+coverage
+**/coverage
+*.tsbuildinfo
+
+# Env and secrets (never bake into images)
+.env
+.env.*
+!.env.example
+
+# Logs and OS noise
+*.log
+.DS_Store
+Thumbs.db
+
+# Tests and tooling not needed for production image build
+**/*.test.ts
+**/*.spec.ts
+**/__tests__
+**/e2e

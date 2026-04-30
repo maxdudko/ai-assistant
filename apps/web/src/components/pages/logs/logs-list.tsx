@@ -1,7 +1,7 @@
 'use client';
 
 import type { FC } from 'react';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 import type { AiLogDto, ConversationMode } from '@/lib/api/types';
 import { logsApi } from '@/lib/api/logs';
@@ -17,11 +17,7 @@ const LogsList: FC = () => {
   const [selectedMode, setSelectedMode] = useState<ConversationMode | ''>('');
   const limit = 20;
 
-  useEffect(() => {
-    loadLogs();
-  }, [page, selectedMode]);
-
-  const loadLogs = async () => {
+  const loadLogs = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -39,14 +35,18 @@ const LogsList: FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, selectedMode]);
+
+  useEffect(() => {
+    loadLogs();
+  }, [loadLogs]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString();
   };
 
-  const truncateText = (text: string, maxLength: number = 200) => {
+  const truncateText = (text: string, maxLength: number = 10000) => {
     if (text.length <= maxLength) return text;
     return text.slice(0, maxLength) + '...';
   };
@@ -125,7 +125,7 @@ const LogsList: FC = () => {
 
                 <div className="mb-2">
                   <h3 className="mb-1 text-sm font-semibold text-neutral-300">Prompt:</h3>
-                  <div className="rounded bg-neutral-900 p-2 text-sm text-neutral-200">
+                  <div className="max-h-45 overflow-y-auto rounded bg-neutral-900 p-2 text-sm text-neutral-200">
                     <pre className="whitespace-pre-wrap break-words font-mono text-xs">
                       {truncateText(log.prompt)}
                     </pre>

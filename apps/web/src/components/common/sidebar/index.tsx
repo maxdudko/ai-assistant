@@ -222,7 +222,7 @@ const TopNavbar: FC = () => {
               </Link>
               <button
                 onClick={handleLogout}
-                className="block w-full text-left px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700 transition-colors"
+                className="block w-full text-left px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700 transition-colors cursor-pointer"
               >
                 Logout
               </button>

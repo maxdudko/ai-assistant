@@ -1,18 +1,31 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
+import React, { useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { EventInput } from '@fullcalendar/core';
 
 import { getTasks, deleteTask, getTask } from '@/lib/api/tasks';
 import { getMorningBriefing } from '@/lib/api/days';
-import type { MorningBriefingDto, TaskDto } from '@/lib/api/types';
-import TaskModal from '@/components/pages/tasks/task-modal';
-import Chat from '@/components/pages/chat/chat';
+import { getPendingActions, confirmAction, dismissAction } from '@/lib/api/actions';
+import type { TaskDto } from '@/lib/api/types';
 import Container from '@/components/common/container';
+import { queryKeys } from '@/lib/query-keys';
+import DailyCard from '@/components/common/daily-card';
+
+const Chat = dynamic(() => import('@/components/pages/chat/chat'), {
+  loading: () => (
+    <div className="flex h-full min-h-[200px] items-center justify-center text-neutral-400">
+      Loading chat…
+    </div>
+  ),
+});
+
+const MeDashboardCalendar = dynamic(() => import('@/components/pages/me/me-dashboard-calendar'), {
+  loading: () => <div className="py-12 text-center text-neutral-400">Loading calendar…</div>,
+});
+
+const TaskModal = dynamic(() => import('@/components/pages/tasks/task-modal'));
 
 function getEventColor(task: TaskDto): string {
   if (task.status === 'DONE') {
@@ -56,48 +69,43 @@ function transformTasksToEvents(tasks: TaskDto[]): EventInput[] {
 }
 
 export default function Dashboard() {
-  const [events, setEvents] = useState<EventInput[]>([]);
-  const [tasks, setTasks] = useState<TaskDto[]>([]);
-  const [morningBriefing, setMorningBriefing] = useState<MorningBriefingDto | null>(null);
+  const queryClient = useQueryClient();
   const [selectedTask, setSelectedTask] = useState<TaskDto | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchTasks = async () => {
-    try {
-      setLoading(true);
-      const [tasksResult, morningBriefingResult] = await Promise.allSettled([
-        getTasks(),
-        getMorningBriefing(),
-      ]);
+  const {
+    data: tasks = [],
+    isPending: loading,
+    isError: tasksError,
+    error: tasksErrorObj,
+  } = useQuery({
+    queryKey: queryKeys.tasks,
+    queryFn: () => getTasks(),
+    select: data => data.items,
+  });
 
-      if (tasksResult.status === 'rejected') {
-        throw tasksResult.reason;
-      }
+  const { data: morningBriefing, isPending: briefingPending } = useQuery({
+    queryKey: queryKeys.morningBriefing,
+    queryFn: getMorningBriefing,
+    retry: false,
+  });
+  const { data: pendingActions } = useQuery({
+    queryKey: queryKeys.pendingActions('dashboard'),
+    queryFn: () => getPendingActions({ dayId: morningBriefing?.day.id, limit: 10 }),
+    enabled: Boolean(morningBriefing?.day.id),
+  });
 
-      const fetchedTasks = tasksResult.value;
-      setTasks(fetchedTasks);
-      setEvents(transformTasksToEvents(fetchedTasks));
+  const events = useMemo(() => transformTasksToEvents(tasks), [tasks]);
 
-      if (morningBriefingResult.status === 'fulfilled') {
-        setMorningBriefing(morningBriefingResult.value);
-      } else {
-        setMorningBriefing(null);
-        console.error('Failed to fetch morning briefing:', morningBriefingResult.reason);
-      }
+  const error = tasksError
+    ? tasksErrorObj instanceof Error
+      ? tasksErrorObj.message
+      : 'Failed to load tasks'
+    : null;
 
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load tasks');
-      console.error('Error fetching tasks:', err);
-    } finally {
-      setLoading(false);
-    }
+  const refreshDashboard = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.morningBriefing });
   };
-
-  useEffect(() => {
-    fetchTasks();
-  }, []);
 
   if (loading) {
     return (
@@ -116,50 +124,29 @@ export default function Dashboard() {
   }
 
   return (
-    <main className="xl:flex xl:h-screen xl:overflow-hidden min-h-screen">
-      <div className="flex-1 xl:p-4 xl:h-[90vh] xl:overflow-hidden xl:flex xl:flex-col">
+    <div className="xl:flex xl:h-screen xl:overflow-hidden">
+      <div className="flex-1 xl:p-2 xl:overflow-hidden xl:flex xl:flex-col xl:max-h-[calc(100vh-100px)]">
         <Chat />
       </div>
-      <div className="flex-1 rounded-lg shadow-lg xl:p-4 xl:h-full xl:overflow-y-auto">
-        <Container className="p-4 min-w-0 overflow-x-auto">
-          <FullCalendar
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            initialView="dayGridMonth"
-            headerToolbar={{
-              left: 'prev,next today',
-              center: 'title',
-              right: 'dayGridMonth,timeGridWeek,timeGridDay',
-            }}
-            events={events}
-            height="auto"
-            dayMaxEventRows={3}
-            moreLinkClick="popover"
-            eventDidMount={info => {
-              info.el.setAttribute('title', info.event.title ?? '');
-            }}
-            eventClick={info => {
-              const eventId = info.event.id;
-              const task = tasks.find(t => t.id === eventId);
-              if (task) {
-                setSelectedTask(task);
-              }
-            }}
-            editable={false}
-            selectable={false}
-          />
+      <div className="flex-1 rounded-lg shadow-lg xl:p-2 xl:h-full xl:overflow-y-auto">
+        <Container className="hidden lg:block p-4 min-w-0 overflow-x-auto">
+          <DailyCard />
+          <MeDashboardCalendar events={events} tasks={tasks} onTaskSelect={setSelectedTask} />
         </Container>
         <Container className="p-4 my-4">
           <div className="flex items-center justify-between gap-4">
             <b className="text-2xl">Morning briefing</b>
             <button
               type="button"
-              onClick={fetchTasks}
+              onClick={refreshDashboard}
               className="rounded bg-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-700 cursor-pointer"
             >
               Refresh
             </button>
           </div>
-          {morningBriefing ? (
+          {briefingPending ? (
+            <p className="mt-4 text-sm text-neutral-500">Loading briefing…</p>
+          ) : morningBriefing ? (
             <div className="mt-4 space-y-4">
               <div>
                 <p className="text-sm text-neutral-400">Daily tasks</p>
@@ -197,6 +184,49 @@ export default function Dashboard() {
             <p className="mt-4 text-sm text-neutral-500">
               Morning briefing is unavailable right now.
             </p>
+          )}
+        </Container>
+        <Container className="p-4 my-4">
+          <b className="text-2xl">Pending actions</b>
+          {pendingActions && pendingActions.items.length > 0 ? (
+            <div className="mt-4 space-y-2">
+              {pendingActions.items.map(action => (
+                <div key={action.id} className="rounded border border-neutral-700 p-3">
+                  <div className="text-sm text-neutral-200">
+                    {action.type} ({Math.round(action.confidence * 100)}% confidence)
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-200 hover:bg-emerald-500/20"
+                      onClick={async () => {
+                        await confirmAction({ actionId: action.id });
+                        await queryClient.invalidateQueries({
+                          queryKey: queryKeys.pendingActions('dashboard'),
+                        });
+                        await queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
+                      }}
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded border border-neutral-500/40 bg-neutral-500/10 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-500/20"
+                      onClick={async () => {
+                        await dismissAction(action.id);
+                        await queryClient.invalidateQueries({
+                          queryKey: queryKeys.pendingActions('dashboard'),
+                        });
+                      }}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-neutral-500">No pending actions.</p>
           )}
         </Container>
         <Container className="p-4 my-4">
@@ -284,22 +314,20 @@ export default function Dashboard() {
           onClose={() => setSelectedTask(null)}
           onDelete={async (taskId: string) => {
             await deleteTask(taskId);
-            await fetchTasks();
+            await queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
           }}
           onUpdate={async () => {
-            await fetchTasks();
-            // Refresh the selected task to show updated data
+            await queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
             try {
               const updatedTask = await getTask(selectedTask.id);
               setSelectedTask(updatedTask);
             } catch (err) {
               console.error('Failed to refresh task:', err);
-              // If task was deleted or not found, close the modal
               setSelectedTask(null);
             }
           }}
         />
       )}
-    </main>
+    </div>
   );
 }

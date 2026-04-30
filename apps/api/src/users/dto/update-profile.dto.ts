@@ -42,4 +42,8 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsBoolean()
   onboardingCompleted?: boolean;
+
+  @IsOptional()
+  @IsString()
+  timezone?: string;
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import type { FC } from 'react';
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import TaskModal from './task-modal';
 
@@ -9,6 +10,7 @@ import type { TaskDto, TaskStatus, TaskPriority } from '@/lib/api/types';
 import { getTasks, createTask, deleteTask } from '@/lib/api/tasks';
 import Container from '@/components/common/container';
 import Button from '@/components/common/button';
+import { queryKeys } from '@/lib/query-keys';
 
 function formatLocalDayKey(date: Date): string {
   const year = date.getFullYear();
@@ -55,14 +57,24 @@ function formatDayLabel(dayKey: string): string {
 }
 
 const TasksList: FC = () => {
+  const queryClient = useQueryClient();
   const todayKey = toDayKey(new Date());
-  const [tasks, setTasks] = useState<TaskDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: tasks = [],
+    isPending: loading,
+    isError: loadError,
+  } = useQuery({
+    queryKey: queryKeys.tasks,
+    queryFn: () => getTasks(),
+    select: data => data.items,
+  });
   const [error, setError] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<TaskDto | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [selectedDayKey, setSelectedDayKey] = useState(todayKey);
+
+  const fetchError = loadError ? 'Failed to load tasks' : null;
 
   const dayKeys = useMemo(() => {
     const uniqueKeys = new Set<string>(tasks.map(getTaskDayKey));
@@ -80,23 +92,7 @@ const TasksList: FC = () => {
     [tasks, selectedDayKey],
   );
 
-  useEffect(() => {
-    loadTasks();
-  }, []);
-
-  const loadTasks = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getTasks();
-      setTasks(data);
-    } catch (err) {
-      console.error('Failed to load tasks:', err);
-      setError('Failed to load tasks');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const invalidateTasks = () => void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
 
   const handleTaskClick = (task: TaskDto) => {
     setSelectedTask(task);
@@ -106,7 +102,6 @@ const TasksList: FC = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedTask(null);
-    loadTasks(); // Refresh tasks after modal closes
   };
 
   const handleCreateNew = async () => {
@@ -124,7 +119,7 @@ const TasksList: FC = () => {
       });
       setSelectedTask(newTask);
       setIsModalOpen(true);
-      await loadTasks();
+      invalidateTasks();
     } catch (err) {
       console.error('Failed to create task:', err);
       setError('Failed to create task');
@@ -140,7 +135,7 @@ const TasksList: FC = () => {
         setIsModalOpen(false);
         setSelectedTask(null);
       }
-      await loadTasks();
+      invalidateTasks();
     } catch (err) {
       console.error('Failed to delete task:', err);
       setError('Failed to delete task');
@@ -205,10 +200,10 @@ const TasksList: FC = () => {
     );
   }
 
-  if (error && tasks.length === 0) {
+  if ((fetchError || error) && tasks.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="text-red-400">{error}</div>
+        <div className="text-red-400">{fetchError || error}</div>
       </div>
     );
   }
@@ -291,8 +286,12 @@ const TasksList: FC = () => {
             {visibleTasks.map(task => (
               <Container key={task.id}>
                 <div
-                  key={task.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => handleTaskClick(task)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') handleTaskClick(task);
+                  }}
                   className="block rounded-lg p-4 transition-colors cursor-pointer"
                 >
                   <div className="flex items-start justify-between">
@@ -352,7 +351,7 @@ const TasksList: FC = () => {
           task={selectedTask}
           onClose={handleCloseModal}
           onDelete={handleDelete}
-          onUpdate={loadTasks}
+          onUpdate={invalidateTasks}
         />
       )}
     </div>

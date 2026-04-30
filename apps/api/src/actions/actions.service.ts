@@ -1,11 +1,14 @@
 import { randomUUID } from 'crypto';
 
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { ActionCandidate } from '@ai/shared-types';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import type { ListPagination } from '../common/parse-list-pagination';
 
 import { ActionExecutorService } from './action-executor.service';
+import { ListPendingActionsDto } from './dto/list-pending-actions.dto';
 
 interface ActionContext {
   conversationId?: string;
@@ -13,46 +16,82 @@ interface ActionContext {
   tasks?: Array<{ id: string; name: string }>;
 }
 
+type ActionPersistenceOptions = {
+  client?: Prisma.TransactionClient | PrismaService;
+};
+
 @Injectable()
 export class ActionsService {
+  private readonly logger = new Logger(ActionsService.name);
+  private readonly counters = {
+    actionsCreated: 0,
+    actionsConfirmed: 0,
+  };
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly executor: ActionExecutorService,
   ) {}
 
-  async createCandidates(
+  async createCandidate(
     userId: string,
-    candidates: ActionCandidate[],
+    candidate: ActionCandidate,
     context: ActionContext,
-  ): Promise<ActionCandidate[]> {
-    if (candidates.length === 0) return [];
+    options?: ActionPersistenceOptions,
+  ): Promise<ActionCandidate> {
+    const client = options?.client ?? this.prisma;
+    const [normalized] = this.prepareCandidates([candidate], context);
+    if (!normalized) {
+      throw new BadRequestException('Action candidate could not be created');
+    }
+    this.validateCandidate(normalized);
 
-    const normalized = candidates.map(candidate => this.normalizeCandidate(candidate, context));
+    const record = await client.actionCandidate.create({
+      data: {
+        id: normalized.id,
+        userId,
+        conversationId: context.conversationId,
+        type: normalized.type,
+        payload: normalized.payload as any,
+        confidence: normalized.confidence,
+        requiresConfirmation: normalized.requiresConfirmation,
+        status: 'PENDING',
+      },
+    });
 
-    const created = await Promise.all(
-      normalized.map(candidate =>
-        this.prisma.actionCandidate.create({
-          data: {
-            id: candidate.id,
-            userId,
-            conversationId: context.conversationId,
-            type: candidate.type,
-            payload: candidate.payload as any,
-            confidence: candidate.confidence,
-            requiresConfirmation: candidate.requiresConfirmation,
-            status: 'PENDING',
-          },
-        }),
-      ),
-    );
-
-    return created.map(record => ({
+    this.logger.log(`Created 1 action candidate for userId=${userId}`);
+    this.counters.actionsCreated += 1;
+    this.logStructured('action_candidate_created', {
+      userId,
+      actionId: record.id,
+      type: record.type,
+      counters: this.counters,
+    });
+    return {
       id: record.id,
       type: record.type as ActionCandidate['type'],
       payload: (record.payload as Record<string, unknown>) ?? {},
       confidence: record.confidence,
       requiresConfirmation: record.requiresConfirmation,
-    }));
+    };
+  }
+
+  async createCandidates(
+    userId: string,
+    candidates: ActionCandidate[],
+    context: ActionContext,
+    options?: ActionPersistenceOptions,
+  ): Promise<ActionCandidate[]> {
+    if (candidates.length === 0) return [];
+    const created = await Promise.all(
+      candidates.map(candidate => this.createCandidate(userId, candidate, context, options)),
+    );
+    return created;
+  }
+
+  prepareCandidates(candidates: ActionCandidate[], context: ActionContext): ActionCandidate[] {
+    if (candidates.length === 0) return [];
+    return candidates.map(candidate => this.normalizeCandidate(candidate, context));
   }
 
   async confirmAction(userId: string, actionId: string) {
@@ -74,7 +113,7 @@ export class ActionsService {
     });
 
     try {
-      await this.executor.execute(userId, this.toCandidate(action));
+      const execution = await this.executor.execute(userId, this.toCandidate(action));
 
       await this.prisma.actionCandidate.update({
         where: { id: action.id },
@@ -88,7 +127,18 @@ export class ActionsService {
           type: action.type,
           payload: action.payload as any,
           status: 'SUCCESS',
+          reversible: execution.reversible,
+          undoPayload: (execution.undoPayload ?? undefined) as any,
         },
+      });
+
+      this.counters.actionsConfirmed += 1;
+      this.logStructured('action_confirmed', {
+        userId,
+        actionId: action.id,
+        type: action.type,
+        reversible: execution.reversible,
+        counters: this.counters,
       });
 
       return { actionId: action.id, status: 'EXECUTED' };
@@ -111,6 +161,157 @@ export class ActionsService {
         },
       });
 
+      throw new BadRequestException(message);
+    }
+  }
+
+  async getPendingActions(
+    userId: string,
+    query: Pick<ListPendingActionsDto, 'conversationId' | 'dayId'>,
+    pagination: ListPagination,
+  ) {
+    const where = {
+      userId,
+      status: 'PENDING' as const,
+      requiresConfirmation: true,
+      conversationId: query.conversationId,
+      conversation: query.dayId
+        ? {
+            dayId: query.dayId,
+          }
+        : undefined,
+    };
+
+    const take = pagination.limit + 1;
+    const rows = await this.prisma.actionCandidate.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take,
+      skip: pagination.offset,
+      select: {
+        id: true,
+        type: true,
+        payload: true,
+        confidence: true,
+        requiresConfirmation: true,
+        status: true,
+        createdAt: true,
+        conversationId: true,
+      },
+    });
+
+    const hasMore = rows.length > pagination.limit;
+    const items = hasMore ? rows.slice(0, pagination.limit) : rows;
+
+    const relatedMessages = await this.findRelatedMessages(items);
+
+    return {
+      items: items.map(item => {
+        const relatedMessage = relatedMessages.get(item.id);
+        return {
+          id: item.id,
+          type: item.type as ActionCandidate['type'],
+          payload: (item.payload as Record<string, unknown>) ?? {},
+          confidence: item.confidence,
+          requiresConfirmation: item.requiresConfirmation,
+          status: item.status,
+          createdAt: item.createdAt,
+          conversationId: item.conversationId,
+          relatedMessageId: relatedMessage?.id ?? null,
+          relatedMessagePreview: relatedMessage?.content.slice(0, 180) ?? null,
+        };
+      }),
+      hasMore,
+      nextOffset: hasMore ? pagination.offset + pagination.limit : null,
+    };
+  }
+
+  async dismissAction(userId: string, actionId: string) {
+    const action = await this.prisma.actionCandidate.findFirst({
+      where: { id: actionId, userId },
+    });
+    if (!action) {
+      throw new NotFoundException('Action not found');
+    }
+    if (action.status === 'EXECUTED' || action.status === 'UNDONE') {
+      throw new BadRequestException(`Cannot dismiss action with status ${action.status}`);
+    }
+
+    await this.prisma.actionCandidate.update({
+      where: { id: action.id },
+      data: { status: 'DISMISSED' },
+    });
+
+    return { actionId: action.id, status: 'DISMISSED' };
+  }
+
+  async undoAction(userId: string, actionId: string) {
+    const action = await this.prisma.actionCandidate.findFirst({
+      where: { id: actionId, userId },
+    });
+    if (!action) {
+      throw new NotFoundException('Action not found');
+    }
+    if (action.status === 'UNDONE') {
+      return { actionId: action.id, status: 'UNDONE' };
+    }
+    if (action.status !== 'EXECUTED') {
+      throw new BadRequestException('Only executed actions can be undone');
+    }
+
+    const log = await this.prisma.actionExecutionLog.findFirst({
+      where: {
+        actionId: action.id,
+        userId,
+        status: 'SUCCESS',
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        reversible: true,
+        undoPayload: true,
+      },
+    });
+    if (!log?.reversible || !log.undoPayload || typeof log.undoPayload !== 'object') {
+      throw new BadRequestException('This action is not undoable');
+    }
+
+    try {
+      await this.executor.undo(
+        userId,
+        action.type as ActionCandidate['type'],
+        log.undoPayload as any,
+      );
+
+      await this.prisma.actionCandidate.update({
+        where: { id: action.id },
+        data: { status: 'UNDONE' },
+      });
+
+      await this.prisma.actionExecutionLog.create({
+        data: {
+          actionId: action.id,
+          userId,
+          type: action.type,
+          payload: action.payload as any,
+          status: 'UNDO_SUCCESS',
+          reversible: false,
+        },
+      });
+
+      return { actionId: action.id, status: 'UNDONE' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      await this.prisma.actionExecutionLog.create({
+        data: {
+          actionId: action.id,
+          userId,
+          type: action.type,
+          payload: action.payload as any,
+          status: 'UNDO_FAILED',
+          error: message,
+          reversible: false,
+        },
+      });
       throw new BadRequestException(message);
     }
   }
@@ -141,9 +342,14 @@ export class ActionsService {
     }
 
     if (
-      ['TASK_UPDATE_STATUS', 'TASK_SET_PRIORITY', 'TASK_SET_DUE_DATE', 'TASK_COMPLETE'].includes(
-        candidate.type,
-      ) &&
+      [
+        'TASK_UPDATE_STATUS',
+        'TASK_SET_PRIORITY',
+        'TASK_SET_DUE_DATE',
+        'TASK_COMPLETE',
+        'SPLIT_TASK',
+        'RESCHEDULE_TASK',
+      ].includes(candidate.type) &&
       !payload.taskId
     ) {
       const taskName = this.getTaskNameFromPayload(payload);
@@ -193,7 +399,85 @@ export class ActionsService {
     });
   }
 
+  private validateCandidate(candidate: ActionCandidate): void {
+    if (!candidate.type) {
+      throw new BadRequestException('Action type is required');
+    }
+    if (
+      !candidate.payload ||
+      typeof candidate.payload !== 'object' ||
+      Array.isArray(candidate.payload)
+    ) {
+      throw new BadRequestException('Action payload must be an object');
+    }
+    if (
+      !Number.isFinite(candidate.confidence) ||
+      candidate.confidence < 0 ||
+      candidate.confidence > 1
+    ) {
+      throw new BadRequestException('Action confidence must be between 0 and 1');
+    }
+
+    const payload = candidate.payload as Record<string, unknown>;
+    if (candidate.type === 'SIMPLIFY_DAY' && !this.getPayloadString(payload, ['dayId'])) {
+      throw new BadRequestException('SIMPLIFY_DAY requires dayId');
+    }
+    if (
+      (candidate.type === 'SPLIT_TASK' || candidate.type === 'RESCHEDULE_TASK') &&
+      !this.getPayloadString(payload, ['taskId', 'task_id'])
+    ) {
+      throw new BadRequestException(`${candidate.type} requires taskId`);
+    }
+  }
+
+  private getPayloadString(payload: Record<string, unknown>, keys: string[]): string | null {
+    for (const key of keys) {
+      const value = payload[key];
+      if (typeof value === 'string' && value.trim().length > 0) {
+        return value;
+      }
+    }
+    return null;
+  }
+
   private normalize(value: string): string {
     return value.toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  private logStructured(event: string, payload: Record<string, unknown>): void {
+    this.logger.log(JSON.stringify({ event, ...payload }));
+  }
+
+  private async findRelatedMessages(
+    items: Array<{ id: string; conversationId: string | null }>,
+  ): Promise<Map<string, { id: string; content: string }>> {
+    const related = new Map<string, { id: string; content: string }>();
+    await Promise.all(
+      items.map(async item => {
+        if (!item.conversationId) {
+          return;
+        }
+        const message = await this.prisma.message.findFirst({
+          where: {
+            conversationId: item.conversationId,
+            role: 'ASSISTANT',
+            content: {
+              contains: item.id,
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          select: {
+            id: true,
+            content: true,
+          },
+        });
+        if (message) {
+          related.set(item.id, message);
+        }
+      }),
+    );
+    return related;
   }
 }

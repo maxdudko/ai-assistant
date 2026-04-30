@@ -269,8 +269,8 @@ describe('Auth (e2e)', () => {
 
   describe('POST /api/auth/logout', () => {
     it('should clear cookies on logout', async () => {
-      // Register first to get cookies
-      await request(app.getHttpServer())
+      // Register sets auth cookies; logout requires a valid JWT (JwtAuthGuard).
+      const registerResponse = await request(app.getHttpServer())
         .post('/api/auth/register')
         .send({
           email: 'logout@example.com',
@@ -278,25 +278,35 @@ describe('Auth (e2e)', () => {
         })
         .expect(201);
 
-      const response = await request(app.getHttpServer()).post('/api/auth/logout').expect(200);
+      const cookies = registerResponse.headers['set-cookie'] as string[];
+
+      const response = await request(app.getHttpServer())
+        .post('/api/auth/logout')
+        .set('Cookie', cookies)
+        .expect(200);
 
       expect(response.body).toHaveProperty('message', 'Logged out successfully');
 
       // Check that cookies are cleared
-      const cookies = response.headers['set-cookie'];
-      if (cookies) {
-        console.log({ cookies });
-        const accessTokenCookie = cookies.find((cookie: string) => cookie.includes('accessToken'));
-        const refreshTokenCookie = cookies.find((cookie: string) =>
+      const clearedCookies = response.headers['set-cookie'];
+      if (clearedCookies) {
+        const accessTokenCookie = clearedCookies.find((cookie: string) =>
+          cookie.includes('accessToken'),
+        );
+        const refreshTokenCookie = clearedCookies.find((cookie: string) =>
           cookie.includes('refreshToken'),
         );
 
-        // Cookies should be cleared (expired or empty)
+        // Cookies cleared via clearCookie (Expires epoch and/or Max-Age=0)
         if (accessTokenCookie) {
-          expect(accessTokenCookie).toContain('Max-Age=0');
+          expect(
+            accessTokenCookie.includes('Max-Age=0') || accessTokenCookie.includes('01 Jan 1970'),
+          ).toBe(true);
         }
         if (refreshTokenCookie) {
-          expect(refreshTokenCookie).toContain('Max-Age=0');
+          expect(
+            refreshTokenCookie.includes('Max-Age=0') || refreshTokenCookie.includes('01 Jan 1970'),
+          ).toBe(true);
         }
       }
 

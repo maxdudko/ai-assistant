@@ -5,6 +5,12 @@ export enum MemoryType {
   REFLECTION = 'REFLECTION',
 }
 
+export enum MemoryLayer {
+  EPISODIC = 'EPISODIC',
+  SEMANTIC = 'SEMANTIC',
+  PATTERN = 'PATTERN',
+}
+
 export class MemoryCandidateDto {
   @IsString()
   content: string;
@@ -24,4 +30,8 @@ export class MemoryCandidateDto {
   @Min(0)
   @Max(1)
   confidence: number;
+
+  @IsOptional()
+  @IsEnum(MemoryLayer)
+  layer?: MemoryLayer;
 }

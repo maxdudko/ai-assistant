@@ -3,9 +3,11 @@ import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 
 import { AppModule } from './app.module';
+import { resolveAppLogger } from './logging/resolve-app-logger';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const logger = resolveAppLogger();
+  const app = await NestFactory.create(AppModule, logger ? { logger } : {});
   app.setGlobalPrefix('api');
   app.use(cookieParser());
   app.useGlobalPipes(

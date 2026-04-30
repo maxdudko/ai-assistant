@@ -33,4 +33,9 @@ export class DaysController {
   getMorningBriefing(@Req() req) {
     return this.daysService.getMorningBriefing(req.user.id);
   }
+
+  @Get('intelligence')
+  getIntelligence(@Req() req) {
+    return this.daysService.getIntelligence(req.user.id);
+  }
 }

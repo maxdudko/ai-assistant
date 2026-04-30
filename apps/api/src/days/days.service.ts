@@ -1,34 +1,36 @@
-import { Injectable } from '@nestjs/common';
-import { DayState, TaskPriority, TaskStatus } from '@prisma/client';
+import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
+import { DayPhase, DayState, TaskPriority, TaskStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { PatternDetectionService } from '../memory/pattern-detection.service';
+import { DayInsightService } from '../daily/day-insight.service';
+import { DailyEngineService } from '../daily/daily-engine.service';
+import { UnifiedContextService } from '../daily/unified-context.service';
+
+import { DayResolverService } from './day-resolver.service';
 
 @Injectable()
 export class DaysService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(DaysService.name);
 
-  /**
-   * Normalize a date to the start of the day (midnight)
-   */
-  private normalizeDate(date: Date): Date {
-    const normalized = new Date(date);
-    normalized.setHours(0, 0, 0, 0);
-    return normalized;
-  }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly patternDetection: PatternDetectionService,
+    private readonly dayInsight: DayInsightService,
+    @Inject(forwardRef(() => DailyEngineService))
+    private readonly dailyEngine: DailyEngineService,
+    private readonly dayResolver: DayResolverService,
+    @Inject(forwardRef(() => UnifiedContextService))
+    private readonly unifiedContext: UnifiedContextService,
+  ) {}
 
   /**
    * Get today's day, create if it doesn't exist
    */
   async getToday(userId: string) {
-    const today = this.normalizeDate(new Date());
-
-    let day = await this.prisma.day.findUnique({
-      where: {
-        userId_date: {
-          userId,
-          date: today,
-        },
-      },
+    const day = await this.dayResolver.getCurrentDay(userId);
+    return this.prisma.day.findUniqueOrThrow({
+      where: { id: day.id },
       include: {
         tasks: {
           orderBy: { createdAt: 'desc' },
@@ -47,85 +49,19 @@ export class DaysService {
         },
       },
     });
-
-    if (!day) {
-      day = await this.prisma.day.create({
-        data: {
-          userId,
-          date: today,
-          state: DayState.START,
-        },
-        include: {
-          tasks: {
-            orderBy: { createdAt: 'desc' },
-          },
-          conversations: {
-            include: {
-              messages: {
-                orderBy: { createdAt: 'asc' },
-                take: 1,
-              },
-              _count: {
-                select: { messages: true },
-              },
-            },
-            orderBy: { createdAt: 'desc' },
-          },
-        },
-      });
-    }
-
-    return day;
   }
 
   /**
    * Start the day - change to ACTIVE state and set startedAt
    */
   async start(userId: string, date?: Date) {
-    const today = this.normalizeDate(date ?? new Date());
+    const day = await this.dayResolver.getDayForMoment(userId, date ?? new Date());
 
-    const day = await this.prisma.day.findUnique({
-      where: {
-        userId_date: {
-          userId,
-          date: today,
-        },
-      },
-    });
-
-    if (!day) {
-      // If day doesn't exist, create it in ACTIVE state
-      return this.prisma.day.create({
-        data: {
-          userId,
-          date: today,
-          state: DayState.ACTIVE,
-          startedAt: new Date(),
-        },
-        include: {
-          tasks: {
-            orderBy: { createdAt: 'desc' },
-          },
-          conversations: {
-            include: {
-              messages: {
-                orderBy: { createdAt: 'asc' },
-                take: 1,
-              },
-              _count: {
-                select: { messages: true },
-              },
-            },
-            orderBy: { createdAt: 'desc' },
-          },
-        },
-      });
-    }
-
-    return this.prisma.day.update({
+    const updated = await this.prisma.day.update({
       where: { id: day.id },
       data: {
         state: DayState.ACTIVE,
+        phase: day.phase === DayPhase.NOT_STARTED ? DayPhase.MORNING : day.phase,
         startedAt: day.startedAt || new Date(),
       },
       include: {
@@ -146,56 +82,25 @@ export class DaysService {
         },
       },
     });
+    void this.dailyEngine.handleEvent(userId, { type: 'DAY_START' }).catch(error => {
+      this.logger.warn(
+        `Daily engine skipped after manual day start: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+    return updated;
   }
 
   /**
    * End the day - change to END state and set endedAt
    */
   async end(userId: string, date?: Date) {
-    const today = this.normalizeDate(date ?? new Date());
+    const day = await this.dayResolver.getDayForMoment(userId, date ?? new Date());
 
-    const day = await this.prisma.day.findUnique({
-      where: {
-        userId_date: {
-          userId,
-          date: today,
-        },
-      },
-    });
-
-    if (!day) {
-      // If day doesn't exist, create it in END state
-      return this.prisma.day.create({
-        data: {
-          userId,
-          date: today,
-          state: DayState.END,
-          endedAt: new Date(),
-        },
-        include: {
-          tasks: {
-            orderBy: { createdAt: 'desc' },
-          },
-          conversations: {
-            include: {
-              messages: {
-                orderBy: { createdAt: 'asc' },
-                take: 1,
-              },
-              _count: {
-                select: { messages: true },
-              },
-            },
-            orderBy: { createdAt: 'desc' },
-          },
-        },
-      });
-    }
-
-    return this.prisma.day.update({
+    const endedDay = await this.prisma.day.update({
       where: { id: day.id },
       data: {
         state: DayState.END,
+        phase: DayPhase.CLOSED,
         endedAt: new Date(),
       },
       include: {
@@ -216,21 +121,28 @@ export class DaysService {
         },
       },
     });
+
+    void this.patternDetection.detectForUser(userId).catch(error => {
+      this.logger.warn(
+        `Pattern detection skipped after day end: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+    void this.dayInsight.generateForDay(endedDay.id).catch(error => {
+      this.logger.warn(
+        `Day insight generation skipped after day end: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+
+    return endedDay;
   }
 
   /**
    * Get day summary with conversations and completion status
    */
   async getSummary(userId: string) {
-    const today = this.normalizeDate(new Date());
-
+    const currentDay = await this.dayResolver.getCurrentDay(userId);
     const day = await this.prisma.day.findUnique({
-      where: {
-        userId_date: {
-          userId,
-          date: today,
-        },
-      },
+      where: { id: currentDay.id },
       include: {
         conversations: {
           include: {
@@ -284,8 +196,10 @@ export class DaysService {
         id: day.id,
         date: day.date,
         state: day.state,
+        phase: day.phase,
         startedAt: day.startedAt,
         endedAt: day.endedAt,
+        lastActivityAt: day.lastActivityAt,
         createdAt: day.createdAt,
       },
       conversations: day.conversations.map(conv => ({
@@ -342,6 +256,7 @@ export class DaysService {
         id: day.id,
         date: day.date,
         state: day.state,
+        phase: day.phase,
       },
       tasks: tasks.map(task => ({
         id: task.id,
@@ -362,6 +277,89 @@ export class DaysService {
   async endDay(userId: string, date?: string) {
     const parsed = date ? new Date(date) : undefined;
     return this.end(userId, parsed);
+  }
+
+  async getIntelligence(userId: string) {
+    const context = await this.unifiedContext.getContext({
+      userId,
+      event: { type: 'TIME_TRIGGER' },
+      now: new Date(),
+    });
+
+    const topTasks = context.scoredTasks
+      .filter(entry => entry.status !== TaskStatus.DONE)
+      .slice(0, 3)
+      .map(entry => {
+        const task = context.tasks.find(candidate => candidate.id === entry.taskId);
+        if (!task) {
+          return null;
+        }
+        return {
+          id: task.id,
+          name: task.name,
+          priority: task.priority,
+          estimatedMinutes: entry.estimatedMinutes,
+          score: Number(entry.score.toFixed(4)),
+          reason: this.getTaskReason(task.priority, task.deadline),
+        };
+      })
+      .filter(
+        (
+          task,
+        ): task is {
+          id: string;
+          name: string;
+          priority: TaskPriority;
+          estimatedMinutes: number;
+          score: number;
+          reason: string;
+        } => Boolean(task),
+      );
+
+    const suggestedActionsRows = await this.prisma.actionCandidate.findMany({
+      where: {
+        userId,
+        status: 'PENDING',
+        requiresConfirmation: true,
+        OR: [{ conversation: { dayId: context.day.id } }, { conversationId: null }],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: {
+        id: true,
+        type: true,
+        payload: true,
+        confidence: true,
+        createdAt: true,
+      },
+    });
+
+    const insights = context.memory.patterns.slice(0, 3).map(pattern => pattern.content);
+    const reasoning = [
+      `Top tasks prioritize urgency, priority, and estimated execution difficulty.`,
+      context.load.isOverloaded
+        ? `Overload detected because ${context.load.totalEstimated} planned minutes exceed ${context.load.available} available minutes.`
+        : `Load is healthy because ${context.load.totalEstimated} planned minutes fit within ${context.load.available} available minutes.`,
+    ];
+
+    return {
+      phase: context.day.phase,
+      load: {
+        plannedMinutes: context.load.totalEstimated,
+        availableMinutes: context.load.available,
+        overload: context.load.isOverloaded,
+      },
+      topTasks,
+      suggestedActions: suggestedActionsRows.map(action => ({
+        id: action.id,
+        type: action.type,
+        payload: action.payload,
+        confidence: action.confidence,
+        createdAt: action.createdAt,
+      })),
+      insights,
+      reasoning,
+    };
   }
 
   private compareTasksForPriority(
@@ -410,5 +408,15 @@ export class DaysService {
     }
 
     return 'Important next step for today';
+  }
+
+  private getTaskReason(priority: TaskPriority, deadline: Date | null): string {
+    if (deadline) {
+      return 'Selected because of deadline urgency and score.';
+    }
+    if (priority === TaskPriority.HIGH) {
+      return 'Selected because it is high priority and high impact.';
+    }
+    return 'Selected as the best next task by current scoring.';
   }
 }

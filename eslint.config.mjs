@@ -112,6 +112,11 @@ export default [
   {
     files: ['apps/web/**/*.{ts,tsx}'],
     ignores: ['**/.next/**'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+      },
+    },
     plugins: {
       react: reactPlugin,
       'react-hooks': reactHooksPlugin,

@@ -14,7 +14,7 @@ export const MODE_PROMPTS: Record<ConversationMode, string> = {
 
 Rules:
 1. You DO NOT create, update, or delete anything directly
-2. You ONLY suggest actions as structured action candidates
+2. Suggest structured action candidates only when the user clearly asks to change something
 3. If the user intent is unclear — ask a clarifying question
 4. Prefer fewer, clearer actions
 5. Always align suggestions with the current day state
@@ -28,7 +28,7 @@ When suggesting actions, return a JSON object only:
   "actions": [
     {
       "id": "uuid",
-      "type": "TASK_CREATE | TASK_UPDATE_STATUS | TASK_SET_PRIORITY | TASK_SET_DUE_DATE | TASK_COMPLETE | DAY_START | DAY_END",
+      "type": "TASK_CREATE | TASK_UPDATE_STATUS | TASK_SET_PRIORITY | TASK_SET_DUE_DATE | TASK_COMPLETE | DAY_START | DAY_END | SIMPLIFY_DAY | SPLIT_TASK | RESCHEDULE_TASK",
       "payload": { "title": "Task title", "...": "..." },
       "confidence": 0.0-1.0,
       "requiresConfirmation": true
@@ -67,6 +67,7 @@ Return format:
     {
       "content": "detailed memory content",
       "type": "REFLECTION",
+      "layer": "EPISODIC",
       "importance": 1-10,
       "tags": ["tag1", "tag2", "..."],
       "confidence": 0.0-1.0

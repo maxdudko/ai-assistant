@@ -97,6 +97,29 @@ enum DayState {
   END
 }
 
+enum DayPhase {
+  NOT_STARTED
+  MORNING
+  PLANNING
+  EXECUTION
+  EVENING
+  CLOSED
+}
+
+enum NudgeType {
+  MORNING_START
+  PLAN_OVERLOAD
+  NO_PROGRESS
+  STUCK_TASK
+  EVENING_REFLECTION
+}
+
+enum NudgePriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 enum MemoryType {
   FACTUAL
   REFLECTION
@@ -106,6 +129,12 @@ enum MemorySource {
   CONVERSATION
   REFLECTION
   ONBOARDING
+}
+
+enum MemoryLayer {
+  EPISODIC
+  SEMANTIC
+  PATTERN
 }
 
 enum DigestFrequency {
@@ -132,6 +161,8 @@ model User {
   tasks               Task[]
   goals               Goal[]
   days                Day[]
+  dayInsights         DayInsight[]
+  nudgeEvents         NudgeEvent[]
   actionCandidates    ActionCandidate[]
   actionExecutionLogs ActionExecutionLog[]
   memories            Memory[]
@@ -149,11 +180,12 @@ model UserProfile {
   useEmoji  Boolean @default(true)
 
   // Onboarding fields
-  primaryUseCase        String?  // 'day-planning' | 'task-tracking' | 'reflection' | 'mixed'
-  helpStyle            String?  // 'active' | 'passive'
-  dayPlanningTime      String?  // 'morning' | 'evening' | 'anytime'
-  reflectionTime       String?  // 'morning' | 'evening' | 'anytime'
-  onboardingCompleted  Boolean  @default(false)
+  primaryUseCase      String? // 'day-planning' | 'task-tracking' | 'reflection' | 'mixed'
+  helpStyle           String? // 'active' | 'passive'
+  dayPlanningTime     String? // 'morning' | 'evening' | 'anytime'
+  reflectionTime      String? // 'morning' | 'evening' | 'anytime'
+  timezone            String  @default("UTC")
+  onboardingCompleted Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -187,7 +219,7 @@ model Conversation {
 }
 
 model Message {
-  id             String            @id @default(uuid())
+  id             String @id @default(uuid())
   conversationId String
 
   role    MessageRole
@@ -205,10 +237,14 @@ model Memory {
   id             String       @id @default(uuid())
   userId         String
   type           MemoryType   @default(FACTUAL)
+  layer          MemoryLayer  @default(SEMANTIC)
   content        String
   importance     Int          @default(5) // 1..10
+  confidence     Float        @default(0.8)
   tags           String[]
   source         MemorySource @default(CONVERSATION)
+  usageCount     Int          @default(0)
+  lastUsedAt     DateTime?
   dayId          String?
   conversationId String?
 
@@ -222,7 +258,9 @@ model Memory {
   conversation Conversation? @relation(fields: [conversationId], references: [id])
 
   @@index([userId, type])
+  @@index([userId, layer])
   @@index([userId, importance])
+  @@index([userId, createdAt])
 }
 
 model ActionCandidate {
@@ -254,6 +292,8 @@ model ActionExecutionLog {
   payload   Json
   status    String
   error     String?
+  reversible Boolean @default(false)
+  undoPayload Json?
   createdAt DateTime @default(now())
 
   action ActionCandidate? @relation(fields: [actionId], references: [id], onDelete: SetNull)
@@ -264,20 +304,22 @@ model ActionExecutionLog {
 }
 
 model Task {
-  id             String       @id @default(uuid())
-  userId         String
-  dayId          String?
-  name           String
-  description    String?
-  status         TaskStatus   @default(TODO)
-  priority       TaskPriority @default(MEDIUM)
-  deadline       DateTime?
-  source         TaskSource   @default(MANUAL)
-  conversationId String?
-  parentId       String?
-  goalId         String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id               String       @id @default(uuid())
+  userId           String
+  dayId            String?
+  name             String
+  description      String?
+  status           TaskStatus   @default(TODO)
+  priority         TaskPriority @default(MEDIUM)
+  difficulty       Int          @default(3)
+  estimatedMinutes Int?
+  deadline         DateTime?
+  source           TaskSource   @default(MANUAL)
+  conversationId   String?
+  parentId         String?
+  goalId           String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   day          Day?          @relation(fields: [dayId], references: [id], onDelete: SetNull)
@@ -321,25 +363,70 @@ model Goal {
 }
 
 model Day {
-  id        String    @id @default(uuid())
-  userId    String
-  date      DateTime
-  state     DayState  @default(START)
-  startedAt DateTime?
-  endedAt   DateTime?
-  createdAt DateTime  @default(now())
+  id             String    @id @default(uuid())
+  userId         String
+  date           DateTime
+  state          DayState  @default(START)
+  phase          DayPhase  @default(NOT_STARTED)
+  startedAt      DateTime?
+  endedAt        DateTime?
+  createdAt      DateTime  @default(now())
+  lastActivityAt DateTime?
 
-  morningBriefingSentAt   DateTime?
-  eveningReflectionSentAt DateTime?
+  morningBriefingSentAt    DateTime?
+  eveningReflectionSentAt  DateTime?
+  planningSuggestionSentAt DateTime?
+  noProgressNudgeSentAt    DateTime?
+  stuckTaskNudgeSentAt     DateTime?
+  nudgesSentCount          Int       @default(0)
+  nudgesSentToday          Int       @default(0)
+  lastNudgeAt              DateTime?
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   tasks         Task[]
   conversations Conversation[]
   memories      Memory[]
+  insight       DayInsight?
+  nudgeEvents   NudgeEvent[]
 
   @@unique([userId, date])
   @@index([userId, date])
   @@index([userId, state])
+  @@index([userId, phase])
+}
+
+model DayInsight {
+  id             String   @id @default(uuid())
+  dayId          String   @unique
+  userId         String
+  score          Int
+  completionRate Float
+  consistency    Float
+  focus          Float
+  summary        String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  day  Day  @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model NudgeEvent {
+  id        String        @id @default(uuid())
+  userId    String
+  dayId     String
+  type      NudgeType
+  priority  NudgePriority
+  createdAt DateTime      @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day  Day  @relation(fields: [dayId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, type, createdAt])
+  @@index([dayId, type, createdAt])
 }
 
 model DigestTopic {
@@ -368,13 +455,13 @@ model DigestSubscription {
 }
 
 model AiLog {
-  id        String            @id @default(uuid())
+  id        String           @id @default(uuid())
   userId    String
   mode      ConversationMode
-  prompt    String            @db.Text
-  response  String            @db.Text
-  actions   Json              // Array of action candidates
-  createdAt DateTime          @default(now())
+  prompt    String           @db.Text
+  response  String           @db.Text
+  actions   Json // Array of action candidates
+  createdAt DateTime         @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

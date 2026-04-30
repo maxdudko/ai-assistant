@@ -1,35 +1,83 @@
 services:
-  #  api:
-  #    image: ai-assistant-api
-  #    working_dir: /app
-  #    command: pnpm turbo dev --filter=@ai/api
-  #    environment:
-  #      DATABASE_URL: postgresql://postgres:postgres@db:5432/pma
-  #    volumes:
-  #      #      - .:/app
-  #      - /app/node_modules
-  #    build:
-  #      context: .
-  #      dockerfile: infra/docker/api.dev.Dockerfile
-  #    ports:
-  #      - '4000:4000'
-  #    depends_on:
-  #      - db
-  #
-  #  web:
-  #    image: ai-assistant-web
-  #    working_dir: /app
-  #    command: pnpm turbo dev --filter=@ai/web
-  #    volumes:
-  #      #      - .:/app
-  #      - /app/node_modules
-  #    build:
-  #      context: .
-  #      dockerfile: infra/docker/web.dev.Dockerfile
-  #    ports:
-  #      - '3000:3000'
-  #    depends_on:
-  #      - api
+  api:
+    image: ai-assistant-api
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - pnpm --filter @ai/api exec prisma migrate deploy && exec pnpm turbo dev --filter=@ai/api
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/pma
+      DATABASE_URL_UNPOOLED: postgresql://postgres:postgres@db:5432/pma
+      # Ollama runs in the ollama service — localhost would point at the api container itself
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: gemma3:1b
+      OLLAMA_EMBED_MODEL: nomic-embed-text
+      EMBEDDING_DIM: '3072'
+      # File logging: use PMA_API_LOG_FILE (not LOG_FILE_DIR/NAME) so nothing treats env as a cd target.
+      PMA_API_LOG_FILE: /app/logs/api.log
+    volumes:
+      - ./logs:/app/logs
+    # Live code from host: add these lines under volumes (keep ./logs mount):
+    #   - .:/app
+    #   - /app/node_modules
+    build:
+      context: .
+      dockerfile: infra/docker/api.dev.Dockerfile
+    ports:
+      - '4000:4000'
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      ollama-models-pull:
+        condition: service_completed_successfully
+
+  # Embeddings + optional local LLM (host :11434). Models pulled before api starts.
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - '11434:11434'
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ['CMD', 'ollama', 'list']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # One-shot: embedding + chat models for api (matches OLLAMA_* env). Idempotent.
+  ollama-models-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint:
+      - /bin/sh
+      - -c
+      - set -eu; ollama pull nomic-embed-text; ollama pull gemma3:1b
+    restart: 'no'
+
+  web:
+    image: ai-assistant-web
+    working_dir: /app
+    command: pnpm turbo dev --filter=@ai/web
+    # Live code from host: uncomment both lines (second line keeps image node_modules).
+    # volumes:
+    #   - .:/app
+    #   - /app/node_modules
+    build:
+      context: .
+      dockerfile: infra/docker/web.dev.Dockerfile
+    ports:
+      - '3000:3000'
+    depends_on:
+      api:
+        condition: service_started
 
   db:
     image: pgvector/pgvector:pg16
@@ -41,6 +89,13 @@ services:
       - pgdata:/var/lib/postgresql/data
     ports:
       - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d pma']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
   pgdata:
+  ollama_data:

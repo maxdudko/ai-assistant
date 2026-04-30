@@ -1,6 +1,7 @@
 import { apiFetch, fetchWithAuth, redirectToLoginIfUnauthorized } from './client';
 import type {
   ConversationDto,
+  PaginatedList,
   SendMessageRequest,
   SendMessageResponse,
   SendMessageStreamEvent,
@@ -15,8 +16,15 @@ export async function getConversation(id: string): Promise<ConversationDto> {
   return apiFetch<ConversationDto>(`/api/conversations/${id}`);
 }
 
-export async function getConversations(includeArchived = false): Promise<ConversationDto[]> {
-  return apiFetch<ConversationDto[]>(`/api/conversations?includeArchived=${includeArchived}`);
+export async function getConversations(
+  includeArchived = false,
+  options?: { limit?: number; offset?: number },
+): Promise<PaginatedList<ConversationDto>> {
+  const params = new URLSearchParams();
+  params.set('includeArchived', String(includeArchived));
+  if (options?.limit != null) params.set('limit', String(options.limit));
+  if (options?.offset != null) params.set('offset', String(options.offset));
+  return apiFetch<PaginatedList<ConversationDto>>(`/api/conversations?${params.toString()}`);
 }
 
 export async function sendMessage(request: SendMessageRequest): Promise<SendMessageResponse> {

@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
@@ -17,6 +19,7 @@ import { DigestModule } from './digest/digest.module';
 import { MemoryModule } from './memory/memory.module';
 import { LogsModule } from './logs/logs.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { DailyModule } from './daily/daily.module';
 
 @Module({
   imports: [
@@ -36,7 +39,10 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     DigestModule,
     MemoryModule,
     LogsModule,
+    DailyModule,
     SchedulerModule,
   ],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}

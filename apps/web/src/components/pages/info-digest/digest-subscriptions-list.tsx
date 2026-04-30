@@ -162,7 +162,12 @@ const DigestSubscriptionsList: FC = () => {
             {subscriptions.map(subscription => (
               <Container key={subscription.id}>
                 <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => handleSubscriptionClick(subscription)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') handleSubscriptionClick(subscription);
+                  }}
                   className="block rounded-lg p-4 transition-colors cursor-pointer"
                 >
                   <div className="flex items-start justify-between">

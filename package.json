@@ -10,8 +10,9 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier . --check",
     "format:fix": "prettier . --write",
-    "docker:up": "docker compose up --build",
-    "docker:down": "docker compose down -v"
+    "docker:up": "docker compose -f compose.dev.yaml up --build",
+    "docker:down": "docker compose -f compose.dev.yaml down -v",
+    "docker:ollama-pull": "docker compose -f compose.dev.yaml exec ollama ollama pull nomic-embed-text && docker compose -f compose.dev.yaml exec ollama ollama pull gemma3:1b"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

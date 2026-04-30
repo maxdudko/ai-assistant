@@ -245,6 +245,9 @@ const ACTION_TYPES = new Set<ActionType>([
   'DAY_START',
   'DAY_END',
   'SUGGEST_DIGEST_SUBSCRIPTION',
+  'SIMPLIFY_DAY',
+  'SPLIT_TASK',
+  'RESCHEDULE_TASK',
 ]);
 
 function parseStructuredResponse(content: string): {
@@ -441,6 +444,13 @@ function normalizeMemoryCandidate(candidate: unknown): MemoryCandidate | null {
   const tags = Array.isArray(record.tags)
     ? record.tags.filter((tag): tag is string => typeof tag === 'string')
     : undefined;
+  const layerRaw = typeof record.layer === 'string' ? record.layer.toUpperCase() : '';
+  const layer =
+    layerRaw === 'EPISODIC' || layerRaw === 'SEMANTIC' || layerRaw === 'PATTERN'
+      ? layerRaw
+      : typeRaw === 'REFLECTION'
+        ? 'EPISODIC'
+        : 'SEMANTIC';
 
   return {
     content,
@@ -448,5 +458,6 @@ function normalizeMemoryCandidate(candidate: unknown): MemoryCandidate | null {
     importance,
     tags,
     confidence,
+    layer,
   };
 }

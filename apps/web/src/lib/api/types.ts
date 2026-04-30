@@ -26,6 +26,7 @@ export interface UserProfileDto {
   helpStyle?: HelpStyleOption;
   dayPlanningTime?: TimePreferenceOption;
   reflectionTime?: TimePreferenceOption;
+  timezone?: string;
   onboardingCompleted?: boolean;
 }
 
@@ -79,6 +80,13 @@ export interface MessageDto {
   createdAt: string;
 }
 
+/** Standard shape for paginated list endpoints (`/api/tasks`, `/api/goals`, `/api/conversations`). */
+export interface PaginatedList<T> {
+  items: T[];
+  hasMore: boolean;
+  nextOffset: number | null;
+}
+
 export interface ConversationDto {
   id: string;
   userId: string;
@@ -130,6 +138,8 @@ export interface TaskDto {
   description: string | null;
   status: TaskStatus;
   priority: TaskPriority;
+  difficulty: number;
+  estimatedMinutes: number | null;
   deadline: string | null;
   source: TaskSource;
   conversationId: string | null;
@@ -149,6 +159,8 @@ export interface CreateTaskRequest {
   description?: string;
   status?: TaskStatus;
   priority?: TaskPriority;
+  difficulty?: number;
+  estimatedMinutes?: number;
   deadline?: string;
   source?: TaskSource;
   conversationId?: string;
@@ -160,6 +172,8 @@ export interface UpdateTaskRequest {
   description?: string;
   status?: TaskStatus;
   priority?: TaskPriority;
+  difficulty?: number;
+  estimatedMinutes?: number;
   deadline?: string;
   parentId?: string;
   goalId?: string;
@@ -209,14 +223,17 @@ export interface UpdateGoalRequest {
 }
 
 export type DayState = 'START' | 'ACTIVE' | 'END';
+export type DayPhase = 'NOT_STARTED' | 'MORNING' | 'PLANNING' | 'EXECUTION' | 'EVENING' | 'CLOSED';
 
 export interface DayDto {
   id: string;
   userId: string;
   date: string;
   state: DayState;
+  phase: DayPhase;
   startedAt: string | null;
   endedAt: string | null;
+  lastActivityAt?: string | null;
   createdAt: string;
   tasks?: TaskDto[];
   conversations?: ConversationDto[];
@@ -227,6 +244,7 @@ export interface DaySummaryDto {
     id: string;
     date: string;
     state: DayState;
+    phase: DayPhase;
     startedAt: string | null;
     endedAt: string | null;
     createdAt: string;
@@ -266,6 +284,7 @@ export interface MorningBriefingDto {
     id: string;
     date: string;
     state: DayState;
+    phase: DayPhase;
   };
   tasks: Array<{
     id: string;
@@ -283,16 +302,47 @@ export interface MorningBriefingDto {
   }>;
 }
 
+export interface DayIntelligenceDto {
+  phase: DayPhase;
+  load: {
+    plannedMinutes: number;
+    availableMinutes: number;
+    overload: boolean;
+  };
+  topTasks: Array<{
+    id: string;
+    name: string;
+    priority: TaskPriority;
+    estimatedMinutes: number;
+    score: number;
+    reason: string;
+  }>;
+  suggestedActions: Array<{
+    id: string;
+    type: string;
+    payload: Record<string, unknown>;
+    confidence: number;
+    createdAt: string;
+  }>;
+  insights: string[];
+  reasoning: string[];
+}
+
 export type MemoryType = 'FACTUAL' | 'REFLECTION';
 export type MemorySource = 'CONVERSATION' | 'REFLECTION' | 'ONBOARDING';
+export type MemoryLayer = 'EPISODIC' | 'SEMANTIC' | 'PATTERN';
 
 export interface MemoryDto {
   id: string;
   type: MemoryType;
+  layer: MemoryLayer;
   content: string;
   importance: number;
+  confidence: number;
   tags: string[];
   source: MemorySource;
+  usageCount: number;
+  lastUsedAt: string | null;
   dayId: string | null;
   conversationId: string | null;
   createdAt: string;

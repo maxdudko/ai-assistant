@@ -8,8 +8,22 @@ export type RetrievedMemory = {
   content: string;
   importance: number;
   tags: string[];
-  distance: number;
-  score: number;
+  confidence: number;
+  layer: 'EPISODIC' | 'SEMANTIC' | 'PATTERN';
+  usageCount: number;
+  lastUsedAt: Date | null;
+  createdAt: Date;
+  distance?: number;
+  score?: number;
+  contextBucket: 'PATTERN' | 'SEMANTIC' | 'RECENT' | 'IMPORTANT';
+};
+
+export type RetrievedMemoryContext = {
+  patterns: RetrievedMemory[];
+  semantic: RetrievedMemory[];
+  recent: RetrievedMemory[];
+  important: RetrievedMemory[];
+  merged: RetrievedMemory[];
 };
 
 @Injectable()
@@ -33,12 +47,7 @@ export class MemoryRetrieverService {
       similarityWeight?: number;
     },
   ): Promise<RetrievedMemory[]> {
-    const {
-      limit = 3,
-      maxDistance = 0.8,
-      importanceWeight = 0.3,
-      similarityWeight = 0.7,
-    } = options ?? {};
+    const { limit = 3, maxDistance = 0.8 } = options ?? {};
 
     // 1. Embed query
     const embedding = await this.embeddings.embed(query);
@@ -51,6 +60,11 @@ export class MemoryRetrieverService {
         content: string;
         importance: number;
         tags: string[];
+        confidence: number;
+        layer: 'EPISODIC' | 'SEMANTIC' | 'PATTERN';
+        usageCount: number;
+        lastUsedAt: Date | null;
+        createdAt: Date;
         distance: number;
       }[]
     >(
@@ -60,6 +74,11 @@ export class MemoryRetrieverService {
         content,
         importance,
         tags,
+        confidence,
+        layer,
+        "usageCount",
+        "lastUsedAt",
+        "createdAt",
         embedding <-> $2::vector AS distance
       FROM "Memory"
       WHERE "userId" = $1
@@ -78,15 +97,236 @@ export class MemoryRetrieverService {
     // 4. Rerank (importance + similarity)
     const reranked: RetrievedMemory[] = relevant.map(m => {
       const similarity = 1 - m.distance;
-      const score = similarity * similarityWeight + (m.importance / 10) * importanceWeight;
+      const score =
+        similarity * 0.6 +
+        (m.importance / 10) * 0.25 +
+        this.recencyBoost(m.lastUsedAt, m.createdAt) * 0.1 +
+        this.usageBoost(m.usageCount) * 0.05;
 
       return {
-        ...m,
+        id: m.id,
+        content: m.content,
+        importance: m.importance,
+        tags: m.tags,
+        confidence: m.confidence,
+        layer: m.layer,
+        usageCount: m.usageCount,
+        lastUsedAt: m.lastUsedAt,
+        createdAt: m.createdAt,
+        distance: m.distance,
         score,
+        contextBucket: 'SEMANTIC',
       };
     });
 
     // 5. Sort and return top-k
-    return reranked.sort((a, b) => b.score - a.score).slice(0, limit);
+    return reranked
+      .sort((a, b) => {
+        const scoreDiff = (b.score ?? 0) - (a.score ?? 0);
+        if (Math.abs(scoreDiff) > 1e-8) {
+          return scoreDiff;
+        }
+
+        const distanceDiff =
+          (a.distance ?? Number.POSITIVE_INFINITY) - (b.distance ?? Number.POSITIVE_INFINITY);
+        if (Math.abs(distanceDiff) > 1e-8) {
+          return distanceDiff;
+        }
+
+        if (a.importance !== b.importance) {
+          return b.importance - a.importance;
+        }
+        return b.createdAt.getTime() - a.createdAt.getTime();
+      })
+      .slice(0, limit);
+  }
+
+  async getMemoryContext(
+    userId: string,
+    query: string,
+    options?: {
+      limit?: number;
+      patternLimit?: number;
+      semanticLimit?: number;
+      recentLimit?: number;
+      importantLimit?: number;
+      maxDistance?: number;
+      importanceWeight?: number;
+      similarityWeight?: number;
+    },
+  ): Promise<RetrievedMemoryContext> {
+    const maxPromptMemories = options?.limit ? Math.min(7, Math.max(5, options.limit)) : 6;
+    const patternLimit = options?.patternLimit ?? 3;
+    const semanticLimit = options?.semanticLimit ?? 3;
+    const recentLimit = options?.recentLimit ?? 3;
+    const importantLimit = options?.importantLimit ?? 3;
+
+    const [patterns, semantic, recent, important] = await Promise.all([
+      this.getTopPatterns(userId, patternLimit),
+      this.retrieve(userId, query, {
+        limit: semanticLimit,
+        maxDistance: options?.maxDistance,
+        importanceWeight: options?.importanceWeight,
+        similarityWeight: options?.similarityWeight,
+      }),
+      this.getRecentMemories(userId, recentLimit),
+      this.getImportantMemories(userId, importantLimit),
+    ]);
+
+    const merged = this.dedupeById([...patterns, ...semantic, ...recent, ...important]).slice(
+      0,
+      Math.max(patterns.length, maxPromptMemories),
+    );
+
+    return {
+      patterns,
+      semantic,
+      recent,
+      important,
+      merged,
+    };
+  }
+
+  async trackUsage(memoryIds: string[]): Promise<void> {
+    const ids = Array.from(new Set(memoryIds.filter(Boolean)));
+    if (ids.length === 0) {
+      return;
+    }
+
+    await this.prisma.memory.updateMany({
+      where: {
+        id: { in: ids },
+      },
+      data: {
+        usageCount: { increment: 1 },
+        lastUsedAt: new Date(),
+      },
+    });
+  }
+
+  private async getRecentMemories(userId: string, limit: number): Promise<RetrievedMemory[]> {
+    const rows = await this.prisma.memory.findMany({
+      where: {
+        userId,
+        layer: { not: 'PATTERN' },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        content: true,
+        importance: true,
+        tags: true,
+        confidence: true,
+        layer: true,
+        usageCount: true,
+        lastUsedAt: true,
+        createdAt: true,
+      },
+    });
+    return rows.map(row => this.mapRecord(row, 'RECENT'));
+  }
+
+  private async getImportantMemories(userId: string, limit: number): Promise<RetrievedMemory[]> {
+    const rows = await this.prisma.memory.findMany({
+      where: {
+        userId,
+        layer: { not: 'PATTERN' },
+      },
+      orderBy: [{ importance: 'desc' }, { confidence: 'desc' }, { updatedAt: 'desc' }],
+      take: limit,
+      select: {
+        id: true,
+        content: true,
+        importance: true,
+        tags: true,
+        confidence: true,
+        layer: true,
+        usageCount: true,
+        lastUsedAt: true,
+        createdAt: true,
+      },
+    });
+    return rows.map(row => this.mapRecord(row, 'IMPORTANT'));
+  }
+
+  private async getTopPatterns(userId: string, limit: number): Promise<RetrievedMemory[]> {
+    const rows = await this.prisma.memory.findMany({
+      where: {
+        userId,
+        layer: 'PATTERN',
+      },
+      orderBy: [{ importance: 'desc' }, { confidence: 'desc' }, { updatedAt: 'desc' }],
+      take: limit,
+      select: {
+        id: true,
+        content: true,
+        importance: true,
+        tags: true,
+        confidence: true,
+        layer: true,
+        usageCount: true,
+        lastUsedAt: true,
+        createdAt: true,
+      },
+    });
+    return rows.map(row => this.mapRecord(row, 'PATTERN'));
+  }
+
+  private mapRecord(
+    row: {
+      id: string;
+      content: string;
+      importance: number;
+      tags: string[];
+      confidence: number;
+      layer: 'EPISODIC' | 'SEMANTIC' | 'PATTERN';
+      usageCount: number;
+      lastUsedAt: Date | null;
+      createdAt: Date;
+    },
+    contextBucket: RetrievedMemory['contextBucket'],
+  ): RetrievedMemory {
+    return {
+      id: row.id,
+      content: row.content,
+      importance: row.importance,
+      tags: row.tags,
+      confidence: row.confidence,
+      layer: row.layer,
+      usageCount: row.usageCount,
+      lastUsedAt: row.lastUsedAt,
+      createdAt: row.createdAt,
+      contextBucket,
+    };
+  }
+
+  private dedupeById(memories: RetrievedMemory[]): RetrievedMemory[] {
+    const seen = new Set<string>();
+    const deduped: RetrievedMemory[] = [];
+    for (const memory of memories) {
+      if (seen.has(memory.id)) {
+        continue;
+      }
+      seen.add(memory.id);
+      deduped.push(memory);
+    }
+    return deduped;
+  }
+
+  private recencyBoost(lastUsedAt: Date | null, createdAt: Date): number {
+    const baseline = lastUsedAt ?? createdAt;
+    const hoursSince = (Date.now() - baseline.getTime()) / (60 * 60 * 1000);
+    if (hoursSince <= 24) return 1;
+    if (hoursSince <= 72) return 0.75;
+    if (hoursSince <= 168) return 0.5;
+    if (hoursSince <= 720) return 0.2;
+    return 0.05;
+  }
+
+  private usageBoost(usageCount: number): number {
+    const safeCount = Math.max(0, usageCount);
+    const normalized = Math.log1p(safeCount) / Math.log(10);
+    return Math.min(1, normalized);
   }
 }

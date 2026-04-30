@@ -1,6 +1,18 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Req,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { parseListPagination } from '../common/parse-list-pagination';
 
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
@@ -17,8 +29,8 @@ export class TasksController {
   }
 
   @Get()
-  findAll(@Req() req) {
-    return this.tasksService.findAll(req.user.id);
+  findAll(@Req() req, @Query('limit') limit?: string, @Query('offset') offset?: string) {
+    return this.tasksService.findAll(req.user.id, parseListPagination(limit, offset, 100));
   }
 
   @Get(':id')

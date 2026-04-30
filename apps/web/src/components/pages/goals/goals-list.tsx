@@ -1,7 +1,8 @@
 'use client';
 
 import type { FC } from 'react';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import GoalModal from './goal-modal';
 
@@ -9,32 +10,27 @@ import type { GoalDto, GoalType, GoalPriority } from '@/lib/api/types';
 import { getGoals, createGoal, deleteGoal } from '@/lib/api/goals';
 import Container from '@/components/common/container';
 import Button from '@/components/common/button';
+import { queryKeys } from '@/lib/query-keys';
 
 const GoalsList: FC = () => {
-  const [goals, setGoals] = useState<GoalDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const {
+    data: goals = [],
+    isPending: loading,
+    isError: loadError,
+  } = useQuery({
+    queryKey: queryKeys.goals,
+    queryFn: () => getGoals(),
+    select: data => data.items,
+  });
   const [error, setError] = useState<string | null>(null);
   const [selectedGoal, setSelectedGoal] = useState<GoalDto | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
 
-  useEffect(() => {
-    loadGoals();
-  }, []);
+  const fetchError = loadError ? 'Failed to load goals' : null;
 
-  const loadGoals = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getGoals();
-      setGoals(data);
-    } catch (err) {
-      console.error('Failed to load goals:', err);
-      setError('Failed to load goals');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const invalidateGoals = () => void queryClient.invalidateQueries({ queryKey: queryKeys.goals });
 
   const handleGoalClick = (goal: GoalDto) => {
     setSelectedGoal(goal);
@@ -44,7 +40,6 @@ const GoalsList: FC = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedGoal(null);
-    loadGoals(); // Refresh goals after modal closes
   };
 
   const handleCreateNew = async () => {
@@ -61,9 +56,9 @@ const GoalsList: FC = () => {
         isAchieved: false,
         source: 'MANUAL',
       });
+      invalidateGoals();
       setSelectedGoal(newGoal);
       setIsModalOpen(true);
-      await loadGoals();
     } catch (err) {
       console.error('Failed to create goal:', err);
       setError('Failed to create goal');
@@ -79,7 +74,7 @@ const GoalsList: FC = () => {
         setIsModalOpen(false);
         setSelectedGoal(null);
       }
-      await loadGoals();
+      invalidateGoals();
     } catch (err) {
       console.error('Failed to delete goal:', err);
       setError('Failed to delete goal');
@@ -129,10 +124,10 @@ const GoalsList: FC = () => {
     );
   }
 
-  if (error && goals.length === 0) {
+  if ((fetchError || error) && goals.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="text-red-400">{error}</div>
+        <div className="text-red-400">{fetchError || error}</div>
       </div>
     );
   }
@@ -174,7 +169,12 @@ const GoalsList: FC = () => {
             {goals.map(goal => (
               <Container key={goal.id}>
                 <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => handleGoalClick(goal)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') handleGoalClick(goal);
+                  }}
                   className="block rounded-lg p-4 transition-colors cursor-pointer"
                 >
                   <div className="flex items-start justify-between">
@@ -234,7 +234,7 @@ const GoalsList: FC = () => {
           goal={selectedGoal}
           onClose={handleCloseModal}
           onDelete={handleDelete}
-          onUpdate={loadGoals}
+          onUpdate={invalidateGoals}
         />
       )}
     </div>

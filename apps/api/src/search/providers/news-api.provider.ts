@@ -20,8 +20,13 @@ interface NewsApiResponse {
 @Injectable()
 export class NewsApiProvider implements SearchProvider {
   private readonly logger = new Logger(NewsApiProvider.name);
+  private readonly requestTimeoutMs: number;
+  private readonly maxRetries: number;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) {
+    this.requestTimeoutMs = Number(this.configService.get<string>('NEWS_API_TIMEOUT_MS', '5000'));
+    this.maxRetries = Number(this.configService.get<string>('NEWS_API_RETRIES', '1'));
+  }
 
   getName(): string {
     return 'newsapi';
@@ -43,11 +48,10 @@ export class NewsApiProvider implements SearchProvider {
       apiKey,
     });
 
-    const response = await fetch(`https://newsapi.org/v2/everything?${params.toString()}`);
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`NewsAPI search failed: ${response.status} ${body}`);
-    }
+    const response = await this.fetchWithRetry(
+      `https://newsapi.org/v2/everything?${params.toString()}`,
+      this.maxRetries,
+    );
 
     const data = (await response.json()) as NewsApiResponse;
     if (data.status !== 'ok' || !Array.isArray(data.articles)) {
@@ -62,5 +66,38 @@ export class NewsApiProvider implements SearchProvider {
         url: article.url ?? '',
         publishedAt: article.publishedAt ?? null,
       }));
+  }
+
+  private async fetchWithRetry(url: string, retries: number): Promise<Response> {
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        if (response.ok) {
+          return response;
+        }
+
+        const body = await response.text();
+        throw new Error(`NewsAPI search failed: ${response.status} ${body}`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'unknown error';
+        lastError = new Error(message);
+        if (attempt < retries) {
+          this.logger.warn(`NewsAPI request attempt ${attempt + 1} failed, retrying: ${message}`);
+          await this.sleep(200 * (attempt + 1));
+          continue;
+        }
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    throw lastError ?? new Error('NewsAPI search failed');
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }

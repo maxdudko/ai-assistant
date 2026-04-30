@@ -41,6 +41,7 @@ export function extractMemoryCandidates(
         importance: 7,
         tags: ['reflection', 'insight'],
         confidence: 0.7,
+        layer: 'EPISODIC',
       });
     }
   }
@@ -59,6 +60,7 @@ export function extractMemoryCandidates(
         importance: 8,
         tags: ['planning', 'priority'],
         confidence: 0.8,
+        layer: 'SEMANTIC',
       });
     }
   }
@@ -67,5 +69,10 @@ export function extractMemoryCandidates(
   // For now, skip most companion conversations
   // This can be enhanced with sentiment analysis or explicit user signals
 
-  return candidates;
+  return candidates.filter(
+    c =>
+      !existingMemories.some(
+        m => m.content.trim().toLowerCase() === c.content.trim().toLowerCase(),
+      ),
+  );
 }

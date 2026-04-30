@@ -2,40 +2,24 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { TaskStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { DayResolverService } from '../days/day-resolver.service';
+import type { ListPagination } from '../common/parse-list-pagination';
 
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 
 @Injectable()
 export class TasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dayResolver: DayResolverService,
+  ) {}
 
   /**
    * Get or create today's day for a user
    */
   private async getOrCreateTodayDay(userId: string): Promise<string> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    let day = await this.prisma.day.findUnique({
-      where: {
-        userId_date: {
-          userId,
-          date: today,
-        },
-      },
-    });
-
-    if (!day) {
-      day = await this.prisma.day.create({
-        data: {
-          userId,
-          date: today,
-          state: 'START',
-        },
-      });
-    }
-
+    const day = await this.dayResolver.getCurrentDay(userId);
     return day.id;
   }
 
@@ -46,6 +30,8 @@ export class TasksService {
       description: createTaskDto.description,
       status: createTaskDto.status || 'TODO',
       priority: createTaskDto.priority || 'MEDIUM',
+      difficulty: createTaskDto.difficulty ?? 3,
+      estimatedMinutes: createTaskDto.estimatedMinutes,
       source: createTaskDto.source || 'MANUAL',
     };
 
@@ -106,18 +92,44 @@ export class TasksService {
     });
   }
 
-  async findAll(userId: string) {
-    return this.prisma.task.findMany({
+  async findAll(userId: string, pagination: ListPagination) {
+    const { limit, offset } = pagination;
+    const take = limit + 1;
+
+    const rows = await this.prisma.task.findMany({
       where: { userId },
-      include: {
-        conversation: true,
-        parent: true,
-        subtasks: true,
-        goal: true,
+      select: {
+        id: true,
+        userId: true,
+        dayId: true,
+        name: true,
+        description: true,
+        status: true,
+        priority: true,
+        difficulty: true,
+        estimatedMinutes: true,
+        deadline: true,
+        source: true,
+        conversationId: true,
+        parentId: true,
+        goalId: true,
+        createdAt: true,
+        updatedAt: true,
         day: true,
       },
       orderBy: { createdAt: 'desc' },
+      take,
+      skip: offset,
     });
+
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+
+    return {
+      items,
+      hasMore,
+      nextOffset: hasMore ? offset + limit : null,
+    };
   }
 
   async findOne(userId: string, id: string) {
@@ -161,6 +173,12 @@ export class TasksService {
     }
     if (updateTaskDto.priority !== undefined) {
       data.priority = updateTaskDto.priority;
+    }
+    if (updateTaskDto.difficulty !== undefined) {
+      data.difficulty = updateTaskDto.difficulty;
+    }
+    if (updateTaskDto.estimatedMinutes !== undefined) {
+      data.estimatedMinutes = updateTaskDto.estimatedMinutes;
     }
     if (updateTaskDto.deadline !== undefined) {
       data.deadline = updateTaskDto.deadline ? new Date(updateTaskDto.deadline) : null;

@@ -124,7 +124,7 @@ describe('Conversations (e2e)', () => {
       expect(response.body).toHaveProperty('conversationId');
       expect(response.body).toHaveProperty('message');
       expect(response.body.message).toHaveProperty('id');
-      expect(response.body.message).toHaveProperty('role', 'assistant');
+      expect(response.body.message).toHaveProperty('role', 'ASSISTANT');
       expect(response.body.message).toHaveProperty('content');
       expect(response.body.message).toHaveProperty('createdAt');
     });
@@ -274,9 +274,10 @@ describe('Conversations (e2e)', () => {
         .set('Cookie', authCookies)
         .expect(200);
 
-      expect(Array.isArray(response.body)).toBe(true);
-      expect(response.body.length).toBeGreaterThan(0);
-      response.body.forEach((conv: any) => {
+      expect(response.body).toHaveProperty('items');
+      expect(Array.isArray(response.body.items)).toBe(true);
+      expect(response.body.items.length).toBeGreaterThan(0);
+      response.body.items.forEach((conv: { id: string; type: string; mode: string }) => {
         expect(conv).toHaveProperty('id');
         expect(conv).toHaveProperty('type');
         expect(conv).toHaveProperty('mode');
@@ -289,7 +290,7 @@ describe('Conversations (e2e)', () => {
         .set('Cookie', authCookies)
         .expect(200);
 
-      response.body.forEach((conv: any) => {
+      response.body.items.forEach((conv: { state: string }) => {
         expect(conv.state).not.toBe(ConversationState.ARCHIVED);
       });
     });
@@ -313,7 +314,7 @@ describe('Conversations (e2e)', () => {
         .set('Cookie', authCookies)
         .expect(200);
 
-      const archived = response.body.find((c: any) => c.id === conversationId);
+      const archived = response.body.items.find((c: { id: string }) => c.id === conversationId);
       expect(archived).toBeDefined();
       expect(archived.state).toBe(ConversationState.ARCHIVED);
     });
@@ -411,16 +412,16 @@ describe('Conversations (e2e)', () => {
 
   describe('Conversation State Transitions', () => {
     it('should transition from CREATED to ACTIVE when first message is sent', async () => {
-      // Get daily conversation (should be CREATED)
+      // Fresh ad-hoc conversation stays CREATED until the first user message (daily may already be ACTIVE).
       const convResponse = await request(app.getHttpServer())
-        .get('/api/conversations/daily')
+        .post('/api/conversations/ad-hoc')
         .set('Cookie', authCookies)
-        .expect(200);
+        .send({})
+        .expect(201);
 
       const conversationId = convResponse.body.id;
       expect(convResponse.body.state).toBe(ConversationState.CREATED);
 
-      // Send first message
       await request(app.getHttpServer())
         .post('/api/conversations/message')
         .set('Cookie', authCookies)
@@ -430,7 +431,6 @@ describe('Conversations (e2e)', () => {
         })
         .expect(201);
 
-      // Check conversation is now ACTIVE
       const updatedResponse = await request(app.getHttpServer())
         .get(`/api/conversations/${conversationId}`)
         .set('Cookie', authCookies)

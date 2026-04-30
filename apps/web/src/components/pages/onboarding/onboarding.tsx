@@ -67,6 +67,7 @@ const Onboarding: FC = () => {
     setError(null);
 
     try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
       await userApi.updateMe({
         profile: {
           displayName: name,
@@ -76,6 +77,7 @@ const Onboarding: FC = () => {
           helpStyle,
           dayPlanningTime,
           reflectionTime,
+          timezone,
           onboardingCompleted: true,
         },
       });
