@@ -114,16 +114,16 @@ MIRA is a **stateful, context-aware AI assistant** designed to help individuals 
 
 **Key Components**:
 
-| Component            | File                                                                                          | Purpose                                                   |
-| -------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Chat UI              | `src/components/pages/chat/chat.tsx`                                                          | Real-time streaming chat with action buttons              |
-| Task List            | `src/components/pages/tasks/tasks-list.tsx`                                                   | Task management interface                                 |
-| Goal List            | `src/components/pages/goals/goals-list.tsx`                                                   | Goal tracking interface                                   |
-| Memory Browser       | `src/components/pages/memory/memory-list.tsx`                                                 | View stored memories                                      |
+| Component            | File                                                                                               | Purpose                                                   |
+| -------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Chat UI              | `src/components/pages/chat/chat.tsx`                                                               | Real-time streaming chat with action buttons              |
+| Task List            | `src/components/pages/tasks/tasks-list.tsx`                                                        | Task management interface                                 |
+| Goal List            | `src/components/pages/goals/goals-list.tsx`                                                        | Goal tracking interface                                   |
+| Memory Browser       | `src/components/pages/memory/memory-list.tsx`                                                      | View stored memories                                      |
 | Auth Forms           | `src/components/pages/auth/login.tsx`, `register.tsx`, `forgot-password.tsx`, `reset-password.tsx` | Authentication and account recovery UI                    |
-| API Client           | `src/lib/api/client.ts`                                                                       | Centralized authenticated API communication               |
-| Query Provider       | `src/components/providers/query-provider.tsx`                                                 | React Query client and cache lifecycle                    |
-| Auth Session Context | `src/lib/api/AuthContext.tsx`                                                                 | User session bootstrap and periodic token refresh trigger |
+| API Client           | `src/lib/api/client.ts`                                                                            | Centralized authenticated API communication               |
+| Query Provider       | `src/components/providers/query-provider.tsx`                                                      | React Query client and cache lifecycle                    |
+| Auth Session Context | `src/lib/api/AuthContext.tsx`                                                                      | User session bootstrap and periodic token refresh trigger |
 
 **Routing Structure**:
 
