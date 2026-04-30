@@ -1,36 +1,101 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# @ai/web
 
-## Getting Started
+Next.js frontend for MIRA (Personal AI Assistant).
 
-First, run the development server:
+## What this app provides
+
+- Public landing page
+- Authentication flows: login/register/onboarding/forgot/reset password
+- Protected `/me/*` workspace
+- Streaming chat UI with action confirmation controls
+- Task/goal/memory/profile/digest/logs pages
+- React Query powered API state management
+
+## Tech stack
+
+- Next.js 16 (App Router)
+- React 19
+- TypeScript
+- React Query (`@tanstack/react-query`)
+- Cookie-based auth with backend token refresh
+
+## Prerequisites
+
+- Node.js 20+
+- pnpm 10+
+- Running API service (default `http://localhost:4000`)
+
+## Quick start
+
+From repository root:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+cp apps/web/example.env apps/web/.env.local
+
+# Start web app (http://localhost:3000)
+pnpm --filter @ai/web dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`apps/web/.env.local`:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+NEXT_PUBLIC_API_URL=http://localhost:4000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Run scripts
 
-## Learn More
+From `apps/web`:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+pnpm dev
+pnpm build
+pnpm start
+pnpm lint
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Or from repo root:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+pnpm --filter @ai/web <script>
+```
 
-## Deploy on Vercel
+## Route overview
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Public routes:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `/`
+- `/auth/login`
+- `/auth/register`
+- `/auth/onboarding`
+- `/auth/forgot-password`
+- `/auth/reset-password`
+
+Protected routes:
+
+- `/me`
+- `/me/chat`
+- `/me/chat/[id]`
+- `/me/conversations`
+- `/me/tasks`
+- `/me/goals`
+- `/me/memory`
+- `/me/profile`
+- `/me/info-digests`
+- `/me/logs`
+
+## API integration model
+
+- All requests are sent to `NEXT_PUBLIC_API_URL`
+- `credentials: include` is used for HTTP-only cookie auth
+- 401 responses trigger refresh flow and one retry
+- Chat streaming reads NDJSON events from `fetch` response body
+
+## Key directories
+
+- `src/app` - route pages (App Router)
+- `src/components/pages` - page-level UI modules
+- `src/components/common` - reusable UI primitives
+- `src/lib/api` - API client and typed endpoint wrappers
+- `src/components/providers/query-provider.tsx` - React Query provider
+- `src/lib/api/AuthContext.tsx` - user bootstrap and session refresh behavior

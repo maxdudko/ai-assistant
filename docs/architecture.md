@@ -50,7 +50,7 @@ MIRA is a **stateful, context-aware AI assistant** designed to help individuals 
 │  │ (SSR)        │  │ (Streaming)  │  │ (Tasks/Goals)│       │
 │  └──────────────┘  └──────────────┘  └──────────────┘       │
 └────────────────────────────┬────────────────────────────────┘
-                             │ REST API + SSE
+                             │ REST API + NDJSON stream
                              ↓
 ┌────────────────────────────────────────────────────────────┐
 │                   APPLICATION LAYER                        │
@@ -114,14 +114,16 @@ MIRA is a **stateful, context-aware AI assistant** designed to help individuals 
 
 **Key Components**:
 
-| Component      | File                                       | Purpose                                      |
-| -------------- | ------------------------------------------ | -------------------------------------------- |
-| Chat UI        | `src/components/chat.tsx`                  | Real-time streaming chat with action buttons |
-| Task List      | `src/components/tasks-list.tsx`            | Task management interface                    |
-| Goal List      | `src/components/goals-list.tsx`            | Goal tracking interface                      |
-| Memory Browser | `src/components/memory-list.tsx`           | View stored memories                         |
-| Auth Forms     | `src/components/login.tsx`, `register.tsx` | Authentication UI                            |
-| API Client     | `src/lib/api/client.ts`                    | Centralized API communication                |
+| Component            | File                                                                                          | Purpose                                                   |
+| -------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Chat UI              | `src/components/pages/chat/chat.tsx`                                                          | Real-time streaming chat with action buttons              |
+| Task List            | `src/components/pages/tasks/tasks-list.tsx`                                                   | Task management interface                                 |
+| Goal List            | `src/components/pages/goals/goals-list.tsx`                                                   | Goal tracking interface                                   |
+| Memory Browser       | `src/components/pages/memory/memory-list.tsx`                                                 | View stored memories                                      |
+| Auth Forms           | `src/components/pages/auth/login.tsx`, `register.tsx`, `forgot-password.tsx`, `reset-password.tsx` | Authentication and account recovery UI                    |
+| API Client           | `src/lib/api/client.ts`                                                                       | Centralized authenticated API communication               |
+| Query Provider       | `src/components/providers/query-provider.tsx`                                                 | React Query client and cache lifecycle                    |
+| Auth Session Context | `src/lib/api/AuthContext.tsx`                                                                 | User session bootstrap and periodic token refresh trigger |
 
 **Routing Structure**:
 
@@ -129,6 +131,8 @@ MIRA is a **stateful, context-aware AI assistant** designed to help individuals 
 /                         # Landing page
 /auth/login               # Login page
 /auth/register            # Registration page
+/auth/forgot-password     # Password reset request
+/auth/reset-password      # Password reset form
 /auth/onboarding          # Initial setup wizard
 /me                       # Dashboard (protected)
 /me/chat                  # Main chat interface
@@ -144,16 +148,17 @@ MIRA is a **stateful, context-aware AI assistant** designed to help individuals 
 
 **State Management**:
 
-- Local component state (React hooks)
-- No global state library (keeps it simple)
-- Server-side state via Next.js Server Components
+- Local component state (React hooks) for interaction-heavy UI
+- React Query (`@tanstack/react-query`) for server-state caching and invalidation
+- Auth context (`AuthContext`) for user bootstrap and session refresh
+- No Redux/MobX-style global store
 
 **API Communication**:
 
-- REST API via `fetch`
+- REST API via `fetch` with `credentials: include`
 - JWT tokens in HTTP-only cookies
 - Automatic token refresh on 401 responses
-- Server-Sent Events (SSE) for streaming
+- Streaming via newline-delimited JSON (`application/x-ndjson`) parsed from `ReadableStream`
 
 ---
 
@@ -175,13 +180,23 @@ src/
 │   └── dto/                         # Update profile DTOs
 │
 ├── conversations/                   # Chat orchestration (PRIMARY ORCHESTRATOR)
-│   ├── conversations.service.ts     # 812 lines - handles full message lifecycle
+│   ├── conversations.service.ts     # Handles full message lifecycle
 │   ├── conversations.controller.ts
-│   └── (orchestrates 9 services)
+│   └── (orchestrates AI, daily engine, actions, memory, logging)
 │
 ├── ai/                              # AI service adapter
 │   ├── ai.service.ts                # Type mapping layer (Prisma → ai-core)
 │   └── ai.module.ts
+│
+├── daily/                           # Unified day intelligence
+│   ├── daily-engine.service.ts      # Event-driven orchestration
+│   ├── decision-engine.service.ts   # Action decision logic
+│   ├── unified-context.service.ts   # Context aggregation (tasks/memory/day)
+│   └── day-insight.service.ts       # Day score + summary generation
+│
+├── scheduler/                       # Scheduled/background triggers
+│   ├── daily-flow.scheduler.ts      # Cron-based hourly/daily checks
+│   └── scheduler.controller.ts      # HTTP cron endpoints (production-friendly)
 │
 ├── memory/                          # RAG memory system
 │   ├── memory.service.ts            # CRUD operations
@@ -190,12 +205,12 @@ src/
 │   └── dto/memory-candidate.dto.ts
 │
 ├── embeddings/                      # Vector embedding generation
-│   ├── embeddings.service.ts        # Stub implementation (returns zeros)
+│   ├── embeddings.service.ts        # Ollama/OpenAI providers with retry/fallback
 │   └── embeddings.interface.ts
 │
 ├── actions/                         # AI action system
-│   ├── actions.service.ts           # Store & confirm actions
-│   ├── action-executor.service.ts   # Execute confirmed actions
+│   ├── actions.service.ts           # Store/confirm/dismiss/undo actions
+│   ├── action-executor.service.ts   # Execute and undo reversible actions
 │   └── dto/confirm-action.dto.ts
 │
 ├── intents/                         # Fallback intent detection
@@ -216,11 +231,8 @@ src/
 ├── digest/                          # Information digest subscriptions
 │   └── digest.service.ts
 │
-├── search/                          # External search integration
-│   └── search.service.ts            # For INFO mode
-│
-├── reflection/                      # End-of-day reflections
-│   └── reflection.service.ts
+├── search/                          # External search integration (provider-based)
+│   └── search.service.ts            # Used by INFO mode digest pipeline
 │
 ├── logs/                            # AI interaction logging
 │   └── logs.service.ts
@@ -232,17 +244,18 @@ src/
 
 #### Service Responsibilities
 
-| Service                  | Single Responsibility                  | Dependencies                             |
-| ------------------------ | -------------------------------------- | ---------------------------------------- |
-| `AuthService`            | User authentication & token management | PrismaService, JwtService                |
-| `ConversationsService`   | **Message lifecycle orchestration**    | 9 services (HIGH COUPLING)               |
-| `AiService`              | Type mapping (Prisma → ai-core)        | ConfigService                            |
-| `MemoryIngestionService` | Store memory with embeddings           | PrismaService, EmbeddingsService         |
-| `MemoryRetrieverService` | Vector similarity search               | PrismaService                            |
-| `ActionsService`         | Store & confirm action candidates      | PrismaService, ActionExecutorService     |
-| `ActionExecutorService`  | Execute confirmed actions              | TasksService, DaysService, DigestService |
-| `TasksService`           | Task CRUD operations                   | PrismaService                            |
-| `IntentDetectorService`  | Pattern-based action detection         | None (stateless)                         |
+| Service                  | Single Responsibility                                   | Dependencies                                                         |
+| ------------------------ | ------------------------------------------------------- | -------------------------------------------------------------------- |
+| `AuthService`            | User authentication and token lifecycle                 | PrismaService, JwtService                                            |
+| `ConversationsService`   | **Message lifecycle orchestration**                     | AI, actions, memory ingestion, day resolver, digest, logs, daily svc |
+| `AiService`              | Type mapping and ai-core provider adapter               | ConfigService                                                        |
+| `DailyEngineService`     | Event-driven daily decisions and proactive suggestions  | DecisionEngineService, ActionsService, UnifiedContextService         |
+| `UnifiedContextService`  | Build merged day/task/memory context                    | PrismaService, MemoryRetrieverService, TaskScoringService            |
+| `MemoryIngestionService` | Store curated memory candidates with embeddings         | PrismaService, EmbeddingsService                                     |
+| `MemoryRetrieverService` | Vector search + reranking + contextual memory buckets   | PrismaService, EmbeddingsService                                     |
+| `ActionsService`         | Candidate lifecycle: create/confirm/dismiss/undo        | PrismaService, ActionExecutorService                                 |
+| `ActionExecutorService`  | Execute actions and support reversible action undo      | TasksService, DaysService, DigestService, MemoryIngestionService     |
+| `SearchService`          | Abstract search over pluggable provider implementations | Search provider interface (NewsApiProvider by default)               |
 
 ---
 
@@ -329,14 +342,14 @@ interface AiResponse {
 
 ```
 1. USER INTERACTION
-   Browser → Chat Component (chat.tsx)
+   Browser → Chat Component (pages/chat/chat.tsx)
    - User types message
    - Clicks send button
 
 2. FRONTEND API CALL
    Chat Component → API Client (lib/api/conversations.ts)
    - sendMessageStream(message, conversationId?)
-   - Opens EventSource for SSE
+   - Uses `fetch()` and parses `response.body` as newline-delimited JSON
 
 3. HTTP REQUEST
    Frontend → Backend Controller
@@ -353,7 +366,7 @@ interface AiResponse {
 
 5. CONTROLLER HANDLER
    ConversationsController.sendMessageStream()
-   - Setup SSE headers (Content-Type: application/x-ndjson)
+   - Setup streaming headers (Content-Type: application/x-ndjson)
    - Create emit() function for streaming
 
 6. ORCHESTRATION START
@@ -414,7 +427,7 @@ interface AiResponse {
    CoreAiService → AiService → ConversationsService → Controller
    - Each token flows back through the chain
    - Controller emits: { type: 'delta', delta: token }
-   - Frontend receives SSE event
+   - Frontend parses NDJSON stream events
    - Chat component appends character-by-character
 
 10. RESPONSE PARSING
@@ -510,6 +523,10 @@ interface AiResponse {
      case 'TASK_UPDATE_STATUS':
        TasksService.updateStatus(userId, taskId, newStatus)
 
+     case 'TASK_SET_PRIORITY':
+     case 'TASK_SET_DUE_DATE':
+       TasksService.update(userId, taskId, patch)
+
      case 'DAY_START':
        DaysService.startDay(userId, date)
        ├─→ Update day.state = 'ACTIVE'
@@ -520,6 +537,14 @@ interface AiResponse {
        ├─→ Update day.state = 'END'
        ├─→ Set day.endedAt = NOW()
        └─→ Trigger reflection generation
+
+     case 'SUGGEST_DIGEST_SUBSCRIPTION':
+       DigestService.subscribeFromSuggestion(userId, payload)
+
+     case 'SIMPLIFY_DAY':
+     case 'SPLIT_TASK':
+     case 'RESCHEDULE_TASK':
+       Execute reversible action and persist undo payload
    }
 
 5. SUCCESS PATH
@@ -555,6 +580,10 @@ interface AiResponse {
    - Update action button state (show checkmark or error)
    - Optionally refresh task list
    - Show toast notification
+
+8. OPTIONAL NON-CONFIRMATION FLOWS
+   - Dismiss pending action: POST /api/actions/:id/dismiss
+   - Undo supported executed action: POST /api/actions/:id/undo
 ```
 
 ---
@@ -759,8 +788,8 @@ Stream LLM tokens character-by-character instead of waiting for full response:
 
 **Implementation**:
 
-- Backend: Server-Sent Events (SSE) via newline-delimited JSON
-- Frontend: EventSource API with character buffering
+- Backend: Chunked HTTP response with `application/x-ndjson`
+- Frontend: `fetch` + `ReadableStream` parser with incremental rendering
 
 **Trade-offs**:
 
@@ -1140,52 +1169,116 @@ pgvector uses IVFFlat index for approximate nearest neighbor search:
 
 ### RESTful Endpoints
 
+**Health**:
+
+```
+GET    /api                    # Basic health endpoint
+```
+
 **Authentication**:
 
 ```
-POST   /api/auth/register       # Create account
-POST   /api/auth/login          # Sign in
-POST   /api/auth/refresh        # Refresh access token
-POST   /api/auth/logout         # Invalidate tokens
+POST   /api/auth/register        # Create account
+POST   /api/auth/login           # Sign in
+POST   /api/auth/refresh         # Refresh access token
+POST   /api/auth/logout          # Invalidate tokens
+POST   /api/auth/forgot-password # Request password reset
+POST   /api/auth/reset-password  # Complete password reset
+POST   /api/auth/change-password # Change password (authenticated)
+```
+
+**Users**:
+
+```
+GET    /api/users/me             # Current user profile
+PATCH  /api/users/me             # Update profile settings
 ```
 
 **Conversations**:
 
 ```
-GET    /api/conversations              # List conversations
-GET    /api/conversations/daily        # Get/create daily conversation
-GET    /api/conversations/:id          # Get specific conversation
-POST   /api/conversations/message      # Send message (sync)
+GET    /api/conversations                 # List conversations
+GET    /api/conversations/daily           # Get/create daily conversation
+GET    /api/conversations/:id             # Get specific conversation
+POST   /api/conversations/message         # Send message (sync)
 POST   /api/conversations/message/stream  # Send message (streaming)
-POST   /api/conversations/ad-hoc       # Create ad-hoc conversation
-PATCH  /api/conversations/:id/mode     # Switch mode
-PATCH  /api/conversations/:id/archive  # Archive conversation
+POST   /api/conversations/ad-hoc          # Create ad-hoc conversation
+PATCH  /api/conversations/:id/mode        # Switch mode
+PATCH  /api/conversations/:id/archive     # Archive conversation
 ```
 
 **Tasks**:
 
 ```
-GET    /api/tasks              # List tasks
-GET    /api/tasks/:id          # Get task
-POST   /api/tasks              # Create task
-PATCH  /api/tasks/:id          # Update task
-DELETE /api/tasks/:id          # Delete task
+GET    /api/tasks                 # List tasks
+GET    /api/tasks/:id             # Get task
+POST   /api/tasks                 # Create task
+PATCH  /api/tasks/:id             # Update task
+DELETE /api/tasks/:id             # Delete task
+```
+
+**Goals**:
+
+```
+GET    /api/goals                 # List goals
+GET    /api/goals/:id             # Get goal
+POST   /api/goals                 # Create goal
+PATCH  /api/goals/:id             # Update goal
+DELETE /api/goals/:id             # Delete goal
+```
+
+**Day lifecycle and intelligence**:
+
+```
+GET    /api/day/today             # Current day context
+POST   /api/day/start             # Start day
+POST   /api/day/end               # End day
+GET    /api/day/summary           # Day summary
+GET    /api/day/morning-briefing  # Morning briefing payload
+GET    /api/day/intelligence      # Unified day intelligence snapshot
 ```
 
 **Actions**:
 
 ```
-POST   /api/actions/confirm    # Confirm & execute action
+GET    /api/actions/pending       # List pending actions
+POST   /api/actions/confirm       # Confirm & execute action
+POST   /api/actions/:id/dismiss   # Dismiss pending action
+POST   /api/actions/:id/undo      # Undo supported executed action
+```
+
+**Digest subscriptions**:
+
+```
+POST   /api/digest/subscriptions  # Subscribe to topic
+DELETE /api/digest/subscriptions  # Unsubscribe from topic
+GET    /api/digest/subscriptions  # List subscriptions
 ```
 
 **Memory**:
 
 ```
-GET    /api/memory             # List memories
-DELETE /api/memory/:id         # Delete memory
+GET    /api/memory                # List memories
+DELETE /api/memory/:id            # Delete memory
 ```
 
-**Streaming Protocol** (SSE):
+**Logs**:
+
+```
+GET    /api/logs                  # List AI logs
+GET    /api/logs/:id              # Get specific AI log
+```
+
+**Scheduler (cron trigger endpoints)**:
+
+```
+POST   /api/scheduler/morning-briefing
+POST   /api/scheduler/evening-reflection
+POST   /api/scheduler/time-trigger
+POST   /api/scheduler/pattern-detection
+```
+
+**Streaming Protocol** (NDJSON over chunked HTTP):
 
 ```
 Event format: newline-delimited JSON
@@ -1202,34 +1295,18 @@ Event format: newline-delimited JSON
 
 ## Known Issues & Technical Debt
 
-### P0 - Critical
-
-**Issue**: Relative path imports bypass package boundaries
-
-```typescript
-// apps/api/src/conversations/conversations.service.ts:4-10
-import {
-   buildSystemPrompt,
-...
-} from '../../../../packages/ai-core/src/index';
-```
-
-**Fix**: Use workspace alias `@ai/ai-core` and ensure package builds to `dist/`
-
----
-
 ### P1 - High Priority
 
-**Issue**: ConversationsService has 9 dependencies (god service)
+**Issue**: `ConversationsService` remains a large orchestrator with high dependency coupling.
 
-**Impact**: Hard to test, maintain, understand (812 lines)
+**Impact**: Hard to test, maintain, and reason about cross-cutting behavior (streaming, context, actions, logging, daily engine hooks).
 
 **Fix**: Extract into specialized services:
 
 - `ConversationContextBuilder`
 - `ConversationModeDetector`
 - `ConversationPostProcessor`
-- `ConversationsOrchestrator` (thin coordinator)
+- `ConversationStreamingCoordinator` (thin coordinator)
 
 ---
 
@@ -1251,31 +1328,39 @@ import {
 
 **Issue**: Type duplication (Prisma enums vs. ai-core enums)
 
-**Current State**: Acceptable with mapping layer
+**Current State**: Acceptable with explicit mapping layer in `apps/api/src/ai/ai.service.ts`
 
 **Alternative**: Code generation from single source of truth
 
 ---
 
+### Recently Resolved
+
+- Relative cross-package imports were replaced with workspace package alias usage (`@ai/ai-core`).
+- Embeddings are no longer pure stubs: Ollama and OpenAI providers are implemented with retries and guarded fallbacks.
+- Search is no longer a stub-only boundary: provider interface plus `NewsApiProvider` is in place.
+
+---
+
 ### Technical Debt
 
-1. **EmbeddingsService** - Currently returns zeros (stub implementation)
-   - Needs real implementation (OpenAI embeddings or local model)
+1. **Embeddings reliability** - Provider failures still fall back to zero vectors
+   - Impact: retrieval quality degrades silently when embedding backend is unavailable/misconfigured
 
-2. **SearchService** - Needs real external search API integration
-   - Current: Stub implementation
+2. **Search provider configuration** - INFO mode quality depends on `NEWS_API_KEY`
+   - Current behavior: returns empty results when key is missing
 
-3. **Error Handling** - Inconsistent error handling across services
+3. **Error handling** - Inconsistent error handling patterns across services
    - Standardize: NestJS exception filters
 
-4. **Testing** - Minimal test coverage
-   - Add: Unit tests, integration tests, e2e tests
+4. **Logging migration** - Winston bootstrap exists, but some `console.*` calls remain
+   - Continue migrating ad-hoc logs to structured logger usage
 
-5. **Logging** - Console.log statements scattered
-   - Centralize: Winston or Pino logger
-
-6. **Rate Limiting** - No rate limiting on API endpoints
+5. **Rate limiting** - No endpoint throttling policy yet
    - Add: @nestjs/throttler
+
+6. **Testing depth** - Baseline unit and e2e tests exist, but cross-module scenarios still need expansion
+   - Add: broader integration coverage for scheduler/daily/auth edge cases
 
 ---
 
@@ -1293,6 +1378,6 @@ import {
 
 ---
 
-**Document Version**: 0.1  
-**Last Updated**: 2026-03-20  
+**Document Version**: 0.2  
+**Last Updated**: 2026-04-30  
 **Maintainer**: MIRA Development Team

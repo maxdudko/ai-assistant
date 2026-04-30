@@ -121,6 +121,7 @@ Edit `apps/api/.env`:
 ```env
 # Database
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/pma"
+DATABASE_URL_UNPOOLED="postgresql://postgres:postgres@localhost:5432/pma"
 
 # JWT
 JWT_SECRET="your-secret-key-change-in-production"
@@ -131,6 +132,7 @@ LLM_PROVIDER="ollama" # ollama | openai
 # Ollama
 OLLAMA_URL="http://localhost:11434"
 OLLAMA_MODEL="gemma3:1b"
+OLLAMA_EMBED_MODEL="nomic-embed-text"
 
 # OpenAI
 OPENAI_API_KEY="sk-..."
@@ -140,7 +142,9 @@ OPENAI_BASE_URL="https://api.openai.com/v1"
 # Embeddings provider (defaults to LLM_PROVIDER when omitted)
 # EMBEDDINGS_PROVIDER="ollama" # ollama | openai
 # OPENAI_EMBED_MODEL="text-embedding-3-large"
-# OLLAMA_EMBED_MODEL="nomic-embed-text"
+
+# Optional INFO mode search provider
+NEWS_API_KEY="your-newsapi-key"
 
 # CORS
 CORS_ORIGIN="http://localhost:3000"
@@ -369,6 +373,7 @@ AI suggests action → Store as ActionCandidate (PENDING)
   → User confirms → Status: CONFIRMED
   → ActionExecutorService.execute()
   → Status: EXECUTED (or FAILED)
+  → (Optional) User can dismiss pending actions or undo supported executed actions
   → Log result
 ```
 
@@ -377,10 +382,14 @@ AI suggests action → Store as ActionCandidate (PENDING)
 - `TASK_CREATE` - Create new task
 - `TASK_UPDATE_STATUS` - Change task status
 - `TASK_SET_PRIORITY` - Adjust priority
+- `TASK_SET_DUE_DATE` - Set or update due date
 - `TASK_COMPLETE` - Mark as done
 - `DAY_START` - Begin day
 - `DAY_END` - End day with reflection
 - `SUGGEST_DIGEST_SUBSCRIPTION` - Subscribe to info digest
+- `SIMPLIFY_DAY` - Keep top priorities and move overflow tasks
+- `SPLIT_TASK` - Split a task into smaller subtasks
+- `RESCHEDULE_TASK` - Shift a task deadline
 
 ---
 
@@ -418,6 +427,9 @@ AI suggests action → Store as ActionCandidate (PENDING)
 - **Day** - Daily context (START/ACTIVE/END states)
 - **ActionCandidate** - AI-suggested actions awaiting confirmation
 - **ActionExecutionLog** - Audit trail of executed actions
+- **DayInsight** - Daily score and summary metrics
+- **NudgeEvent** - Logged adaptive nudges for the daily engine
+- **DigestTopic** - Normalized digest topics
 - **DigestSubscription** - Info digest topic subscriptions
 - **AiLog** - AI interaction logs for debugging
 
