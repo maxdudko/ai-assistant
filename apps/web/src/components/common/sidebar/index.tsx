@@ -279,7 +279,11 @@ const LeftSidebar: FC = () => {
       <nav className="flex flex-col gap-1 p-2 md:p-4 h-full">
         {navItems.map(item => {
           const Icon = item.icon;
-          const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+          console.log({
+              pathname: pathname,
+              itemHref: item.href,
+          })
+          const isActive = pathname === item.href;
 
           return (
             <div key={item.href} className="relative group">
