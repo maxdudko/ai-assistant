@@ -196,6 +196,9 @@ export interface GoalDto {
   parentId: string | null;
   createdAt: string;
   updatedAt: string;
+  totalTasks?: number;
+  completedTasks?: number;
+  progressPct?: number;
   conversation?: ConversationDto | null;
   parent?: GoalDto | null;
   subgoals?: GoalDto[];
@@ -367,4 +370,68 @@ export interface GetLogsResponse {
     total: number;
     totalPages: number;
   };
+}
+
+export interface WeeklyInsightDto {
+  id: string;
+  isoYear: number;
+  isoWeek: number;
+  weekStart: string;
+  weekEnd: string;
+  score: number;
+  completionRate: number;
+  totalTasks: number;
+  completedTasks: number;
+  reschedules: number;
+  topPatterns: string[];
+  focusSuggestion: string | null;
+  narrative: string;
+  source: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WeeklyInsightListResponse {
+  items: WeeklyInsightDto[];
+  hasMore: boolean;
+  nextOffset: number | null;
+}
+
+export interface GoalProgressDto {
+  goal: {
+    id: string;
+    name: string;
+    type: GoalType;
+    priority: GoalPriority;
+    isAchieved: boolean;
+  };
+  totalTasks: number;
+  completedTasks: number;
+  inProgressTasks: number;
+  todoTasks: number;
+  completionRate: number;
+  recentActivity: Array<{
+    taskId: string;
+    name: string;
+    status: TaskStatus;
+    updatedAt: string;
+  }>;
+}
+
+export type TruthLensConfidence = 'low' | 'medium' | 'high';
+
+export interface TruthLensPerspectiveDto {
+  label: string;
+  claim: string;
+  evidence: string[];
+  limitations: string[];
+}
+
+export interface TruthLensReportDto {
+  title: string;
+  question: string;
+  perspectives: TruthLensPerspectiveDto[];
+  consensus: string | null;
+  openQuestions: string[];
+  confidence: TruthLensConfidence;
 }

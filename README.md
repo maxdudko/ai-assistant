@@ -1,8 +1,15 @@
 # MIRA — Personal AI Assistant
 
+**Current release:** **v0.3 (Beta) — Insight & Reflection Layer**
+
 **MIRA** is a personal AI-powered assistant designed to help individuals manage their daily life, reduce cognitive load, and think more clearly in an information-saturated world.
 
 This project is about **augmenting individual autonomy, clarity, and control** — not replacing humans with AI.
+
+> **What's new in v0.3:** automatic weekly reflections, expanded pattern
+> detection (procrastination, overload, productivity peaks), tighter coupling
+> between daily tasks and personal goals, and the upgraded **TruthLens v2**
+> comparative information layer. See [`docs/roadmap.md`](docs/roadmap.md#-v03--insight--reflection-layer-).
 
 ---
 

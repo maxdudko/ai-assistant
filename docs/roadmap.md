@@ -151,32 +151,59 @@ Deepen personalization and the feeling of "he knows me."
 
 ---
 
-## 📊 v0.3 — Insight & Reflection Layer
+## 📊 v0.3 — Insight & Reflection Layer ✅
+
+**Status:** Delivered (Beta)
 
 **Goal:**
 To help users **better understand themselves**, not just complete tasks.
 
-### New Features
+### Delivered Features
 
 #### Reflection Engine
 
-- Automatic weekly summaries
+- Automatic weekly summaries (Sunday 22:00 UTC cron + per-user manual trigger).
+- `WeeklyInsight` model persists per-ISO-week score, completion rate, top patterns,
+  focus suggestion, and a personal narrative authored by the LLM with a
+  deterministic fallback for offline LLM environments.
 - Recurring patterns:
-  - Procrastination
-  - Overload
-  - Productivity peaks
+  - **Procrastination** (rolling stalled tasks + repeated reschedules).
+  - **Overload** (replaces / extends the legacy `overcommitment` detector,
+    keeping the original tag for backward compatibility with stored memories).
+  - **Productivity peaks** — distinct detectors for morning / afternoon /
+    evening / late-night peaks based on completion-time clustering.
+- Surfaced via the new `/me/insights` page and the AI's RAG context as
+  `EPISODIC` reflection memories.
 
 #### Goals Deepening
 
-- Connect daily tasks to goals
-- Questions:
-  - "Does this bring you closer to X?"
+- Tasks can be linked to goals from chat via the new `TASK_LINK_GOAL` action
+  (reversible via undo).
+- Manager mode prompt now includes the user's active goals and asks
+  _"Does this bring you closer to X?"_ when alignment is unclear.
+- New `GET /goals/:id/progress` endpoint and goal-progress bars in the goals UI.
 
 #### TruthLens Lite → v2
 
-- Comparison of perspectives
-- Stricter rationality
-- Minimizing emotions
+- New `buildTruthLensDigestPrompt` produces structured perspectives (claim,
+  evidence, limitations), a consensus statement, open questions and an
+  explicit confidence label.
+- Comparative queries (`vs`, `compare`, `should I`, `pros and cons`, …) are
+  routed through the new path; an LLM classifier handles ambiguous wording.
+- Falls back to the existing neutral digest when TruthLens output is
+  unusable, keeping INFO mode resilient.
+- Stricter rationality and "minimize emotions" rules are encoded in the
+  prompt itself; UI renders the structured response as markdown with a
+  visible confidence label.
+
+### Success Criteria — verification
+
+- _≥1 useful insight per week_: enforced by the weekly cron + manual trigger;
+  empty weeks gracefully short-circuit instead of producing low-signal noise.
+- _Weekly report evokes "this is about me"_: narrative is built from the
+  user's actual completion data, recurring patterns and recent reflections.
+- _TruthLens provides rational feedback_: comparative queries return
+  evidence + limitations + uncertainty rather than a single opinion.
 
 ---
 

@@ -580,7 +580,7 @@ export class ConversationsService {
       deadline: task.deadline ? task.deadline.toISOString() : null,
     }));
 
-    const [backlogTasks, keyMessages] = await Promise.all([
+    const [backlogTasks, keyMessages, activeGoals] = await Promise.all([
       this.prisma.task.findMany({
         where: {
           userId,
@@ -593,7 +593,31 @@ export class ConversationsService {
       includeReflectionContext && conversation.dayId
         ? this.buildReflectionKeyMessages(conversation.dayId)
         : Promise.resolve(undefined),
+      this.prisma.goal.findMany({
+        where: { userId, isAchieved: false },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          priority: true,
+          tasks: { select: { status: true } },
+        },
+        orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+        take: 5,
+      }),
     ]);
+
+    const activeGoalContext = activeGoals.map(goal => {
+      const total = goal.tasks.length;
+      const completed = goal.tasks.filter(task => task.status === TaskStatus.DONE).length;
+      return {
+        id: goal.id,
+        name: goal.name,
+        type: goal.type,
+        priority: goal.priority,
+        progressPct: total === 0 ? 0 : Math.round((completed / total) * 100),
+      };
+    });
 
     return {
       mode: conversation.mode,
@@ -613,6 +637,7 @@ export class ConversationsService {
         priority: task.priority,
         deadline: task.deadline ? task.deadline.toISOString() : null,
       })),
+      activeGoals: activeGoalContext,
     };
   }
 
@@ -900,6 +925,7 @@ export class ConversationsService {
       'TASK_SET_PRIORITY',
       'TASK_SET_DUE_DATE',
       'TASK_COMPLETE',
+      'TASK_LINK_GOAL',
       'DAY_START',
       'DAY_END',
       'SUGGEST_DIGEST_SUBSCRIPTION',
@@ -1300,6 +1326,7 @@ export class ConversationsService {
       tasksToday: context.tasksToday,
       backlogTasks: context.backlogTasks,
       keyMessages: context.keyMessages,
+      activeGoals: context.activeGoals,
     };
 
     const systemPrompt = buildSystemPrompt(coreContext);

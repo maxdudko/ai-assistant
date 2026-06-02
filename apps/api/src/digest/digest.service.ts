@@ -1,8 +1,9 @@
 import { randomUUID } from 'crypto';
 
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { DigestFrequency } from '@prisma/client';
 import type { ActionCandidate } from '@ai/shared-types';
+import type { TruthLensPayload } from '@ai/ai-core';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
@@ -19,10 +20,34 @@ export interface DigestGenerationResult {
   highlights: string[];
   content: string;
   actionCandidates: ActionCandidate[];
+  mode: 'digest' | 'truthlens';
+  truthLens?: TruthLensPayload;
 }
+
+/**
+ * Heuristics that strongly suggest a TruthLens (comparative) response is more useful
+ * than a neutral information digest.
+ */
+const TRUTHLENS_PATTERNS: RegExp[] = [
+  /\b(vs\.?|versus)\b/i,
+  /\bcompare(d)?\b/i,
+  /\b(which|what)\s+is\s+better\b/i,
+  /\bshould\s+i\b/i,
+  /\bpros\s+and\s+cons\b/i,
+  /\bdownsides?\s+of\b/i,
+  /\bbenefits?\s+of\b.*\bvs\b/i,
+  /\b(opinions?|debate|controversy)\b/i,
+  /\bwhy\s+(is|do)\b.*\b(controversial|disputed)\b/i,
+];
+
+const TRUTHLENS_ENABLED_DEFAULT = true;
 
 @Injectable()
 export class DigestService {
+  private readonly logger = new Logger(DigestService.name);
+  private readonly truthLensEnabled =
+    (process.env.TRUTHLENS_V2_ENABLED ?? '').toLowerCase() !== 'false' && TRUTHLENS_ENABLED_DEFAULT;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
@@ -37,11 +62,41 @@ export class DigestService {
     const topic = this.resolveTopic(queryResult.topic, userMessage, searchQuery);
 
     const searchResults = await this.searchService.search(searchQuery);
-    const summary = await this.ai.generateInfoDigestSummary(searchResults);
 
+    const truthLensRoute = this.truthLensEnabled
+      ? await this.maybeRouteTruthLens(userMessage)
+      : false;
+
+    if (truthLensRoute) {
+      const truthLens = await this.ai
+        .generateTruthLensDigest(userMessage, searchResults)
+        .catch(error => {
+          this.logger.warn(
+            `TruthLens generation failed; falling back to plain digest: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          return null;
+        });
+
+      if (truthLens) {
+        const actionCandidates = await this.buildSubscriptionSuggestion(userId, topic);
+        return {
+          topic,
+          searchQuery,
+          title: truthLens.title,
+          highlights: truthLens.perspectives.map(perspective => perspective.claim),
+          content: this.renderTruthLens(truthLens),
+          actionCandidates,
+          mode: 'truthlens',
+          truthLens,
+        };
+      }
+    }
+
+    const summary = await this.ai.generateInfoDigestSummary(searchResults);
     const title = this.resolveTitle(summary.title, topic);
     const highlights = this.resolveHighlights(summary.highlights, searchResults);
-
     const actionCandidates = await this.buildSubscriptionSuggestion(userId, topic);
 
     return {
@@ -51,7 +106,73 @@ export class DigestService {
       highlights,
       content: this.renderDigest(title, highlights),
       actionCandidates,
+      mode: 'digest',
     };
+  }
+
+  /**
+   * Returns true when the user's message looks like a comparative / value-judgment query.
+   * Falls back to the LLM classifier only when the heuristic is uncertain.
+   */
+  private async maybeRouteTruthLens(userMessage: string): Promise<boolean> {
+    if (!userMessage || userMessage.trim().length < 4) {
+      return false;
+    }
+    if (TRUTHLENS_PATTERNS.some(pattern => pattern.test(userMessage))) {
+      return true;
+    }
+    try {
+      const classification = await this.ai.classifyInfoQuery(userMessage);
+      return classification.mode === 'truthlens';
+    } catch (error) {
+      this.logger.warn(
+        `TruthLens classification failed; defaulting to digest: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return false;
+    }
+  }
+
+  private renderTruthLens(payload: TruthLensPayload): string {
+    const lines: string[] = [
+      `### ${payload.title}`,
+      '',
+      `**Question:** ${payload.question}`,
+      '',
+      `**Confidence:** ${payload.confidence}`,
+      '',
+    ];
+
+    payload.perspectives.forEach(perspective => {
+      lines.push(`#### ${perspective.label}`);
+      lines.push(perspective.claim);
+      lines.push('');
+      if (perspective.evidence.length > 0) {
+        lines.push('Evidence:');
+        perspective.evidence.forEach(item => lines.push(`- ${item}`));
+        lines.push('');
+      }
+      if (perspective.limitations.length > 0) {
+        lines.push('Limitations:');
+        perspective.limitations.forEach(item => lines.push(`- ${item}`));
+        lines.push('');
+      }
+    });
+
+    if (payload.consensus) {
+      lines.push('**Shared ground:**');
+      lines.push(payload.consensus);
+      lines.push('');
+    }
+
+    if (payload.openQuestions.length > 0) {
+      lines.push('**Open questions:**');
+      payload.openQuestions.forEach(question => lines.push(`- ${question}`));
+      lines.push('');
+    }
+
+    return lines.join('\n').trimEnd();
   }
 
   async subscribe(userId: string, dto: SubscribeDigestDto) {

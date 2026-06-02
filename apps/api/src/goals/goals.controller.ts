@@ -33,6 +33,11 @@ export class GoalsController {
     return this.goalsService.findAll(req.user.id, parseListPagination(limit, offset));
   }
 
+  @Get(':id/progress')
+  getProgress(@Req() req, @Param('id') id: string) {
+    return this.goalsService.getProgress(req.user.id, id);
+  }
+
   @Get(':id')
   findOne(@Req() req, @Param('id') id: string) {
     return this.goalsService.findOne(req.user.id, id);

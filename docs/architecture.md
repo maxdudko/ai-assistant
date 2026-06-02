@@ -118,7 +118,8 @@ MIRA is a **stateful, context-aware AI assistant** designed to help individuals 
 | -------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
 | Chat UI              | `src/components/pages/chat/chat.tsx`                                                               | Real-time streaming chat with action buttons              |
 | Task List            | `src/components/pages/tasks/tasks-list.tsx`                                                        | Task management interface                                 |
-| Goal List            | `src/components/pages/goals/goals-list.tsx`                                                        | Goal tracking interface                                   |
+| Goal List            | `src/components/pages/goals/goals-list.tsx`                                                        | Goal tracking interface with per-goal progress bars       |
+| Insights View        | `src/components/pages/insights/insights-view.tsx`                                                  | Weekly reflection summary + earlier weeks history (v0.3)  |
 | Memory Browser       | `src/components/pages/memory/memory-list.tsx`                                                      | View stored memories                                      |
 | Auth Forms           | `src/components/pages/auth/login.tsx`, `register.tsx`, `forgot-password.tsx`, `reset-password.tsx` | Authentication and account recovery UI                    |
 | API Client           | `src/lib/api/client.ts`                                                                            | Centralized authenticated API communication               |
@@ -139,7 +140,8 @@ MIRA is a **stateful, context-aware AI assistant** designed to help individuals 
 /me/chat/[id]             # Specific conversation
 /me/conversations         # Conversation history
 /me/tasks                 # Task management
-/me/goals                 # Goal management
+/me/goals                 # Goal management (with progress bars)
+/me/insights              # Weekly insight & reflection layer (v0.3)
 /me/memory                # Memory browser
 /me/profile               # User settings
 /me/info-digests          # Digest subscriptions
@@ -192,16 +194,18 @@ src/
 │   ├── daily-engine.service.ts      # Event-driven orchestration
 │   ├── decision-engine.service.ts   # Action decision logic
 │   ├── unified-context.service.ts   # Context aggregation (tasks/memory/day)
-│   └── day-insight.service.ts       # Day score + summary generation
+│   ├── day-insight.service.ts       # Day score + summary generation
+│   └── weekly-insight.service.ts    # ISO-week aggregation + LLM narrative (v0.3)
 │
 ├── scheduler/                       # Scheduled/background triggers
-│   ├── daily-flow.scheduler.ts      # Cron-based hourly/daily checks
+│   ├── daily-flow.scheduler.ts      # Cron-based hourly/daily/weekly checks
 │   └── scheduler.controller.ts      # HTTP cron endpoints (production-friendly)
 │
 ├── memory/                          # RAG memory system
 │   ├── memory.service.ts            # CRUD operations
 │   ├── memory-ingestion.service.ts  # Store memories with embeddings
 │   ├── memory-retriever.service.ts  # Vector search
+│   ├── pattern-detection.service.ts # Procrastination / overload / productivity-peak detectors (v0.3)
 │   └── dto/memory-candidate.dto.ts
 │
 ├── embeddings/                      # Vector embedding generation
@@ -226,10 +230,11 @@ src/
 │   └── dto/
 │
 ├── days/                            # Daily lifecycle
-│   └── days.service.ts              # Start/end day, get summary
+│   ├── days.service.ts              # Start/end day, get summary
+│   └── weekly-insight.controller.ts # /day/weekly-insight read + manual trigger (v0.3)
 │
-├── digest/                          # Information digest subscriptions
-│   └── digest.service.ts
+├── digest/                          # Information digest + TruthLens v2 routing
+│   └── digest.service.ts            # Plain digest path + comparative TruthLens path
 │
 ├── search/                          # External search integration (provider-based)
 │   └── search.service.ts            # Used by INFO mode digest pipeline
@@ -244,18 +249,22 @@ src/
 
 #### Service Responsibilities
 
-| Service                  | Single Responsibility                                   | Dependencies                                                         |
-| ------------------------ | ------------------------------------------------------- | -------------------------------------------------------------------- |
-| `AuthService`            | User authentication and token lifecycle                 | PrismaService, JwtService                                            |
-| `ConversationsService`   | **Message lifecycle orchestration**                     | AI, actions, memory ingestion, day resolver, digest, logs, daily svc |
-| `AiService`              | Type mapping and ai-core provider adapter               | ConfigService                                                        |
-| `DailyEngineService`     | Event-driven daily decisions and proactive suggestions  | DecisionEngineService, ActionsService, UnifiedContextService         |
-| `UnifiedContextService`  | Build merged day/task/memory context                    | PrismaService, MemoryRetrieverService, TaskScoringService            |
-| `MemoryIngestionService` | Store curated memory candidates with embeddings         | PrismaService, EmbeddingsService                                     |
-| `MemoryRetrieverService` | Vector search + reranking + contextual memory buckets   | PrismaService, EmbeddingsService                                     |
-| `ActionsService`         | Candidate lifecycle: create/confirm/dismiss/undo        | PrismaService, ActionExecutorService                                 |
-| `ActionExecutorService`  | Execute actions and support reversible action undo      | TasksService, DaysService, DigestService, MemoryIngestionService     |
-| `SearchService`          | Abstract search over pluggable provider implementations | Search provider interface (NewsApiProvider by default)               |
+| Service                   | Single Responsibility                                                                                 | Dependencies                                                                |
+| ------------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `AuthService`             | User authentication and token lifecycle                                                               | PrismaService, JwtService                                                   |
+| `ConversationsService`    | **Message lifecycle orchestration** (now also injects active goals into MANAGER context)              | AI, actions, memory ingestion, day resolver, digest, logs, daily svc, goals |
+| `AiService`               | Type mapping and ai-core provider adapter; exposes weekly narrative + TruthLens classifier/digest     | ConfigService                                                               |
+| `DailyEngineService`      | Event-driven daily decisions and proactive suggestions                                                | DecisionEngineService, ActionsService, UnifiedContextService                |
+| `UnifiedContextService`   | Build merged day/task/memory context                                                                  | PrismaService, MemoryRetrieverService, TaskScoringService                   |
+| `WeeklyInsightService`    | ISO-week aggregation, LLM-authored narrative (with deterministic fallback) + reflection memory ingest | PrismaService, AiService, MemoryIngestionService                            |
+| `PatternDetectionService` | Detect overload / procrastination / productivity-peak patterns and persist them as `PATTERN` memories | PrismaService, MemoryIngestionService                                       |
+| `MemoryIngestionService`  | Store curated memory candidates with embeddings                                                       | PrismaService, EmbeddingsService                                            |
+| `MemoryRetrieverService`  | Vector search + reranking + contextual memory buckets                                                 | PrismaService, EmbeddingsService                                            |
+| `ActionsService`          | Candidate lifecycle: create/confirm/dismiss/undo                                                      | PrismaService, ActionExecutorService                                        |
+| `ActionExecutorService`   | Execute actions (incl. `TASK_LINK_GOAL`) and support reversible action undo                           | TasksService, DaysService, DigestService, MemoryIngestionService            |
+| `DigestService`           | INFO mode pipeline: routes comparative queries through TruthLens v2 path, falls back to plain digest  | AiService, SearchService, PrismaService                                     |
+| `SearchService`           | Abstract search over pluggable provider implementations                                               | Search provider interface (NewsApiProvider by default)                      |
+| `GoalsService`            | Goal CRUD + per-goal progress aggregation (`getProgress`, `findAll` with task counts)                 | PrismaService                                                               |
 
 ---
 
@@ -287,16 +296,19 @@ providers/
   └─→ openai.provider.ts         // Cloud LLM
 
 prompts/
-  ├─→ system.prompt.ts           // Context-aware prompt builder
-  ├─→ mode.prompts.ts            // Mode-specific instructions
-  ├─→ info-digest.prompts.ts     // INFO mode prompts
+  ├─→ system.prompt.ts           // Context-aware prompt builder (incl. active goals + alignment guidance, v0.3)
+  ├─→ mode.prompts.ts            // Mode-specific instructions (incl. TASK_LINK_GOAL action)
+  ├─→ info-digest.prompts.ts     // INFO mode neutral digest prompts
+  ├─→ truthlens.prompts.ts       // TruthLens v2 classifier + comparative digest prompts (v0.3)
+  ├─→ weekly-summary.prompt.ts   // Weekly reflection narrative prompt (v0.3)
+  ├─→ memory-extraction.prompt.ts
   └─→ message.formatter.ts       // Format conversation history
 
 memory/
   └─→ extractor.ts               // Heuristic memory extraction
 
 types/
-  └─→ index.ts                   // Core types (ConversationContext, etc.)
+  └─→ index.ts                   // Core types (ConversationContext, GoalContext, etc.)
 ```
 
 **Key Abstractions**:
@@ -329,6 +341,39 @@ interface AiResponse {
   actionCandidates?: ActionCandidate[];
   memoryCandidates?: MemoryCandidate[];
   summary?: string;
+}
+
+// v0.3 — Goal context surfaced into the MANAGER prompt
+interface GoalContext {
+  id: string;
+  name: string;
+  type?: string;
+  priority?: string;
+  progressPct?: number; // 0..100, derived from linked-task completion
+}
+
+// v0.3 — Weekly reflection narrative payload (LLM output)
+interface WeeklyNarrativePayload {
+  narrative: string; // 280..800 chars, paragraph-style
+  focusSuggestion: string; // single sentence under 180 chars
+  topPatterns: string[]; // 0..3 short tags, lowercase, hyphenated
+}
+
+// v0.3 — TruthLens v2 comparative digest payload
+type TruthLensConfidence = 'low' | 'medium' | 'high';
+interface TruthLensPerspective {
+  label: string;
+  claim: string;
+  evidence: string[];
+  limitations: string[];
+}
+interface TruthLensPayload {
+  title: string;
+  question: string;
+  perspectives: TruthLensPerspective[];
+  consensus: string | null;
+  openQuestions: string[];
+  confidence: TruthLensConfidence;
 }
 ```
 
@@ -541,6 +586,11 @@ interface AiResponse {
      case 'SUGGEST_DIGEST_SUBSCRIPTION':
        DigestService.subscribeFromSuggestion(userId, payload)
 
+     case 'TASK_LINK_GOAL':                          // v0.3
+       // Validate ownership of both task and goal,
+       // then update task.goalId. Undo restores previous goal.
+       TasksService.update(userId, taskId, { goalId })
+
      case 'SIMPLIFY_DAY':
      case 'SPLIT_TASK':
      case 'RESCHEDULE_TASK':
@@ -644,6 +694,160 @@ interface AiResponse {
    Example:
    User: "Schedule a meeting with Bob"
    AI: "I'll schedule it in the morning since you prefer morning meetings."
+```
+
+---
+
+### Flow 4: Weekly Insight Generation (v0.3)
+
+```
+1. TRIGGER (one of)
+   A. Cron — Sunday 22:00 UTC
+      DailyFlowScheduler.handleWeeklySummary()
+      └─→ runWeeklySummary() → WeeklyInsightService.runForAllUsers()
+
+   B. Vercel Cron HTTP trigger
+      POST /api/scheduler/weekly-summary  (CRON_SECRET-guarded)
+
+   C. Manual user trigger
+      POST /api/day/weekly-insight/generate
+      └─→ WeeklyInsightService.generateForUser(userId, { source: 'MANUAL' })
+
+2. AGGREGATION
+   WeeklyInsightService.generateForUser(userId, options)
+
+   A. Resolve ISO-week bounds (UTC-anchored Monday..Sunday) for the user's
+      timezone using computeIsoWeekBounds(referenceDate, timezone).
+
+   B. Parallel data fetch:
+      ├─→ Day[] in [weekStart, weekEnd] (with linked tasks + DayInsight)
+      ├─→ Memory[] (EPISODIC, last 7 days)         — recent reflections
+      ├─→ ActionExecutionLog count for RESCHEDULE_TASK in window
+      ├─→ Goal[] (active, with task statuses)      — for goalProgress[]
+      └─→ Memory[] (PATTERN, last 30 days)         — top patterns
+
+   C. Compute aggregates:
+      - totalTasks / completedTasks / completionRate
+      - completionsByBucket: morning / afternoon / evening / lateNight
+      - dailyScores → weighted weekly score (1..10)
+      - observedPatterns: top tags from PATTERN-layer memories
+
+3. NARRATIVE (LLM)
+   AiService.generateWeeklyNarrative(input)
+   └─→ buildWeeklySummaryPrompt() + JSON output schema:
+       { narrative, focusSuggestion, topPatterns[] }
+
+   Fallback path (LLM unavailable / invalid JSON):
+   └─→ Deterministic template with raw counters,
+       observed patterns and a calibrated focus suggestion.
+
+4. PERSIST
+   prisma.weeklyInsight.upsert({
+     where: { userId_isoYear_isoWeek },
+     create/update: { score, completionRate, totalTasks, completedTasks,
+                      reschedules, topPatterns, focusSuggestion, narrative,
+                      source: AUTOMATIC | MANUAL }
+   })
+
+5. RAG INGEST
+   MemoryIngestionService.ingest(userId, [
+     { layer: 'EPISODIC', type: 'REFLECTION',
+       importance: clamp(score, 6, 9), confidence: 0.75,
+       tags: ['reflection', 'weekly', ...topPatterns] }
+   ], 'REFLECTION', {})
+
+   — Failures here are logged but do not fail the insight.
+
+6. RESPONSE / UI
+   - Read endpoints: GET /api/day/weekly-insight/latest
+                     GET /api/day/weekly-insight?limit=&offset=
+   - /me/insights renders the latest week + earlier weeks list.
+   - The fresh EPISODIC memory is now available to subsequent
+     conversations through normal RAG retrieval.
+
+7. NO-OP SHORT-CIRCUIT
+   If totalTasks === 0 AND days.length === 0 AND reschedules === 0:
+   └─→ Return null, no row written, no memory ingested.
+       (Avoids low-signal "empty week" reports.)
+```
+
+---
+
+### Flow 5: TruthLens v2 — Comparative INFO Query (v0.3)
+
+```
+1. ENTRY
+   ConversationsService detects INFO mode from the user's message
+   (existing keyword + intent heuristic) and delegates to:
+   DigestService.generateDigest(userId, userMessage)
+
+2. SEARCH PREP (unchanged)
+   ├─→ AiService.generateInfoSearchQuery(userMessage)
+   │     └─→ { searchQuery, topic }
+   └─→ SearchService.search(searchQuery)
+         └─→ SearchResult[]
+
+3. ROUTING DECISION
+   DigestService.maybeRouteTruthLens(userMessage)
+
+   A. Deterministic regex pass — short-circuits to TruthLens when the
+      message obviously asks for a comparison or a value judgment:
+        /\b(vs|versus)\b/i, /\bcompare(d)?\b/i,
+        /\bwhich is better\b/i, /\bshould\s+i\b/i,
+        /\bpros and cons\b/i, /\b(opinions|debate|controversy)\b/i, ...
+
+   B. If undecided, AiService.classifyInfoQuery(userMessage)
+      └─→ buildTruthLensClassifierPrompt()
+      └─→ { mode: 'truthlens' | 'digest', rewrittenQuery }
+
+   C. Errors here log a warning and default to 'digest'
+      (the path is fail-safe — comparative queries degrade to neutral
+      digests rather than failing the user message).
+
+4A. TRUTHLENS PATH
+    AiService.generateTruthLensDigest(userMessage, searchResults)
+    └─→ buildTruthLensDigestPrompt()
+        Strict rules: evidence comes from search results only;
+        each perspective lists at least one limitation;
+        confidence label is required; no decision-making advice.
+
+    Validation + normalization (truncates list lengths, trims whitespace,
+    drops empty perspectives).
+
+    DigestService.renderTruthLens(payload) → markdown:
+      ### {title}
+      **Question:** ...
+      **Confidence:** low | medium | high
+
+      #### {perspective.label}
+      Evidence: - ...
+      Limitations: - ...
+
+      **Shared ground:** ...
+      **Open questions:** - ...
+
+    Returned as DigestGenerationResult with mode: 'truthlens' and a
+    `truthLens` payload alongside the markdown content.
+
+4B. PLAIN DIGEST PATH (fallback)
+    AiService.generateInfoDigestSummary(searchResults)
+    └─→ DigestService renders existing neutral digest markdown.
+
+5. ASSISTANT MESSAGE
+   ConversationsService stores `digest.content` as the assistant message
+   (markdown). The chat UI already renders markdown, so TruthLens output
+   appears with structured headings, evidence lists and a visible
+   confidence label without UI-side schema changes.
+
+6. SUBSCRIPTION NUDGE (unchanged)
+   buildSubscriptionSuggestion(userId, topic) may attach a
+   SUGGEST_DIGEST_SUBSCRIPTION action candidate the same way the plain
+   digest path does.
+
+7. OBSERVABILITY
+   - When TruthLens is enabled (TRUTHLENS_V2_ENABLED !== 'false'),
+     every LLM failure logs a warning and the path falls back gracefully
+     — never blocking the INFO reply.
 ```
 
 ---
@@ -820,7 +1024,51 @@ Each mode has custom system prompt template in `packages/ai-core/src/prompts/mod
 
 ---
 
-### Decision 8: JWT + Refresh Token Pattern
+### Decision 8: Weekly Insight as a Persisted Aggregate (v0.3)
+
+**Rationale**:
+Weekly reflections are stored as their own first-class entity (`WeeklyInsight`) instead of being recomputed on demand:
+
+- ✅ Stable, citable artifact ("this is what week 22 looked like")
+- ✅ Composable into RAG via an additional `EPISODIC` memory ingest
+- ✅ Cron + manual trigger share the same path through `WeeklyInsightService.generateForUser`
+- ✅ Idempotent thanks to the `(userId, isoYear, isoWeek)` unique key
+
+**LLM-with-fallback**:
+The narrative is generated by the LLM but a deterministic templated fallback is always available, so the feature works in offline-LLM environments and never produces a half-broken row.
+
+**Empty-week short-circuit**:
+If a user truly had no activity, no row is written and no memory is ingested — the success criterion is "≥1 useful insight per week", not "an insight every week regardless of signal".
+
+---
+
+### Decision 9: TruthLens v2 Routing Inside INFO Mode (v0.3)
+
+**Rationale**:
+Rather than introduce a separate user-visible "mode", v0.3 routes comparative queries through a new path inside the existing INFO/digest pipeline:
+
+- ✅ Users keep a single mental model — they ask, MIRA answers
+- ✅ Regex-first classifier keeps obvious cases free of an extra LLM call
+- ✅ LLM classifier handles ambiguous wording without blowing up cost
+- ✅ Fail-safe fallback to the neutral digest if TruthLens output is unusable
+
+**Output contract**:
+TruthLens v2 returns a structured payload (perspectives, evidence, limitations, consensus, open questions, explicit confidence). The chat UI renders it as markdown — no UI schema changes were needed.
+
+---
+
+### Decision 10: Goal Alignment via Action, Not Auto-link (v0.3)
+
+**Rationale**:
+A new `TASK_LINK_GOAL` action type was added rather than silently assigning `task.goalId` from the LLM:
+
+- ✅ Preserves the autonomy principle — every link to a goal is user-confirmed
+- ✅ Reuses the existing action lifecycle (PENDING → CONFIRMED → EXECUTED) and undo machinery
+- ✅ The MANAGER prompt now also receives the user's active goals (top 5 by priority) and a single alignment question pattern ("Does this bring you closer to X?") — instructions are pushed into the prompt rather than hard-coded into the assistant logic
+
+---
+
+### Decision 11: JWT + Refresh Token Pattern
 
 **Rationale**:
 
@@ -1001,6 +1249,17 @@ You can suggest actions by returning JSON with this structure:
 }
 ```
 
+**v0.3 — Goal alignment in MANAGER prompt** (`packages/ai-core/src/prompts/system.prompt.ts`):
+
+When `context.activeGoals` is populated, the MANAGER prompt receives an additional
+`Active goals:` section followed by alignment guidance:
+
+- gently consider whether new commitments advance an active goal,
+- if uncertain, ask one short question: _"Does this bring you closer to <goal name>?"_,
+- if alignment is clear and the task is unlinked, propose a `TASK_LINK_GOAL` action
+  with payload `{ taskId, goalId }` (confidence 0.6–0.85),
+- never link silently — the user must confirm.
+
 **Mode-Specific Prompts** (`packages/ai-core/src/prompts/mode.prompts.ts`):
 
 ```typescript
@@ -1039,6 +1298,25 @@ export const MODE_INSTRUCTIONS = {
   `,
 };
 ```
+
+**v0.3 — Comparative INFO via TruthLens v2** (`packages/ai-core/src/prompts/truthlens.prompts.ts`):
+
+INFO mode is now backed by two prompts:
+
+- `buildTruthLensClassifierPrompt(userMessage)` — picks `'truthlens'` or `'digest'`
+  for ambiguous queries (the regex pre-pass handles the obvious ones).
+- `buildTruthLensDigestPrompt(userMessage, searchResults)` — produces a structured
+  multi-perspective digest with evidence, limitations, optional consensus,
+  open questions and an explicit confidence label. Strict rules forbid sourcing
+  evidence outside `searchResults` and require minimizing emotional language.
+
+**v0.3 — Weekly Reflection** (`packages/ai-core/src/prompts/weekly-summary.prompt.ts`):
+
+`buildWeeklySummaryPrompt(input)` asks the LLM to produce a personal narrative
+plus a single `focusSuggestion` and up to three `topPatterns`. The prompt is
+deliberately calm and observational ("describe, don't lecture"), and the
+service always has a deterministic fallback when the LLM is unavailable or
+returns invalid JSON.
 
 ---
 
@@ -1127,6 +1405,9 @@ User (1) ←─────→ (1) UserProfile
   ├─→ (many) ActionCandidates
   │     └─→ (many) ActionExecutionLogs
   │
+  ├─→ (many) WeeklyInsights              # v0.3 — one row per ISO-week
+  │     (unique on userId + isoYear + isoWeek)
+  │
   └─→ (many) DigestSubscriptions
         └─→ (1) DigestTopic
 ```
@@ -1153,6 +1434,10 @@ CREATE INDEX ON "Task"("dayId");
 
 -- Action tracking
 CREATE INDEX ON "ActionCandidate"("userId", "status");
+
+-- Weekly insight (v0.3)
+CREATE UNIQUE INDEX ON "WeeklyInsight"("userId", "isoYear", "isoWeek");
+CREATE INDEX ON "WeeklyInsight"("userId", "weekStart");
 ```
 
 **Vector Search Performance**:
@@ -1220,22 +1505,26 @@ DELETE /api/tasks/:id             # Delete task
 **Goals**:
 
 ```
-GET    /api/goals                 # List goals
-GET    /api/goals/:id             # Get goal
-POST   /api/goals                 # Create goal
-PATCH  /api/goals/:id             # Update goal
-DELETE /api/goals/:id             # Delete goal
+GET    /api/goals                  # List goals (with totalTasks/completedTasks/progressPct)
+GET    /api/goals/:id              # Get goal
+GET    /api/goals/:id/progress     # Per-goal progress (counts + recent activity, v0.3)
+POST   /api/goals                  # Create goal
+PATCH  /api/goals/:id              # Update goal
+DELETE /api/goals/:id              # Delete goal
 ```
 
 **Day lifecycle and intelligence**:
 
 ```
-GET    /api/day/today             # Current day context
-POST   /api/day/start             # Start day
-POST   /api/day/end               # End day
-GET    /api/day/summary           # Day summary
-GET    /api/day/morning-briefing  # Morning briefing payload
-GET    /api/day/intelligence      # Unified day intelligence snapshot
+GET    /api/day/today                       # Current day context
+POST   /api/day/start                       # Start day
+POST   /api/day/end                         # End day
+GET    /api/day/summary                     # Day summary
+GET    /api/day/morning-briefing            # Morning briefing payload
+GET    /api/day/intelligence                # Unified day intelligence snapshot
+GET    /api/day/weekly-insight/latest       # Most recent WeeklyInsight (v0.3)
+GET    /api/day/weekly-insight              # Paginated WeeklyInsight history (v0.3)
+POST   /api/day/weekly-insight/generate     # Manual trigger for current week (v0.3)
 ```
 
 **Actions**:
@@ -1269,13 +1558,14 @@ GET    /api/logs                  # List AI logs
 GET    /api/logs/:id              # Get specific AI log
 ```
 
-**Scheduler (cron trigger endpoints)**:
+**Scheduler (cron trigger endpoints, CRON_SECRET-guarded)**:
 
 ```
 POST   /api/scheduler/morning-briefing
 POST   /api/scheduler/evening-reflection
 POST   /api/scheduler/time-trigger
 POST   /api/scheduler/pattern-detection
+POST   /api/scheduler/weekly-summary       # Sunday 22:00 UTC (v0.3)
 ```
 
 **Streaming Protocol** (NDJSON over chunked HTTP):
@@ -1339,6 +1629,7 @@ Event format: newline-delimited JSON
 - Relative cross-package imports were replaced with workspace package alias usage (`@ai/ai-core`).
 - Embeddings are no longer pure stubs: Ollama and OpenAI providers are implemented with retries and guarded fallbacks.
 - Search is no longer a stub-only boundary: provider interface plus `NewsApiProvider` is in place.
+- **v0.3 — Insight & Reflection Layer delivered**: weekly aggregation persisted as `WeeklyInsight`, automatic narrative ingest as `EPISODIC` reflection memory, expanded pattern detection (procrastination + time-of-day productivity peaks), goal alignment via the new `TASK_LINK_GOAL` action, and TruthLens v2 routing inside INFO mode with structured perspectives + confidence label.
 
 ---
 
@@ -1372,12 +1663,13 @@ Event format: newline-delimited JSON
 4. **Plugins** - Third-party integrations (Calendar, Email, etc.)
 5. **Multi-language** - i18n support
 6. **Team Features** - Shared goals, collaborative tasks
-7. **Advanced RAG** - Hierarchical memory, episodic memory
+7. **Advanced RAG** - Beyond v0.3 episodic reflections — hierarchical memory and richer cross-week reasoning
 8. **Autonomous Actions** - Low-risk actions auto-executed
 9. **Custom LLM Fine-tuning** - Train on user's patterns
+10. **Insight Trends** - Multi-week aggregations and monthly narratives layered on top of `WeeklyInsight`
 
 ---
 
-**Document Version**: 0.2  
-**Last Updated**: 2026-04-30  
+**Document Version**: 0.3  
+**Last Updated**: 2026-06-02  
 **Maintainer**: MIRA Development Team

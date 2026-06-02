@@ -1,5 +1,11 @@
 import { apiFetch } from './client';
-import type { GoalDto, CreateGoalRequest, UpdateGoalRequest, PaginatedList } from './types';
+import type {
+  GoalDto,
+  CreateGoalRequest,
+  UpdateGoalRequest,
+  PaginatedList,
+  GoalProgressDto,
+} from './types';
 
 export async function getGoals(options?: {
   limit?: number;
@@ -34,4 +40,8 @@ export async function deleteGoal(id: string): Promise<void> {
   return apiFetch<void>(`/api/goals/${id}`, {
     method: 'DELETE',
   });
+}
+
+export async function getGoalProgress(id: string): Promise<GoalProgressDto> {
+  return apiFetch<GoalProgressDto>(`/api/goals/${id}/progress`);
 }

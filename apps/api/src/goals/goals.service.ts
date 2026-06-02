@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { TaskStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import type { ListPagination } from '../common/parse-list-pagination';
@@ -9,6 +10,61 @@ import { UpdateGoalDto } from './dto/update-goal.dto';
 @Injectable()
 export class GoalsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async getProgress(userId: string, id: string) {
+    const goal = await this.prisma.goal.findFirst({
+      where: { id, userId },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        priority: true,
+        isAchieved: true,
+        tasks: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            updatedAt: true,
+          },
+          orderBy: { updatedAt: 'desc' },
+        },
+      },
+    });
+
+    if (!goal) {
+      throw new NotFoundException('Goal not found');
+    }
+
+    const totalTasks = goal.tasks.length;
+    const completedTasks = goal.tasks.filter(task => task.status === TaskStatus.DONE).length;
+    const inProgressTasks = goal.tasks.filter(
+      task => task.status === TaskStatus.IN_PROGRESS,
+    ).length;
+    const todoTasks = goal.tasks.filter(task => task.status === TaskStatus.TODO).length;
+    const completionRate = totalTasks > 0 ? completedTasks / totalTasks : 0;
+
+    return {
+      goal: {
+        id: goal.id,
+        name: goal.name,
+        type: goal.type,
+        priority: goal.priority,
+        isAchieved: goal.isAchieved,
+      },
+      totalTasks,
+      completedTasks,
+      inProgressTasks,
+      todoTasks,
+      completionRate,
+      recentActivity: goal.tasks.slice(0, 5).map(task => ({
+        taskId: task.id,
+        name: task.name,
+        status: task.status,
+        updatedAt: task.updatedAt.toISOString(),
+      })),
+    };
+  }
 
   async create(userId: string, createGoalDto: CreateGoalDto) {
     const data: any = {
@@ -66,6 +122,9 @@ export class GoalsService {
         parentId: true,
         createdAt: true,
         updatedAt: true,
+        tasks: {
+          select: { status: true },
+        },
       },
       orderBy: { createdAt: 'desc' },
       take,
@@ -73,7 +132,18 @@ export class GoalsService {
     });
 
     const hasMore = rows.length > limit;
-    const items = hasMore ? rows.slice(0, limit) : rows;
+    const sliced = hasMore ? rows.slice(0, limit) : rows;
+    const items = sliced.map(({ tasks, ...goal }) => {
+      const totalTasks = tasks.length;
+      const completedTasks = tasks.filter(task => task.status === TaskStatus.DONE).length;
+      const progressPct = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
+      return {
+        ...goal,
+        totalTasks,
+        completedTasks,
+        progressPct,
+      };
+    });
 
     return {
       items,

@@ -168,6 +168,7 @@ model User {
   memories            Memory[]
   digestSubscriptions DigestSubscription[]
   aiLogs              AiLog[]
+  weeklyInsights      WeeklyInsight[]
 }
 
 model UserProfile {
@@ -282,6 +283,31 @@ model ActionCandidate {
   @@index([userId, createdAt])
   @@index([conversationId])
   @@index([status])
+}
+
+model WeeklyInsight {
+  id             String   @id @default(uuid())
+  userId         String
+  weekStart      DateTime // Monday 00:00 in user's timezone, stored as UTC instant
+  weekEnd        DateTime // Sunday 23:59:59.999 in user's timezone, stored as UTC instant
+  isoYear        Int
+  isoWeek        Int
+  score          Int // 1..10 aggregate week score
+  completionRate Float
+  totalTasks     Int      @default(0)
+  completedTasks Int      @default(0)
+  reschedules    Int      @default(0)
+  topPatterns    String[] @default([])
+  focusSuggestion String?
+  narrative      String   @db.Text
+  source         String   @default("AUTOMATIC") // AUTOMATIC | MANUAL
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, isoYear, isoWeek])
+  @@index([userId, weekStart])
 }
 
 model ActionExecutionLog {
