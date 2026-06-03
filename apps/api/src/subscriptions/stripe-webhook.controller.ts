@@ -1,14 +1,13 @@
 import {
   BadRequestException,
   Controller,
-  Headers,
   HttpCode,
   Logger,
   Post,
   Req,
 } from '@nestjs/common';
 
-import type { StripeWebhookRequest } from './stripe.types';
+import { readStripeSignatureHeader, type StripeWebhookRequest } from './stripe.types';
 import { StripeService } from './stripe.service';
 import { StripeWebhookService } from './stripe-webhook.service';
 
@@ -23,10 +22,7 @@ export class StripeWebhookController {
 
   @Post('webhook')
   @HttpCode(200)
-  async handleWebhook(
-    @Req() req: StripeWebhookRequest,
-    @Headers('stripe-signature') signature: string | undefined,
-  ) {
+  async handleWebhook(@Req() req: StripeWebhookRequest) {
     const rawBody = req.rawBody;
     if (!rawBody || !Buffer.isBuffer(rawBody)) {
       throw new BadRequestException(
@@ -34,16 +30,26 @@ export class StripeWebhookController {
       );
     }
 
+    const signature = readStripeSignatureHeader(req);
+    if (!signature) {
+      const userAgent = req.headers['user-agent'] ?? 'unknown';
+      this.logger.warn(
+        `Rejected webhook without Stripe-Signature (user-agent: ${userAgent}). ` +
+          'Use `stripe listen --forward-to localhost:4000/api/subscriptions/webhook` for local dev.',
+      );
+    }
+
     let event;
     try {
       event = this.stripe.constructWebhookEvent(rawBody, signature);
     } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       this.logger.warn(
-        `Stripe webhook signature verification failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        `Stripe webhook rejected: ${error instanceof Error ? error.message : String(error)}`,
       );
-      throw new BadRequestException('Invalid Stripe webhook signature.');
+      throw error;
     }
 
     await this.webhooks.handleEvent(event);

@@ -130,11 +130,25 @@ export class StripeService {
       throw new ServiceUnavailableException('Stripe webhook is not configured.');
     }
 
-    if (!signature || Array.isArray(signature)) {
-      throw new BadRequestException('Missing Stripe signature header.');
+    if (!signature) {
+      throw new BadRequestException(
+        'Missing Stripe-Signature header. Webhooks must be sent by Stripe or `stripe listen` — do not call this URL manually.',
+      );
     }
 
-    return this.getStripe().webhooks.constructEvent(payload, signature, config.webhookSecret);
+    if (Array.isArray(signature)) {
+      throw new BadRequestException('Invalid Stripe-Signature header.');
+    }
+
+    try {
+      return this.getStripe().webhooks.constructEvent(payload, signature, config.webhookSecret);
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error
+          ? `Stripe webhook signature verification failed: ${error.message}`
+          : 'Stripe webhook signature verification failed.',
+      );
+    }
   }
 
   private async getOrCreateStripeCustomer(
