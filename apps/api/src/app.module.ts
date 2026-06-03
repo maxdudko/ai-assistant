@@ -20,6 +20,7 @@ import { MemoryModule } from './memory/memory.module';
 import { LogsModule } from './logs/logs.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { DailyModule } from './daily/daily.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { DailyModule } from './daily/daily.module';
     LogsModule,
     DailyModule,
     SchedulerModule,
+    SubscriptionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

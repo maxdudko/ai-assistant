@@ -5,6 +5,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { MemoryIngestionService } from '../memory/memory-ingestion.service';
 import { MemoryLayer, MemoryType } from '../memory/dto/memory-candidate.dto';
+import { FeatureAccessService } from '../subscriptions/feature-access.service';
+import { Features } from '../subscriptions/plan-entitlements';
 
 import { sanitizeTimeZone } from './daily-timezone.util';
 
@@ -37,6 +39,7 @@ export class WeeklyInsightService {
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
     private readonly memoryIngestion: MemoryIngestionService,
+    private readonly featureAccess: FeatureAccessService,
   ) {}
 
   /**
@@ -47,6 +50,10 @@ export class WeeklyInsightService {
     userId: string,
     options: { referenceDate?: Date; source?: 'AUTOMATIC' | 'MANUAL' } = {},
   ): Promise<WeeklyInsightSummary | null> {
+    if (options.source === 'MANUAL') {
+      await this.featureAccess.assertCanUse(userId, Features.ADVANCED_INSIGHTS);
+    }
+
     const reference = options.referenceDate ?? new Date();
     const profile = await this.prisma.userProfile.findUnique({
       where: { userId },
@@ -259,6 +266,8 @@ export class WeeklyInsightService {
     userId: string,
     options: { limit?: number; offset?: number } = {},
   ): Promise<{ items: WeeklyInsightSummary[]; hasMore: boolean; nextOffset: number | null }> {
+    await this.featureAccess.assertCanUse(userId, Features.CROSS_WEEK_ANALYSIS);
+
     const limit = Math.max(1, Math.min(50, options.limit ?? 12));
     const offset = Math.max(0, options.offset ?? 0);
     const rows = await this.prisma.weeklyInsight.findMany({

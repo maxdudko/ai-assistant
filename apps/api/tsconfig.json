@@ -15,7 +15,8 @@
     "outDir": "./dist",
     "baseUrl": "./",
     "paths": {
-      "@ai/ai-core": ["../../packages/ai-core/src/index.ts"]
+      "@ai/ai-core": ["../../packages/ai-core/src/index.ts"],
+      "@ai/shared-types": ["../../packages/shared-types/src/index.ts"]
     },
     "incremental": true,
     "skipLibCheck": true,

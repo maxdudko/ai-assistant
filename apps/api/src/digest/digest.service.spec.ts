@@ -16,6 +16,17 @@ function buildSearch(results: unknown[] = []) {
   return { search: jest.fn().mockResolvedValue(results) };
 }
 
+function buildFeatureAccess(
+  overrides: Partial<{ canUse: jest.Mock; assertCanUse: jest.Mock }> = {},
+) {
+  return {
+    canUse: jest.fn().mockResolvedValue(true),
+    assertCanUse: jest.fn().mockResolvedValue(undefined),
+    getPlanLimits: jest.fn().mockResolvedValue({ maxDigestTopics: 10 }),
+    ...overrides,
+  };
+}
+
 function buildPrisma() {
   return {
     digestSubscription: {
@@ -59,6 +70,7 @@ describe('DigestService TruthLens routing', () => {
       buildPrisma() as unknown as never,
       ai as unknown as never,
       buildSearch([{ title: 'r', snippet: 's', url: 'u' }]) as unknown as never,
+      buildFeatureAccess() as unknown as never,
     );
 
     const result = await service.generateDigest('user-1', 'TypeScript vs JavaScript pros and cons');
@@ -78,6 +90,7 @@ describe('DigestService TruthLens routing', () => {
       buildPrisma() as unknown as never,
       ai as unknown as never,
       buildSearch([{ title: 'r', snippet: 's', url: 'u' }]) as unknown as never,
+      buildFeatureAccess() as unknown as never,
     );
 
     const result = await service.generateDigest('user-1', 'X vs Y opinions');
@@ -92,9 +105,33 @@ describe('DigestService TruthLens routing', () => {
       buildPrisma() as unknown as never,
       ai as unknown as never,
       buildSearch([{ title: 'r', snippet: 's', url: 'u' }]) as unknown as never,
+      buildFeatureAccess() as unknown as never,
     );
 
     const result = await service.generateDigest('user-1', 'Updates on the latest AI news');
+    expect(result.mode).toBe('digest');
+    expect(ai.generateTruthLensDigest).not.toHaveBeenCalled();
+  });
+
+  it('skips TruthLens when the user lacks the feature entitlement', async () => {
+    const ai = buildAi({
+      generateTruthLensDigest: jest.fn().mockResolvedValue({
+        title: 'Blocked',
+        question: 'Q',
+        perspectives: [],
+        consensus: 'N/A',
+        openQuestions: [],
+        confidence: 'low' as const,
+      }),
+    });
+    const service = new DigestService(
+      buildPrisma() as unknown as never,
+      ai as unknown as never,
+      buildSearch([{ title: 'r', snippet: 's', url: 'u' }]) as unknown as never,
+      buildFeatureAccess({ canUse: jest.fn().mockResolvedValue(false) }) as unknown as never,
+    );
+
+    const result = await service.generateDigest('user-1', 'TypeScript vs JavaScript pros and cons');
     expect(result.mode).toBe('digest');
     expect(ai.generateTruthLensDigest).not.toHaveBeenCalled();
   });

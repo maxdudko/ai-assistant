@@ -141,6 +141,19 @@ enum DigestFrequency {
   DAILY
 }
 
+enum SubscriptionPlan {
+  FREE
+  PRO
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+}
+
 // ================================
 // Models
 // ================================
@@ -169,6 +182,7 @@ model User {
   digestSubscriptions DigestSubscription[]
   aiLogs              AiLog[]
   weeklyInsights      WeeklyInsight[]
+  subscription        Subscription?
 }
 
 model UserProfile {
@@ -478,6 +492,27 @@ model DigestSubscription {
 
   @@unique([userId, topicId])
   @@index([userId, frequency])
+}
+
+model Subscription {
+  id                   String             @id @default(uuid())
+  userId               String             @unique
+  plan                 SubscriptionPlan     @default(FREE)
+  status               SubscriptionStatus   @default(ACTIVE)
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  stripePriceId        String?
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  trialEnd             DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([plan])
 }
 
 model AiLog {

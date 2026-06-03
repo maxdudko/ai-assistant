@@ -8,6 +8,8 @@ import type { TruthLensPayload } from '@ai/ai-core';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { SearchService } from '../search/search.service';
+import { FeatureAccessService } from '../subscriptions/feature-access.service';
+import { Features } from '../subscriptions/plan-entitlements';
 import type { SearchResult } from '../search/search.types';
 
 import { SubscribeDigestDto } from './dto/subscribe-digest.dto';
@@ -52,6 +54,7 @@ export class DigestService {
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
     private readonly searchService: SearchService,
+    private readonly featureAccess: FeatureAccessService,
   ) {}
 
   // TODO(info-digest): integrate cron worker to deliver scheduled digests from subscriptions.
@@ -63,9 +66,9 @@ export class DigestService {
 
     const searchResults = await this.searchService.search(searchQuery);
 
-    const truthLensRoute = this.truthLensEnabled
-      ? await this.maybeRouteTruthLens(userMessage)
-      : false;
+    const truthLensAllowed =
+      this.truthLensEnabled && (await this.featureAccess.canUse(userId, Features.TRUTHLENS));
+    const truthLensRoute = truthLensAllowed ? await this.maybeRouteTruthLens(userMessage) : false;
 
     if (truthLensRoute) {
       const truthLens = await this.ai
@@ -183,7 +186,8 @@ export class DigestService {
     }
     const frequency = this.mapFrequency(dto.frequency);
 
-    // MVP scope: a user can subscribe to at most 2 digest topics.
+    const { maxDigestTopics } = await this.featureAccess.getPlanLimits(userId);
+
     const alreadySubscribed = await this.prisma.digestSubscription.findFirst({
       where: {
         userId,
@@ -203,8 +207,8 @@ export class DigestService {
         },
       });
 
-      if (subscriptionsCount >= 2) {
-        throw new BadRequestException('MVP supports up to 2 digest topics per user.');
+      if (subscriptionsCount >= maxDigestTopics) {
+        throw new BadRequestException(`Your plan supports up to ${maxDigestTopics} digest topics.`);
       }
     }
 

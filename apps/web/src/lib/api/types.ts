@@ -420,6 +420,38 @@ export interface GoalProgressDto {
 
 export type TruthLensConfidence = 'low' | 'medium' | 'high';
 
+export type SubscriptionPlan = 'FREE' | 'PRO';
+export type SubscriptionStatus = 'ACTIVE' | 'TRIALING' | 'PAST_DUE' | 'CANCELED' | 'INCOMPLETE';
+
+export type Feature = 'ADVANCED_INSIGHTS' | 'TRUTHLENS' | 'CROSS_WEEK_ANALYSIS';
+
+export interface SubscriptionDto {
+  id: string;
+  userId: string;
+  plan: SubscriptionPlan;
+  status: SubscriptionStatus;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  trialEnd: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlanCatalogEntryDto {
+  plan: SubscriptionPlan;
+  label: string;
+  description: string;
+  features: Feature[];
+  limits: { maxDigestTopics: number };
+}
+
+export interface SubscriptionMeDto {
+  subscription: SubscriptionDto;
+  features: Feature[];
+  plans: PlanCatalogEntryDto[];
+}
+
 export interface TruthLensPerspectiveDto {
   label: string;
   claim: string;

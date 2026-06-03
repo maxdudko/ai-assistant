@@ -2,6 +2,15 @@ import { TaskStatus } from '@prisma/client';
 
 import { WeeklyInsightService, computeIsoWeekBounds } from './weekly-insight.service';
 
+function buildFeatureAccess() {
+  return {
+    assertCanUse: jest.fn().mockResolvedValue(undefined),
+    canUse: jest.fn().mockResolvedValue(true),
+    getPlanLimits: jest.fn().mockResolvedValue({ maxDigestTopics: 2 }),
+    listEnabledFeatures: jest.fn().mockResolvedValue([]),
+  };
+}
+
 function buildPrismaStub(
   overrides: Partial<{
     days: unknown[];
@@ -90,6 +99,7 @@ describe('WeeklyInsightService', () => {
       prisma as unknown as never,
       ai as unknown as never,
       memory as unknown as never,
+      buildFeatureAccess() as unknown as never,
     );
     const result = await service.generateForUser('user-1');
     expect(result).toBeNull();
@@ -143,6 +153,7 @@ describe('WeeklyInsightService', () => {
       prisma as unknown as never,
       ai as unknown as never,
       memory as unknown as never,
+      buildFeatureAccess() as unknown as never,
     );
     const result = await service.generateForUser('user-1');
     expect(result).not.toBeNull();
@@ -182,6 +193,7 @@ describe('WeeklyInsightService', () => {
       prisma as unknown as never,
       ai as unknown as never,
       memory as unknown as never,
+      buildFeatureAccess() as unknown as never,
     );
     const result = await service.generateForUser('user-1');
     expect(result).not.toBeNull();

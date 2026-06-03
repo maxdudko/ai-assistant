@@ -12,6 +12,14 @@
     "./actions": {
       "types": "./src/actions/index.ts",
       "import": "./src/actions/index.ts"
+    },
+    "./features": {
+      "types": "./src/features/index.ts",
+      "import": "./src/features/index.ts"
+    },
+    "./subscriptions": {
+      "types": "./src/subscriptions/index.ts",
+      "import": "./src/subscriptions/index.ts"
     }
   }
 }

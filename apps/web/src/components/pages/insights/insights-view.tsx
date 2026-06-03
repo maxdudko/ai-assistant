@@ -3,8 +3,10 @@
 import type { FC } from 'react';
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 
 import { generateWeeklyInsight, getLatestWeeklyInsight, listWeeklyInsights } from '@/lib/api/days';
+import { getSubscriptionMe } from '@/lib/api/subscriptions';
 import type { WeeklyInsightDto } from '@/lib/api/types';
 import Container from '@/components/common/container';
 import Button from '@/components/common/button';
@@ -113,6 +115,16 @@ const InsightsView: FC = () => {
   const queryClient = useQueryClient();
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
+  const subscriptionQuery = useQuery({
+    queryKey: queryKeys.subscriptionMe,
+    queryFn: getSubscriptionMe,
+  });
+
+  const hasAdvancedInsights =
+    subscriptionQuery.data?.features.includes('ADVANCED_INSIGHTS') ?? false;
+  const hasCrossWeekAnalysis =
+    subscriptionQuery.data?.features.includes('CROSS_WEEK_ANALYSIS') ?? false;
+
   const latestQuery = useQuery({
     queryKey: queryKeys.weeklyInsightLatest,
     queryFn: getLatestWeeklyInsight,
@@ -121,6 +133,7 @@ const InsightsView: FC = () => {
   const listQuery = useQuery({
     queryKey: queryKeys.weeklyInsightList,
     queryFn: () => listWeeklyInsights({ limit: 10 }),
+    enabled: hasCrossWeekAnalysis,
   });
 
   const generateMutation = useMutation({
@@ -161,10 +174,19 @@ const InsightsView: FC = () => {
               setActionMessage(null);
               generateMutation.mutate();
             }}
-            disabled={generateMutation.isPending}
+            disabled={generateMutation.isPending || !hasAdvancedInsights}
             className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
           />
         </header>
+
+        {!hasAdvancedInsights && !subscriptionQuery.isPending && (
+          <div className="rounded-lg border border-indigo-500/30 bg-indigo-500/5 px-4 py-3 text-sm text-neutral-300">
+            Manual weekly generation is a Pro feature.{' '}
+            <Link href="/me/subscription" className="text-indigo-400 hover:text-indigo-300">
+              View plans
+            </Link>
+          </div>
+        )}
 
         {actionMessage && (
           <div className="rounded-lg border border-neutral-800 bg-neutral-900/60 px-4 py-3 text-sm text-neutral-300">
@@ -201,6 +223,15 @@ const InsightsView: FC = () => {
               ))}
             </div>
           </section>
+        )}
+
+        {!hasCrossWeekAnalysis && !subscriptionQuery.isPending && latest && (
+          <div className="rounded-lg border border-neutral-800 bg-neutral-900/30 p-4 text-sm text-neutral-400">
+            Cross-week history is available on Pro.{' '}
+            <Link href="/me/subscription" className="text-indigo-400 hover:text-indigo-300">
+              Upgrade to compare trends across weeks
+            </Link>
+          </div>
         )}
       </Container>
     </main>

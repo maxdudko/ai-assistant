@@ -8,7 +8,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { authApi } from '@/lib/api/auth';
 import { useAuth } from '@/lib/api/AuthContext';
 
-// Navigation items for left sidebar (excluding Home, Profile, Logout)
+// Navigation items for left sidebar
 const navItems = [
   { href: '/me', label: 'Dashboard', icon: DashboardIcon },
   { href: '/me/chat', label: 'Chat', icon: ChatIcon },
@@ -100,6 +100,32 @@ function InsightsIcon({ className }: { className?: string }) {
   );
 }
 
+function SubscriptionIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+      />
+    </svg>
+  );
+}
+
+function ProfileIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z"
+      />
+    </svg>
+  );
+}
+
 function InfoDigestsIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -134,6 +160,19 @@ function LogsIcon({ className }: { className?: string }) {
         strokeLinejoin="round"
         strokeWidth={2}
         d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+      />
+    </svg>
+  );
+}
+
+function LogoutIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-6 0v-1m6-10V5a3 3 0 00-6 0v1a3 3 0 006 0z"
       />
     </svg>
   );
@@ -179,6 +218,10 @@ const TopNavbar: FC = () => {
   const { user } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+
+  const profileLinkClass = `flex gap-2 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700 transition-colors ${pathname === '/me/profile' ? 'text-indigo-400' : 'text-neutral-400 group-hover:text-neutral-200'}`;
+  const subscriptionLinkClass = `flex gap-2 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700 transition-colors ${pathname === '/me/subscription' ? 'text-indigo-400' : 'text-neutral-400 group-hover:text-neutral-200'}`;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -244,14 +287,26 @@ const TopNavbar: FC = () => {
               <Link
                 href="/me/profile"
                 onClick={() => setDropdownOpen(false)}
-                className="block px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700 transition-colors"
+                className={profileLinkClass}
               >
+                <ProfileIcon className="w-5 h-5 shrink-0" />
                 Profile
+              </Link>
+              <Link
+                href="/me/subscription"
+                onClick={() => setDropdownOpen(false)}
+                className={subscriptionLinkClass}
+              >
+                <SubscriptionIcon className="w-5 h-5 shrink-0" />
+                Subscription
               </Link>
               <button
                 onClick={handleLogout}
-                className="block w-full text-left px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700 transition-colors cursor-pointer"
+                className="flex gap-2 w-full text-left px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700 transition-colors cursor-pointer"
               >
+                <LogoutIcon
+                  className={`w-5 h-5 flex-shrink-0 text-neutral-400 group-hover:text-neutral-200`}
+                />
                 Logout
               </button>
             </div>
