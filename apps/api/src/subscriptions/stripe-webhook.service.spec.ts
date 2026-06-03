@@ -44,14 +44,12 @@ describe('StripeWebhookService', () => {
   it('skips duplicate Stripe events', async () => {
     const prisma = {
       stripeWebhookEvent: {
-        create: jest
-          .fn()
-          .mockRejectedValueOnce(
-            new Prisma.PrismaClientKnownRequestError('dup', {
-              code: 'P2002',
-              clientVersion: 'test',
-            }),
-          ),
+        create: jest.fn().mockRejectedValueOnce(
+          new Prisma.PrismaClientKnownRequestError('dup', {
+            code: 'P2002',
+            clientVersion: 'test',
+          }),
+        ),
       },
     };
     const service = new StripeWebhookService(
