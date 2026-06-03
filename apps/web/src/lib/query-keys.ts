@@ -7,6 +7,7 @@ export const queryKeys = {
   weeklyInsightLatest: ['weeklyInsight', 'latest'] as const,
   weeklyInsightList: ['weeklyInsight', 'list'] as const,
   subscriptionMe: ['subscription', 'me'] as const,
+  subscriptionHistory: ['subscription', 'history'] as const,
   pendingActions: (scope?: string) => ['pendingActions', scope ?? 'all'] as const,
   conversations: (includeArchived: boolean) => ['conversations', includeArchived] as const,
   conversation: (id: string) => ['conversation', id] as const,

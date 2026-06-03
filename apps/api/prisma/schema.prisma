@@ -154,6 +154,23 @@ enum SubscriptionStatus {
   INCOMPLETE
 }
 
+enum PaymentStatus {
+  PAID
+  OPEN
+  FAILED
+  VOID
+  UNCOLLECTIBLE
+}
+
+enum SubscriptionEventType {
+  SUBSCRIBED
+  RENEWED
+  UPDATED
+  CANCELED
+  PAYMENT_FAILED
+  DOWNGRADED
+}
+
 // ================================
 // Models
 // ================================
@@ -183,6 +200,8 @@ model User {
   aiLogs              AiLog[]
   weeklyInsights      WeeklyInsight[]
   subscription        Subscription?
+  paymentRecords      PaymentRecord[]
+  subscriptionEvents  SubscriptionEvent[]
 }
 
 model UserProfile {
@@ -520,6 +539,43 @@ model StripeWebhookEvent {
   type        String
   processedAt DateTime @default(now())
   payload     Json?
+}
+
+model PaymentRecord {
+  id                String        @id @default(uuid())
+  userId            String
+  stripeInvoiceId   String        @unique
+  amountCents       Int
+  currency          String        @default("usd")
+  status            PaymentStatus
+  description       String?
+  invoiceNumber     String?
+  hostedInvoiceUrl  String?
+  invoicePdfUrl     String?
+  paidAt            DateTime?
+  periodStart       DateTime?
+  periodEnd         DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, paidAt])
+  @@index([userId, createdAt])
+}
+
+model SubscriptionEvent {
+  id          String                @id @default(uuid())
+  userId      String
+  type        SubscriptionEventType
+  plan        SubscriptionPlan?
+  status      SubscriptionStatus?
+  description String
+  occurredAt  DateTime              @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, occurredAt])
 }
 
 model AiLog {

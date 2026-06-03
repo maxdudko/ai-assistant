@@ -4,6 +4,7 @@ import type Stripe from 'stripe';
 
 import { PrismaService } from '../prisma/prisma.service';
 
+import { BillingHistoryService } from './billing-history.service';
 import { resolvePlanFromStripePriceId } from './stripe.config';
 import { mapStripeSubscriptionStatus } from './stripe-status.mapper';
 import {
@@ -21,6 +22,7 @@ export class StripeWebhookService {
     private readonly prisma: PrismaService,
     private readonly stripe: StripeService,
     private readonly subscriptions: SubscriptionsService,
+    private readonly billingHistory: BillingHistoryService,
   ) {}
 
   async handleEvent(event: Stripe.Event): Promise<void> {
@@ -40,6 +42,9 @@ export class StripeWebhookService {
         break;
       case 'customer.subscription.deleted':
         await this.handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+        break;
+      case 'invoice.paid':
+        await this.handleInvoicePaid(event.data.object as Stripe.Invoice);
         break;
       case 'invoice.payment_failed':
         await this.handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
@@ -106,6 +111,8 @@ export class StripeWebhookService {
       return;
     }
 
+    const previous = await this.subscriptions.getOrCreateForUser(userId);
+
     const customerId =
       typeof stripeSubscription.customer === 'string'
         ? stripeSubscription.customer
@@ -131,34 +138,85 @@ export class StripeWebhookService {
       cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
       trialEnd: this.toDate(stripeSubscription.trial_end),
     });
+
+    if (previous.plan !== effectivePlan || previous.status !== status) {
+      await this.billingHistory.recordEvent({
+        userId,
+        type: 'UPDATED',
+        plan: effectivePlan,
+        status,
+        description: `Subscription updated (${effectivePlan}, ${status.replace('_', ' ').toLowerCase()})`,
+      });
+    }
   }
 
   private async handleSubscriptionDeleted(stripeSubscription: Stripe.Subscription): Promise<void> {
     const existing = await this.subscriptions.findByStripeSubscriptionId(stripeSubscription.id);
+    const userId =
+      existing?.userId ?? (await this.resolveUserIdFromStripeSubscription(stripeSubscription));
+
     if (existing) {
       await this.subscriptions.revertToFree(existing.userId);
+    } else if (userId) {
+      await this.subscriptions.revertToFree(userId);
+    }
+
+    if (userId) {
+      await this.billingHistory.recordEvent({
+        userId,
+        type: 'CANCELED',
+        plan: 'FREE',
+        status: 'CANCELED',
+        description: 'Subscription canceled',
+      });
+    }
+  }
+
+  private async handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> {
+    const userId = await this.resolveUserIdFromInvoice(invoice);
+    if (!userId) {
       return;
     }
 
-    const userId = await this.resolveUserIdFromStripeSubscription(stripeSubscription);
-    if (userId) {
-      await this.subscriptions.revertToFree(userId);
-    }
+    await this.billingHistory.upsertPaymentFromInvoice(userId, invoice);
+
+    const isInitial = invoice.billing_reason === 'subscription_create';
+    await this.billingHistory.recordEvent({
+      userId,
+      type: isInitial ? 'SUBSCRIBED' : 'RENEWED',
+      plan: 'PRO',
+      status: 'ACTIVE',
+      description: isInitial ? 'Initial Pro payment received' : 'Pro subscription renewed',
+      occurredAt: this.toDate(invoice.status_transitions?.paid_at) ?? new Date(),
+    });
   }
 
   private async handleInvoicePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
     const subscriptionId = extractInvoiceSubscriptionId(invoice);
 
-    if (!subscriptionId) {
+    const userId = await this.resolveUserIdFromInvoice(invoice);
+    if (!userId) {
       return;
     }
 
-    const existing = await this.subscriptions.findByStripeSubscriptionId(subscriptionId);
-    if (!existing) {
-      return;
+    if (invoice.id) {
+      await this.billingHistory.upsertPaymentFromInvoice(userId, invoice, { status: 'FAILED' });
     }
 
-    await this.subscriptions.markPastDue(existing.userId);
+    if (subscriptionId) {
+      const existing = await this.subscriptions.findByStripeSubscriptionId(subscriptionId);
+      if (existing) {
+        await this.subscriptions.markPastDue(existing.userId);
+      }
+    }
+
+    await this.billingHistory.recordEvent({
+      userId,
+      type: 'PAYMENT_FAILED',
+      plan: 'PRO',
+      status: 'PAST_DUE',
+      description: 'Subscription payment failed',
+    });
   }
 
   private resolveUserIdFromSession(session: Stripe.Checkout.Session): string | null {
@@ -176,6 +234,26 @@ export class StripeWebhookService {
       typeof stripeSubscription.customer === 'string'
         ? stripeSubscription.customer
         : stripeSubscription.customer?.id;
+
+    if (!customerId) {
+      return null;
+    }
+
+    const existing = await this.subscriptions.findByStripeCustomerId(customerId);
+    return existing?.userId ?? null;
+  }
+
+  private async resolveUserIdFromInvoice(invoice: Stripe.Invoice): Promise<string | null> {
+    const subscriptionId = extractInvoiceSubscriptionId(invoice);
+    if (subscriptionId) {
+      const existing = await this.subscriptions.findByStripeSubscriptionId(subscriptionId);
+      if (existing) {
+        return existing.userId;
+      }
+    }
+
+    const customerId =
+      typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
 
     if (!customerId) {
       return null;

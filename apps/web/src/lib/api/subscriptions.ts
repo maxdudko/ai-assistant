@@ -1,8 +1,12 @@
 import { apiFetch } from './client';
-import type { StripeRedirectDto, SubscriptionMeDto } from './types';
+import type { StripeRedirectDto, SubscriptionHistoryDto, SubscriptionMeDto } from './types';
 
 export async function getSubscriptionMe(): Promise<SubscriptionMeDto> {
   return apiFetch<SubscriptionMeDto>('/api/subscriptions/me');
+}
+
+export async function getSubscriptionHistory(): Promise<SubscriptionHistoryDto> {
+  return apiFetch<SubscriptionHistoryDto>('/api/subscriptions/history');
 }
 
 export async function createCheckoutSession(): Promise<StripeRedirectDto> {

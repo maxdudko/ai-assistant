@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { PrismaModule } from '../prisma/prisma.module';
 
+import { BillingHistoryService } from './billing-history.service';
 import { FeatureAccessService } from './feature-access.service';
 import { StripeWebhookController } from './stripe-webhook.controller';
 import { StripeWebhookService } from './stripe-webhook.service';
@@ -17,7 +18,8 @@ import { SubscriptionsService } from './subscriptions.service';
     FeatureAccessService,
     StripeService,
     StripeWebhookService,
+    BillingHistoryService,
   ],
-  exports: [SubscriptionsService, FeatureAccessService, StripeService],
+  exports: [SubscriptionsService, FeatureAccessService, StripeService, BillingHistoryService],
 })
 export class SubscriptionsModule {}

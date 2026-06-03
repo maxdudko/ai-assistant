@@ -458,6 +458,36 @@ export interface StripeRedirectDto {
   url: string;
 }
 
+export interface PaymentRecordDto {
+  id: string;
+  stripeInvoiceId: string;
+  amountCents: number;
+  currency: string;
+  status: string;
+  description: string | null;
+  invoiceNumber: string | null;
+  hostedInvoiceUrl: string | null;
+  invoicePdfUrl: string | null;
+  paidAt: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  createdAt: string;
+}
+
+export interface SubscriptionEventDto {
+  id: string;
+  type: string;
+  plan: SubscriptionPlan | null;
+  status: SubscriptionStatus | null;
+  description: string;
+  occurredAt: string;
+}
+
+export interface SubscriptionHistoryDto {
+  payments: PaymentRecordDto[];
+  events: SubscriptionEventDto[];
+}
+
 export interface TruthLensPerspectiveDto {
   label: string;
   claim: string;

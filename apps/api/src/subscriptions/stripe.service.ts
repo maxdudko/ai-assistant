@@ -115,6 +115,15 @@ export class StripeService {
     return this.getStripe().subscriptions.retrieve(stripeSubscriptionId);
   }
 
+  async listInvoicesForCustomer(stripeCustomerId: string): Promise<Stripe.Invoice[]> {
+    const stripe = this.getStripe();
+    const invoices = await stripe.invoices.list({
+      customer: stripeCustomerId,
+      limit: 24,
+    });
+    return invoices.data;
+  }
+
   constructWebhookEvent(payload: Buffer, signature: string | string[] | undefined): Stripe.Event {
     const config = loadStripeConfig();
     if (!config) {

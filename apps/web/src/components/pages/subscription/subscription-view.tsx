@@ -9,9 +9,16 @@ import { useSearchParams } from 'next/navigation';
 import {
   createBillingPortalSession,
   createCheckoutSession,
+  getSubscriptionHistory,
   getSubscriptionMe,
 } from '@/lib/api/subscriptions';
-import type { Feature, PlanCatalogEntryDto, SubscriptionPlan } from '@/lib/api/types';
+import type {
+  Feature,
+  PaymentRecordDto,
+  PlanCatalogEntryDto,
+  SubscriptionEventDto,
+  SubscriptionPlan,
+} from '@/lib/api/types';
 import Container from '@/components/common/container';
 import Button from '@/components/common/button';
 import { queryKeys } from '@/lib/query-keys';
@@ -36,12 +43,116 @@ function PlanBadge({ plan }: { plan: SubscriptionPlan }) {
 
 function StatusBadge({ status }: { status: string }) {
   const tone =
-    status === 'ACTIVE' || status === 'TRIALING'
+    status === 'ACTIVE' || status === 'TRIALING' || status === 'PAID'
       ? 'text-emerald-300'
-      : status === 'PAST_DUE'
+      : status === 'PAST_DUE' || status === 'FAILED'
         ? 'text-amber-300'
         : 'text-neutral-400';
   return <span className={`text-sm ${tone}`}>{status.replace('_', ' ')}</span>;
+}
+
+function formatMoney(amountCents: number, currency: string): string {
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: currency.toUpperCase(),
+  }).format(amountCents / 100);
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) {
+    return '—';
+  }
+  return new Date(value).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function PaymentHistoryTable({ payments }: { payments: PaymentRecordDto[] }) {
+  if (payments.length === 0) {
+    return (
+      <p className="text-sm text-neutral-500">
+        No payments yet. Invoices appear here after your first Pro checkout.
+      </p>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead>
+          <tr className="border-b border-neutral-800 text-left text-neutral-500">
+            <th className="py-2 pr-4 font-medium">Date</th>
+            <th className="py-2 pr-4 font-medium">Description</th>
+            <th className="py-2 pr-4 font-medium">Amount</th>
+            <th className="py-2 pr-4 font-medium">Status</th>
+            <th className="py-2 font-medium">Invoice</th>
+          </tr>
+        </thead>
+        <tbody>
+          {payments.map(payment => (
+            <tr key={payment.id} className="border-b border-neutral-800/60 text-neutral-300">
+              <td className="py-3 pr-4 whitespace-nowrap">
+                {formatDateTime(payment.paidAt ?? payment.createdAt)}
+              </td>
+              <td className="py-3 pr-4">{payment.description ?? 'Subscription payment'}</td>
+              <td className="py-3 pr-4 whitespace-nowrap">
+                {formatMoney(payment.amountCents, payment.currency)}
+              </td>
+              <td className="py-3 pr-4">
+                <StatusBadge status={payment.status} />
+              </td>
+              <td className="py-3 whitespace-nowrap">
+                {payment.hostedInvoiceUrl ? (
+                  <a
+                    href={payment.hostedInvoiceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-indigo-400 hover:text-indigo-300"
+                  >
+                    View
+                  </a>
+                ) : (
+                  <span className="text-neutral-500">—</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SubscriptionEventsList({ events }: { events: SubscriptionEventDto[] }) {
+  if (events.length === 0) {
+    return (
+      <p className="text-sm text-neutral-500">
+        Subscription activity will appear here when you upgrade or change your plan.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="space-y-3">
+      {events.map(event => (
+        <li
+          key={event.id}
+          className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-neutral-800 bg-neutral-900/40 px-4 py-3"
+        >
+          <div>
+            <p className="text-sm text-neutral-200">{event.description}</p>
+            <p className="mt-1 text-xs text-neutral-500">{formatDateTime(event.occurredAt)}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {event.plan && <PlanBadge plan={event.plan} />}
+            {event.status && <StatusBadge status={event.status} />}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function PlanCard({
@@ -131,6 +242,13 @@ const SubscriptionView: FC = () => {
     refetchInterval: checkoutStatus === 'success' ? 3000 : false,
   });
 
+  const historyQuery = useQuery({
+    queryKey: queryKeys.subscriptionHistory,
+    queryFn: getSubscriptionHistory,
+    enabled: Boolean(data?.subscription.hasStripeCustomer),
+    refetchInterval: checkoutStatus === 'success' ? 3000 : false,
+  });
+
   const redirectToStripe = useCallback((url: string) => {
     window.location.href = url;
   }, []);
@@ -198,7 +316,10 @@ const SubscriptionView: FC = () => {
           <button
             type="button"
             className="ml-2 underline hover:text-emerald-100"
-            onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.subscriptionMe })}
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: queryKeys.subscriptionMe });
+              queryClient.invalidateQueries({ queryKey: queryKeys.subscriptionHistory });
+            }}
           >
             Refresh now
           </button>
@@ -314,22 +435,52 @@ const SubscriptionView: FC = () => {
         </div>
       </section>
 
+      {(data.subscription.hasStripeCustomer || historyQuery.data) && (
+        <>
+          <section className="space-y-3">
+            <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">
+              Payment history
+            </h2>
+            <Container>
+              {historyQuery.isPending ? (
+                <p className="text-sm text-neutral-500">Loading payments…</p>
+              ) : (
+                <PaymentHistoryTable payments={historyQuery.data?.payments ?? []} />
+              )}
+            </Container>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">
+              Subscription activity
+            </h2>
+            <Container>
+              {historyQuery.isPending ? (
+                <p className="text-sm text-neutral-500">Loading activity…</p>
+              ) : (
+                <SubscriptionEventsList events={historyQuery.data?.events ?? []} />
+              )}
+            </Container>
+          </section>
+        </>
+      )}
+
       <section className="rounded-lg border border-neutral-800 bg-neutral-900/30 p-4 text-sm text-neutral-400">
         <p>
           Payments are processed securely by Stripe. Subscription changes sync automatically via
           webhooks — no need to refresh after checkout unless your plan has not updated yet.
         </p>
-        <p className="mt-2">
-          Explore premium capabilities on the{' '}
-          <Link href="/me/insights" className="text-indigo-400 hover:text-indigo-300">
-            Insights
-          </Link>{' '}
-          and{' '}
-          <Link href="/me/info-digests" className="text-indigo-400 hover:text-indigo-300">
-            Info Digests
-          </Link>{' '}
-          pages.
-        </p>
+        {/*<p className="mt-2">*/}
+        {/*  Explore premium capabilities on the{' '}*/}
+        {/*  <Link href="/me/insights" className="text-indigo-400 hover:text-indigo-300">*/}
+        {/*    Insights*/}
+        {/*  </Link>{' '}*/}
+        {/*  and{' '}*/}
+        {/*  <Link href="/me/info-digests" className="text-indigo-400 hover:text-indigo-300">*/}
+        {/*    Info Digests*/}
+        {/*  </Link>{' '}*/}
+        {/*  pages.*/}
+        {/*</p>*/}
       </section>
     </div>
   );
