@@ -3,7 +3,6 @@
 import type { FC } from 'react';
 import React, { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
 import {
@@ -177,9 +176,7 @@ function PlanCard({
   return (
     <article
       className={`rounded-xl border p-5 space-y-4 ${
-        isCurrent
-          ? 'border-indigo-500/50 bg-indigo-500/5'
-          : 'border-neutral-800 bg-neutral-900/40'
+        isCurrent ? 'border-indigo-500/50 bg-indigo-500/5' : 'border-neutral-800 bg-neutral-900/40'
       }`}
     >
       <header className="flex items-start justify-between gap-3">

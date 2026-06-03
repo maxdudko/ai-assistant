@@ -1,11 +1,4 @@
-import {
-  BadRequestException,
-  Controller,
-  HttpCode,
-  Logger,
-  Post,
-  Req,
-} from '@nestjs/common';
+import { BadRequestException, Controller, HttpCode, Logger, Post, Req } from '@nestjs/common';
 
 import { readStripeSignatureHeader, type StripeWebhookRequest } from './stripe.types';
 import { StripeService } from './stripe.service';

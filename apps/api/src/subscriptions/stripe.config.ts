@@ -54,8 +54,6 @@ export function assertProPriceId(proPriceId: string): void {
     );
   }
   if (!proPriceId.startsWith('price_')) {
-    throw new Error(
-      'STRIPE_PRO_PRICE_ID must be a Stripe Price ID starting with price_.',
-    );
+    throw new Error('STRIPE_PRO_PRICE_ID must be a Stripe Price ID starting with price_.');
   }
 }

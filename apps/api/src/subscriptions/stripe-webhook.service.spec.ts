@@ -47,7 +47,10 @@ describe('StripeWebhookService', () => {
         create: jest
           .fn()
           .mockRejectedValueOnce(
-            new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'test' }),
+            new Prisma.PrismaClientKnownRequestError('dup', {
+              code: 'P2002',
+              clientVersion: 'test',
+            }),
           ),
       },
     };

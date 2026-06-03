@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import type { PaymentRecord, PaymentStatus, SubscriptionEvent, SubscriptionEventType } from '@prisma/client';
+import type {
+  PaymentRecord,
+  PaymentStatus,
+  SubscriptionEvent,
+  SubscriptionEventType,
+} from '@prisma/client';
 import type { SubscriptionPlan, SubscriptionStatus } from '@ai/shared-types';
 import type Stripe from 'stripe';
 
@@ -42,7 +47,10 @@ export class BillingHistoryService {
     private readonly stripe: StripeService,
   ) {}
 
-  async listForUser(userId: string, options: { limit?: number } = {}): Promise<{
+  async listForUser(
+    userId: string,
+    options: { limit?: number } = {},
+  ): Promise<{
     payments: PaymentRecordSummary[];
     events: SubscriptionEventSummary[];
   }> {
