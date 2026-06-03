@@ -515,6 +515,13 @@ model Subscription {
   @@index([plan])
 }
 
+model StripeWebhookEvent {
+  id          String   @id
+  type        String
+  processedAt DateTime @default(now())
+  payload     Json?
+}
+
 model AiLog {
   id        String           @id @default(uuid())
   userId    String

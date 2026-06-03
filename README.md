@@ -155,6 +155,14 @@ NEWS_API_KEY="your-newsapi-key"
 
 # CORS
 CORS_ORIGIN="http://localhost:3000"
+
+# Stripe (optional — Pro checkout/webhooks disabled if unset)
+STRIPE_SECRET_KEY="sk_test_..."
+STRIPE_WEBHOOK_SECRET="whsec_..."  # from: stripe listen --forward-to localhost:4000/api/subscriptions/webhook
+STRIPE_PRO_PRICE_ID="price_..."
+STRIPE_CHECKOUT_SUCCESS_URL="http://localhost:3000/me/subscription?checkout=success"
+STRIPE_CHECKOUT_CANCEL_URL="http://localhost:3000/me/subscription?checkout=canceled"
+STRIPE_BILLING_PORTAL_RETURN_URL="http://localhost:3000/me/subscription"
 ```
 
 #### Frontend (`apps/web/.env.local`)

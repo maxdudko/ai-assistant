@@ -8,6 +8,58 @@ import { PrismaService } from '../prisma/prisma.service';
 export class SubscriptionsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async findByStripeCustomerId(stripeCustomerId: string): Promise<Subscription | null> {
+    return this.prisma.subscription.findUnique({
+      where: { stripeCustomerId },
+    });
+  }
+
+  async findByStripeSubscriptionId(stripeSubscriptionId: string): Promise<Subscription | null> {
+    return this.prisma.subscription.findUnique({
+      where: { stripeSubscriptionId },
+    });
+  }
+
+  async attachStripeCustomerId(userId: string, stripeCustomerId: string): Promise<Subscription> {
+    await this.getOrCreateForUser(userId);
+    return this.prisma.subscription.update({
+      where: { userId },
+      data: { stripeCustomerId },
+    });
+  }
+
+  async markPastDue(userId: string): Promise<SubscriptionSummary> {
+    const subscription = await this.prisma.subscription.update({
+      where: { userId },
+      data: { status: 'PAST_DUE' },
+    });
+    return this.toSummary(subscription);
+  }
+
+  async revertToFree(userId: string): Promise<SubscriptionSummary> {
+    const subscription = await this.prisma.subscription.update({
+      where: { userId },
+      data: {
+        plan: 'FREE',
+        status: 'CANCELED',
+        stripeSubscriptionId: null,
+        stripePriceId: null,
+        currentPeriodStart: null,
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+        trialEnd: null,
+      },
+    });
+    return this.toSummary(subscription);
+  }
+
+  hasActivePaidPlan(subscription: Subscription): boolean {
+    return (
+      subscription.plan === 'PRO' &&
+      (subscription.status === 'ACTIVE' || subscription.status === 'TRIALING')
+    );
+  }
+
   async getOrCreateForUser(userId: string): Promise<Subscription> {
     const existing = await this.prisma.subscription.findUnique({
       where: { userId },
@@ -81,6 +133,7 @@ export class SubscriptionsService {
       currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() ?? null,
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
       trialEnd: subscription.trialEnd?.toISOString() ?? null,
+      hasStripeCustomer: Boolean(subscription.stripeCustomerId),
       createdAt: subscription.createdAt.toISOString(),
       updatedAt: subscription.updatedAt.toISOString(),
     };

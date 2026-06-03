@@ -25,6 +25,7 @@ export interface SubscriptionSummary {
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
   trialEnd: string | null;
+  hasStripeCustomer: boolean;
   createdAt: string;
   updatedAt: string;
 }

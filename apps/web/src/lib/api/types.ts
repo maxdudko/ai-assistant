@@ -434,6 +434,7 @@ export interface SubscriptionDto {
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
   trialEnd: string | null;
+  hasStripeCustomer: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -450,6 +451,11 @@ export interface SubscriptionMeDto {
   subscription: SubscriptionDto;
   features: Feature[];
   plans: PlanCatalogEntryDto[];
+  stripeConfigured: boolean;
+}
+
+export interface StripeRedirectDto {
+  url: string;
 }
 
 export interface TruthLensPerspectiveDto {

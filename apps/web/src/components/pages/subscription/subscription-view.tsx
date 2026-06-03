@@ -1,11 +1,16 @@
 'use client';
 
 import type { FC } from 'react';
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useCallback, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
-import { getSubscriptionMe } from '@/lib/api/subscriptions';
+import {
+  createBillingPortalSession,
+  createCheckoutSession,
+  getSubscriptionMe,
+} from '@/lib/api/subscriptions';
 import type { Feature, PlanCatalogEntryDto, SubscriptionPlan } from '@/lib/api/types';
 import Container from '@/components/common/container';
 import Button from '@/components/common/button';
@@ -43,18 +48,27 @@ function PlanCard({
   entry,
   currentPlan,
   enabledFeatures,
+  stripeConfigured,
+  onUpgrade,
+  upgrading,
 }: {
   entry: PlanCatalogEntryDto;
   currentPlan: SubscriptionPlan;
   enabledFeatures: Feature[];
+  stripeConfigured: boolean;
+  onUpgrade: () => void;
+  upgrading: boolean;
 }) {
   const isCurrent = entry.plan === currentPlan;
   const isPro = entry.plan === 'PRO';
+  const canUpgrade = isPro && !isCurrent && stripeConfigured;
 
   return (
     <article
       className={`rounded-xl border p-5 space-y-4 ${
-        isCurrent ? 'border-indigo-500/50 bg-indigo-500/5' : 'border-neutral-800 bg-neutral-900/40'
+        isCurrent
+          ? 'border-indigo-500/50 bg-indigo-500/5'
+          : 'border-neutral-800 bg-neutral-900/40'
       }`}
     >
       <header className="flex items-start justify-between gap-3">
@@ -81,10 +95,18 @@ function PlanCard({
         )}
       </ul>
 
-      {isPro && !isCurrent && (
-        <Button disabled className="w-full opacity-60 cursor-not-allowed">
-          Upgrade with Stripe — coming soon
-        </Button>
+      {canUpgrade && (
+        <Button
+          type="button"
+          onClick={onUpgrade}
+          disabled={upgrading}
+          content={upgrading ? 'Redirecting…' : 'Upgrade to Pro'}
+          className="w-full"
+        />
+      )}
+
+      {isPro && !isCurrent && !stripeConfigured && (
+        <p className="text-xs text-neutral-500">Billing is not configured on this environment.</p>
       )}
 
       {isCurrent && enabledFeatures.length > 0 && (
@@ -98,10 +120,49 @@ function PlanCard({
 }
 
 const SubscriptionView: FC = () => {
+  const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
+  const checkoutStatus = searchParams.get('checkout');
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const { data, isPending, isError } = useQuery({
     queryKey: queryKeys.subscriptionMe,
     queryFn: getSubscriptionMe,
+    refetchInterval: checkoutStatus === 'success' ? 3000 : false,
   });
+
+  const redirectToStripe = useCallback((url: string) => {
+    window.location.href = url;
+  }, []);
+
+  const checkoutMutation = useMutation({
+    mutationFn: createCheckoutSession,
+    onSuccess: ({ url }) => redirectToStripe(url),
+    onError: (error: Error) => setActionError(error.message),
+  });
+
+  const portalMutation = useMutation({
+    mutationFn: createBillingPortalSession,
+    onSuccess: ({ url }) => redirectToStripe(url),
+    onError: (error: Error) => setActionError(error.message),
+  });
+
+  const handleUpgrade = () => {
+    setActionError(null);
+    checkoutMutation.mutate();
+  };
+
+  const hasActivePro =
+    data?.subscription.plan === 'PRO' &&
+    (data.subscription.status === 'ACTIVE' || data.subscription.status === 'TRIALING');
+
+  const canManageBilling =
+    Boolean(data?.stripeConfigured) && Boolean(data?.subscription.hasStripeCustomer);
+
+  const openBillingPortal = useCallback(() => {
+    setActionError(null);
+    portalMutation.mutate();
+  }, [portalMutation]);
 
   if (isPending) {
     return (
@@ -119,7 +180,8 @@ const SubscriptionView: FC = () => {
     );
   }
 
-  const { subscription, features, plans } = data;
+  const { subscription, features, plans, stripeConfigured } = data;
+  const upgrading = checkoutMutation.isPending || portalMutation.isPending;
 
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
@@ -129,6 +191,31 @@ const SubscriptionView: FC = () => {
           Manage your plan and see which premium features are included.
         </p>
       </header>
+
+      {checkoutStatus === 'success' && (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+          Payment received. Your plan should update in a few seconds.
+          <button
+            type="button"
+            className="ml-2 underline hover:text-emerald-100"
+            onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.subscriptionMe })}
+          >
+            Refresh now
+          </button>
+        </div>
+      )}
+
+      {checkoutStatus === 'canceled' && (
+        <div className="rounded-lg border border-neutral-700 bg-neutral-900/60 px-4 py-3 text-sm text-neutral-300">
+          Checkout was canceled. You can try again when you are ready.
+        </div>
+      )}
+
+      {actionError && (
+        <div className="rounded-lg border border-red-600/50 bg-red-600/10 px-4 py-3 text-sm text-red-300">
+          {actionError}
+        </div>
+      )}
 
       <Container>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -152,13 +239,45 @@ const SubscriptionView: FC = () => {
               </p>
             )}
           </div>
-          {subscription.plan === 'FREE' && (
-            <Button disabled className="opacity-60 cursor-not-allowed">
-              Upgrade to Pro
-            </Button>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {!hasActivePro && stripeConfigured && (
+              <Button
+                type="button"
+                onClick={handleUpgrade}
+                disabled={upgrading}
+                content={upgrading ? 'Redirecting…' : 'Upgrade to Pro'}
+              />
+            )}
+            {canManageBilling && (
+              <Button
+                type="button"
+                onClick={openBillingPortal}
+                disabled={upgrading}
+                content="Manage billing"
+                className="bg-neutral-800 hover:bg-neutral-700"
+              />
+            )}
+          </div>
         </div>
       </Container>
+
+      {subscription.status === 'PAST_DUE' && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          <p>
+            Your last payment failed. Update your payment method in the billing portal to restore
+            Pro access.
+          </p>
+          {canManageBilling && (
+            <Button
+              type="button"
+              onClick={openBillingPortal}
+              disabled={upgrading}
+              content={upgrading ? 'Redirecting…' : 'Update payment method'}
+              className="mt-3 bg-amber-500/20 hover:bg-amber-500/30 text-amber-100"
+            />
+          )}
+        </div>
+      )}
 
       {features.length > 0 && (
         <section className="space-y-3">
@@ -187,6 +306,9 @@ const SubscriptionView: FC = () => {
               entry={entry}
               currentPlan={subscription.plan}
               enabledFeatures={features}
+              stripeConfigured={stripeConfigured}
+              onUpgrade={handleUpgrade}
+              upgrading={upgrading}
             />
           ))}
         </div>
@@ -194,8 +316,8 @@ const SubscriptionView: FC = () => {
 
       <section className="rounded-lg border border-neutral-800 bg-neutral-900/30 p-4 text-sm text-neutral-400">
         <p>
-          Stripe checkout and billing portal integration will connect here. Subscription state is
-          stored with Stripe-ready fields so upgrades sync automatically once billing is enabled.
+          Payments are processed securely by Stripe. Subscription changes sync automatically via
+          webhooks — no need to refresh after checkout unless your plan has not updated yet.
         </p>
         <p className="mt-2">
           Explore premium capabilities on the{' '}
