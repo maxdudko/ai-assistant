@@ -177,6 +177,7 @@ export class ConversationsService {
 
     // Get daily conversation by default
     const id = await this.getOrCreateDailyConversation(userId);
+    await this.triggerDailyPrelude(userId);
     return this.prisma.conversation.findUnique({
       where: { id },
       include: {
@@ -190,6 +191,20 @@ export class ConversationsService {
         },
       },
     });
+  }
+
+  private async triggerDailyPrelude(userId: string): Promise<void> {
+    try {
+      const timeTriggerResult = await this.dailyEngine.handleEvent(userId, {
+        type: 'TIME_TRIGGER',
+      });
+      if (timeTriggerResult.actions === 0) {
+        await this.dailyEngine.handleEvent(userId, { type: 'DAY_START' });
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Daily engine skipped while loading daily conversation: ${reason}`);
+    }
   }
 
   /**
@@ -233,6 +248,7 @@ export class ConversationsService {
     }
     const taskOverviewRequest = this.isTaskOverviewRequest(message);
     const completionIntent = this.isTaskCompletionMutationRequest(message);
+    const hasPriorUserMessages = conversation.messages.some(msg => msg.role === 'USER');
 
     // Save user message
     await this.prisma.message.create({
@@ -244,7 +260,9 @@ export class ConversationsService {
       },
     });
 
-    if (!taskOverviewRequest) {
+    const shouldTrackDailyUserActivity =
+      conversation.type !== ConversationType.DAILY || hasPriorUserMessages;
+    if (!taskOverviewRequest && shouldTrackDailyUserActivity) {
       void this.dailyEngine.handleEvent(userId, { type: 'USER_ACTIVITY' }).catch(error => {
         const reason = error instanceof Error ? error.message : String(error);
         this.logger.warn(`Daily engine skipped after user activity: ${reason}`);
