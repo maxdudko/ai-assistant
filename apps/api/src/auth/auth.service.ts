@@ -67,6 +67,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if (user.suspendedAt) {
+      throw new UnauthorizedException('Account suspended');
+    }
+
     return user;
   }
 

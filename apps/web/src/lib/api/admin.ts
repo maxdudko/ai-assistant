@@ -26,6 +26,21 @@ export const adminApi = {
 
   getUsers: () => adminApiFetch<AdminUserListItemDto[]>('/api/admin/users'),
 
+  suspendUser: (userId: string) =>
+    adminApiFetch<AdminUserListItemDto>(`/api/admin/users/${userId}/suspend`, {
+      method: 'PATCH',
+    }),
+
+  unsuspendUser: (userId: string) =>
+    adminApiFetch<AdminUserListItemDto>(`/api/admin/users/${userId}/unsuspend`, {
+      method: 'PATCH',
+    }),
+
+  deleteUser: (userId: string) =>
+    adminApiFetch<{ message: string }>(`/api/admin/users/${userId}`, {
+      method: 'DELETE',
+    }),
+
   getSubscriptions: () => adminApiFetch<AdminSubscriptionListItemDto[]>('/api/admin/subscriptions'),
 
   updateEmail: (dto: AdminUpdateEmailRequest) =>

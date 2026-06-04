@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -173,12 +174,45 @@ export class AdminService {
     });
   }
 
+  private mapUserListItem(user: {
+    id: string;
+    email: string;
+    suspendedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+    profile: {
+      displayName: string;
+      timezone: string;
+      onboardingCompleted: boolean;
+    } | null;
+    subscription: {
+      plan: string;
+      status: string;
+      currentPeriodEnd: Date | null;
+    } | null;
+  }) {
+    return {
+      id: user.id,
+      email: user.email,
+      suspendedAt: user.suspendedAt?.toISOString() ?? null,
+      displayName: user.profile?.displayName ?? null,
+      timezone: user.profile?.timezone ?? null,
+      onboardingCompleted: Boolean(user.profile?.onboardingCompleted),
+      subscriptionPlan: user.subscription?.plan ?? null,
+      subscriptionStatus: user.subscription?.status ?? null,
+      subscriptionPeriodEnd: user.subscription?.currentPeriodEnd?.toISOString() ?? null,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
+    };
+  }
+
   async listUsers() {
     const users = await this.prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         email: true,
+        suspendedAt: true,
         createdAt: true,
         updatedAt: true,
         profile: {
@@ -198,18 +232,106 @@ export class AdminService {
       },
     });
 
-    return users.map(user => ({
-      id: user.id,
-      email: user.email,
-      displayName: user.profile?.displayName ?? null,
-      timezone: user.profile?.timezone ?? null,
-      onboardingCompleted: Boolean(user.profile?.onboardingCompleted),
-      subscriptionPlan: user.subscription?.plan ?? null,
-      subscriptionStatus: user.subscription?.status ?? null,
-      subscriptionPeriodEnd: user.subscription?.currentPeriodEnd?.toISOString() ?? null,
-      createdAt: user.createdAt.toISOString(),
-      updatedAt: user.updatedAt.toISOString(),
-    }));
+    return users.map(user => this.mapUserListItem(user));
+  }
+
+  async suspendUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, suspendedAt: true },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    if (user.suspendedAt) {
+      throw new BadRequestException('User is already suspended');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        suspendedAt: new Date(),
+        refreshTokenHash: null,
+        tokenVersion: { increment: 1 },
+      },
+      select: {
+        id: true,
+        email: true,
+        suspendedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        profile: {
+          select: {
+            displayName: true,
+            timezone: true,
+            onboardingCompleted: true,
+          },
+        },
+        subscription: {
+          select: {
+            plan: true,
+            status: true,
+            currentPeriodEnd: true,
+          },
+        },
+      },
+    });
+
+    return this.mapUserListItem(updated);
+  }
+
+  async unsuspendUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, suspendedAt: true },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    if (!user.suspendedAt) {
+      throw new BadRequestException('User is not suspended');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { suspendedAt: null },
+      select: {
+        id: true,
+        email: true,
+        suspendedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        profile: {
+          select: {
+            displayName: true,
+            timezone: true,
+            onboardingCompleted: true,
+          },
+        },
+        subscription: {
+          select: {
+            plan: true,
+            status: true,
+            currentPeriodEnd: true,
+          },
+        },
+      },
+    });
+
+    return this.mapUserListItem(updated);
+  }
+
+  async deleteUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.prisma.user.delete({ where: { id: userId } });
+    return { message: 'User deleted successfully' };
   }
 
   async listSubscriptions() {

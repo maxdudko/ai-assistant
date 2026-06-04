@@ -519,6 +519,7 @@ export interface AdminLoginRequest {
 export interface AdminUserListItemDto {
   id: string;
   email: string;
+  suspendedAt: string | null;
   displayName: string | null;
   timezone: string | null;
   onboardingCompleted: boolean;

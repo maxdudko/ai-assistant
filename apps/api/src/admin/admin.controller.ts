@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 
 import { AdminJwtAuthGuard } from './admin-jwt.guard';
 import { AdminService } from './admin.service';
@@ -18,6 +28,21 @@ export class AdminController {
   @Get('users')
   listUsers() {
     return this.adminService.listUsers();
+  }
+
+  @Patch('users/:id/suspend')
+  suspendUser(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.suspendUser(id);
+  }
+
+  @Patch('users/:id/unsuspend')
+  unsuspendUser(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.unsuspendUser(id);
+  }
+
+  @Delete('users/:id')
+  deleteUser(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.deleteUser(id);
   }
 
   @Get('subscriptions')
