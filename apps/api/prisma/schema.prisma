@@ -171,6 +171,12 @@ enum SubscriptionEventType {
   DOWNGRADED
 }
 
+enum Feature {
+  ADVANCED_INSIGHTS
+  TRUTHLENS
+  CROSS_WEEK_ANALYSIS
+}
+
 // ================================
 // Models
 // ================================
@@ -203,6 +209,7 @@ model User {
   subscription        Subscription?
   paymentRecords      PaymentRecord[]
   subscriptionEvents  SubscriptionEvent[]
+  featureOverrides    UserFeatureOverride[]
 }
 
 model Admin {
@@ -543,6 +550,20 @@ model Subscription {
 
   @@index([status])
   @@index([plan])
+}
+
+model UserFeatureOverride {
+  id        String   @id @default(uuid())
+  userId    String
+  feature   Feature
+  allowed   Boolean
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, feature])
+  @@index([userId])
 }
 
 model StripeWebhookEvent {

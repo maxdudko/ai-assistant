@@ -11,7 +11,7 @@ const adminNavItems = [
   { href: '/admin/dashboard', label: 'Dashboard' },
   { href: '/admin/users', label: 'Users' },
   { href: '/admin/subscriptions', label: 'Subscriptions' },
-  { href: '/admin/profile', label: 'Profile' },
+  { href: '/admin/profile', label: 'Settings' },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

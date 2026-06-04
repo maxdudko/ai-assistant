@@ -17,6 +17,8 @@ export const Features = {
   CROSS_WEEK_ANALYSIS: 'CROSS_WEEK_ANALYSIS',
 } as const satisfies Record<string, Feature>;
 
+export const ALL_FEATURES = Object.values(Features) as Feature[];
+
 export const FEATURE_LABELS: Record<Feature, string> = {
   ADVANCED_INSIGHTS: 'Advanced weekly insights',
   TRUTHLENS: 'TruthLens comparative digests',

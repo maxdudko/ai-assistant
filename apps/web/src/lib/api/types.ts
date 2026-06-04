@@ -542,8 +542,53 @@ export interface AdminSubscriptionListItemDto {
   trialEnd: string | null;
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
+  effectiveFeatures: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AdminFeatureCatalogItemDto {
+  key: string;
+  label: string;
+}
+
+export interface AdminSubscriptionCatalogDto {
+  plans: Array<{
+    plan: string;
+    label: string;
+    description: string;
+    features: string[];
+    limits: { maxDigestTopics: number };
+  }>;
+  features: AdminFeatureCatalogItemDto[];
+}
+
+export interface AdminFeatureOverrideDto {
+  feature: string;
+  allowed: boolean;
+}
+
+export interface AdminFeatureStateDto {
+  feature: string;
+  label: string;
+  planDefault: boolean;
+  effective: boolean;
+  override: AdminFeatureOverrideDto | null;
+}
+
+export interface AdminSubscriptionDetailDto extends AdminSubscriptionListItemDto {
+  overrides: AdminFeatureOverrideDto[];
+  featureStates: AdminFeatureStateDto[];
+}
+
+export interface UpdateAdminSubscriptionRequest {
+  plan?: string;
+  status?: string;
+  cancelAtPeriodEnd?: boolean;
+}
+
+export interface SetAdminFeatureOverridesRequest {
+  overrides: AdminFeatureOverrideDto[];
 }
 
 export interface AdminUpdateEmailRequest {

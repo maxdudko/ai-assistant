@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import type { Subscription } from '@prisma/client';
 
+import { PrismaService } from '../prisma/prisma.service';
+
 import { FeatureAccessService } from './feature-access.service';
 import { Features } from './plan-entitlements';
 import { SubscriptionsService } from './subscriptions.service';
@@ -27,14 +29,24 @@ function buildSubscription(overrides: Partial<Subscription> = {}): Subscription 
 describe('FeatureAccessService', () => {
   let service: FeatureAccessService;
   let subscriptions: { getOrCreateForUser: jest.Mock };
+  let prisma: { userFeatureOverride: { findMany: jest.Mock } };
 
   beforeEach(async () => {
     subscriptions = {
       getOrCreateForUser: jest.fn(),
     };
+    prisma = {
+      userFeatureOverride: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [FeatureAccessService, { provide: SubscriptionsService, useValue: subscriptions }],
+      providers: [
+        FeatureAccessService,
+        { provide: SubscriptionsService, useValue: subscriptions },
+        { provide: PrismaService, useValue: prisma },
+      ],
     }).compile();
 
     service = module.get(FeatureAccessService);
@@ -70,5 +82,23 @@ describe('FeatureAccessService', () => {
     subscriptions.getOrCreateForUser.mockResolvedValue(buildSubscription({ plan: 'PRO' }));
 
     await expect(service.getPlanLimits('user-1')).resolves.toEqual({ maxDigestTopics: 10 });
+  });
+
+  it('honors admin feature overrides over plan entitlements', async () => {
+    subscriptions.getOrCreateForUser.mockResolvedValue(buildSubscription());
+    prisma.userFeatureOverride.findMany.mockResolvedValue([
+      { feature: 'TRUTHLENS', allowed: true },
+    ]);
+
+    await expect(service.canUse('user-1', Features.TRUTHLENS)).resolves.toBe(true);
+  });
+
+  it('can revoke pro features via admin override', async () => {
+    subscriptions.getOrCreateForUser.mockResolvedValue(buildSubscription({ plan: 'PRO' }));
+    prisma.userFeatureOverride.findMany.mockResolvedValue([
+      { feature: 'TRUTHLENS', allowed: false },
+    ]);
+
+    await expect(service.canUse('user-1', Features.TRUTHLENS)).resolves.toBe(false);
   });
 });

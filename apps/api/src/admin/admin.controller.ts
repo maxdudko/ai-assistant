@@ -6,6 +6,7 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Put,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -13,7 +14,9 @@ import {
 import { AdminJwtAuthGuard } from './admin-jwt.guard';
 import { AdminService } from './admin.service';
 import { ChangeAdminPasswordDto } from './dto/change-admin-password.dto';
+import { SetAdminFeatureOverridesDto } from './dto/set-admin-feature-overrides.dto';
 import { UpdateAdminEmailDto } from './dto/update-admin-email.dto';
+import { UpdateAdminSubscriptionDto } from './dto/update-admin-subscription.dto';
 
 @Controller('admin')
 @UseGuards(AdminJwtAuthGuard)
@@ -45,9 +48,35 @@ export class AdminController {
     return this.adminService.deleteUser(id);
   }
 
+  @Get('subscriptions/catalog')
+  getSubscriptionCatalog() {
+    return this.adminService.getSubscriptionCatalog();
+  }
+
   @Get('subscriptions')
   listSubscriptions() {
     return this.adminService.listSubscriptions();
+  }
+
+  @Get('subscriptions/:id')
+  getSubscription(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getSubscription(id);
+  }
+
+  @Patch('subscriptions/:id')
+  updateSubscription(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateAdminSubscriptionDto,
+  ) {
+    return this.adminService.updateSubscription(id, dto);
+  }
+
+  @Put('subscriptions/:id/features')
+  setSubscriptionFeatures(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetAdminFeatureOverridesDto,
+  ) {
+    return this.adminService.setSubscriptionFeatures(id, dto);
   }
 
   @Patch('profile/email')

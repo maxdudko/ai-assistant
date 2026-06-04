@@ -9,6 +9,11 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { FeatureAccessService } from '../subscriptions/feature-access.service';
+import { ALL_FEATURES, FEATURE_LABELS, PLAN_CATALOG } from '../subscriptions/plan-entitlements';
+
+import { SetAdminFeatureOverridesDto } from './dto/set-admin-feature-overrides.dto';
+import { UpdateAdminSubscriptionDto } from './dto/update-admin-subscription.dto';
 
 @Injectable()
 export class AdminService {
@@ -18,6 +23,7 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly featureAccess: FeatureAccessService,
   ) {}
 
   async validateAdmin(email: string, password: string) {
@@ -334,6 +340,16 @@ export class AdminService {
     return { message: 'User deleted successfully' };
   }
 
+  getSubscriptionCatalog() {
+    return {
+      plans: PLAN_CATALOG,
+      features: ALL_FEATURES.map(feature => ({
+        key: feature,
+        label: FEATURE_LABELS[feature],
+      })),
+    };
+  }
+
   async listSubscriptions() {
     const subscriptions = await this.prisma.subscription.findMany({
       orderBy: { createdAt: 'desc' },
@@ -346,7 +362,134 @@ export class AdminService {
       },
     });
 
-    return subscriptions.map(subscription => ({
+    return Promise.all(
+      subscriptions.map(async subscription => {
+        const effectiveFeatures = await this.featureAccess.listEnabledFeatures(subscription.userId);
+        return {
+          id: subscription.id,
+          userId: subscription.userId,
+          userEmail: subscription.user.email,
+          plan: subscription.plan,
+          status: subscription.status,
+          cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+          currentPeriodStart: subscription.currentPeriodStart?.toISOString() ?? null,
+          currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() ?? null,
+          trialEnd: subscription.trialEnd?.toISOString() ?? null,
+          stripeCustomerId: subscription.stripeCustomerId,
+          stripeSubscriptionId: subscription.stripeSubscriptionId,
+          effectiveFeatures,
+          createdAt: subscription.createdAt.toISOString(),
+          updatedAt: subscription.updatedAt.toISOString(),
+        };
+      }),
+    );
+  }
+
+  async getSubscription(subscriptionId: string) {
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { id: subscriptionId },
+      include: {
+        user: {
+          select: { email: true },
+        },
+      },
+    });
+    if (!subscription) {
+      throw new NotFoundException('Subscription not found');
+    }
+
+    return this.buildSubscriptionDetail(subscription);
+  }
+
+  async updateSubscription(subscriptionId: string, dto: UpdateAdminSubscriptionDto) {
+    const existing = await this.prisma.subscription.findUnique({
+      where: { id: subscriptionId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Subscription not found');
+    }
+
+    if (!dto.plan && !dto.status && dto.cancelAtPeriodEnd === undefined) {
+      throw new BadRequestException('At least one field must be provided');
+    }
+
+    const subscription = await this.prisma.subscription.update({
+      where: { id: subscriptionId },
+      data: {
+        ...(dto.plan !== undefined && { plan: dto.plan }),
+        ...(dto.status !== undefined && { status: dto.status }),
+        ...(dto.cancelAtPeriodEnd !== undefined && {
+          cancelAtPeriodEnd: dto.cancelAtPeriodEnd,
+        }),
+      },
+      include: {
+        user: {
+          select: { email: true },
+        },
+      },
+    });
+
+    await this.prisma.subscriptionEvent.create({
+      data: {
+        userId: subscription.userId,
+        type: 'UPDATED',
+        plan: subscription.plan,
+        status: subscription.status,
+        description: 'Subscription updated by admin',
+      },
+    });
+
+    return this.buildSubscriptionDetail(subscription);
+  }
+
+  async setSubscriptionFeatures(subscriptionId: string, dto: SetAdminFeatureOverridesDto) {
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { id: subscriptionId },
+      select: { id: true, userId: true },
+    });
+    if (!subscription) {
+      throw new NotFoundException('Subscription not found');
+    }
+
+    await this.featureAccess.setOverrides(subscription.userId, dto.overrides);
+
+    return this.getSubscription(subscriptionId);
+  }
+
+  private async buildSubscriptionDetail(subscription: {
+    id: string;
+    userId: string;
+    plan: string;
+    status: string;
+    cancelAtPeriodEnd: boolean;
+    currentPeriodStart: Date | null;
+    currentPeriodEnd: Date | null;
+    trialEnd: Date | null;
+    stripeCustomerId: string | null;
+    stripeSubscriptionId: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    user: { email: string };
+  }) {
+    const fullSubscription = await this.prisma.subscription.findUniqueOrThrow({
+      where: { id: subscription.id },
+    });
+    const overrides = await this.featureAccess.listOverrides(subscription.userId);
+    const effectiveFeatures = await this.featureAccess.listEnabledFeatures(subscription.userId);
+
+    const featureStates = ALL_FEATURES.map(feature => {
+      const override = overrides.find(item => item.feature === feature) ?? null;
+      const planDefault = this.featureAccess.planGrantsFeature(fullSubscription, feature);
+      return {
+        feature,
+        label: FEATURE_LABELS[feature],
+        planDefault,
+        effective: effectiveFeatures.includes(feature),
+        override,
+      };
+    });
+
+    return {
       id: subscription.id,
       userId: subscription.userId,
       userEmail: subscription.user.email,
@@ -358,8 +501,11 @@ export class AdminService {
       trialEnd: subscription.trialEnd?.toISOString() ?? null,
       stripeCustomerId: subscription.stripeCustomerId,
       stripeSubscriptionId: subscription.stripeSubscriptionId,
+      effectiveFeatures,
+      overrides,
+      featureStates,
       createdAt: subscription.createdAt.toISOString(),
       updatedAt: subscription.updatedAt.toISOString(),
-    }));
+    };
   }
 }

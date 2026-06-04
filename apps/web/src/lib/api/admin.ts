@@ -3,9 +3,13 @@ import type {
   AdminChangePasswordRequest,
   AdminDto,
   AdminLoginRequest,
+  AdminSubscriptionCatalogDto,
+  AdminSubscriptionDetailDto,
   AdminSubscriptionListItemDto,
   AdminUpdateEmailRequest,
   AdminUserListItemDto,
+  SetAdminFeatureOverridesRequest,
+  UpdateAdminSubscriptionRequest,
 } from './types';
 
 export const adminApi = {
@@ -41,7 +45,28 @@ export const adminApi = {
       method: 'DELETE',
     }),
 
+  getSubscriptionCatalog: () =>
+    adminApiFetch<AdminSubscriptionCatalogDto>('/api/admin/subscriptions/catalog'),
+
   getSubscriptions: () => adminApiFetch<AdminSubscriptionListItemDto[]>('/api/admin/subscriptions'),
+
+  getSubscription: (subscriptionId: string) =>
+    adminApiFetch<AdminSubscriptionDetailDto>(`/api/admin/subscriptions/${subscriptionId}`),
+
+  updateSubscription: (subscriptionId: string, dto: UpdateAdminSubscriptionRequest) =>
+    adminApiFetch<AdminSubscriptionDetailDto>(`/api/admin/subscriptions/${subscriptionId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(dto),
+    }),
+
+  setSubscriptionFeatures: (subscriptionId: string, dto: SetAdminFeatureOverridesRequest) =>
+    adminApiFetch<AdminSubscriptionDetailDto>(
+      `/api/admin/subscriptions/${subscriptionId}/features`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(dto),
+      },
+    ),
 
   updateEmail: (dto: AdminUpdateEmailRequest) =>
     adminApiFetch<AdminDto>('/api/admin/profile/email', {
