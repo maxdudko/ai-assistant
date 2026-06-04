@@ -5,6 +5,7 @@
   "scripts": {
     "build": "nest build",
     "vercel-build": "prisma generate && nest build && prisma migrate deploy",
+    "seed:admin": "ts-node --project tsconfig.json src/scripts/seed-admin.ts",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "dev": "pnpm run start:dev",

@@ -623,6 +623,13 @@ git commit -m "feat: add my feature"
 git push origin feature/my-feature
 ```
 
+### Seed admin user
+
+```bash
+pnpm --filter @ai/api exec prisma migrate deploy
+ADMIN_EMAIL="admin@example.com" ADMIN_PASSWORD="your-strong-password" pnpm --filter @ai/api seed:admin
+```
+
 ---
 
 ## 📜 License

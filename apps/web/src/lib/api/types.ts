@@ -503,3 +503,53 @@ export interface TruthLensReportDto {
   openQuestions: string[];
   confidence: TruthLensConfidence;
 }
+
+export interface AdminDto {
+  id: string;
+  email: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminLoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface AdminUserListItemDto {
+  id: string;
+  email: string;
+  displayName: string | null;
+  timezone: string | null;
+  onboardingCompleted: boolean;
+  subscriptionPlan: string | null;
+  subscriptionStatus: string | null;
+  subscriptionPeriodEnd: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminSubscriptionListItemDto {
+  id: string;
+  userId: string;
+  userEmail: string;
+  plan: string;
+  status: string;
+  cancelAtPeriodEnd: boolean;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+  trialEnd: string | null;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminUpdateEmailRequest {
+  email: string;
+}
+
+export interface AdminChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
