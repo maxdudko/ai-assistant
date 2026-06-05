@@ -177,6 +177,18 @@ enum Feature {
   CROSS_WEEK_ANALYSIS
 }
 
+enum NotificationType {
+  MORNING_BRIEFING
+  EVENING_REFLECTION
+  NUDGE
+  WEEKLY_INSIGHT
+  SYSTEM
+}
+
+enum PushPlatform {
+  WEB
+}
+
 // ================================
 // Models
 // ================================
@@ -208,8 +220,11 @@ model User {
   weeklyInsights      WeeklyInsight[]
   subscription        Subscription?
   paymentRecords      PaymentRecord[]
-  subscriptionEvents  SubscriptionEvent[]
-  featureOverrides    UserFeatureOverride[]
+  subscriptionEvents      SubscriptionEvent[]
+  featureOverrides        UserFeatureOverride[]
+  notificationPreference  NotificationPreference?
+  pushSubscriptions       PushSubscription[]
+  notifications           Notification[]
 }
 
 model Admin {
@@ -243,6 +258,61 @@ model UserProfile {
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NotificationPreference {
+  id                       String  @id @default(uuid())
+  userId                   String  @unique
+  pushEnabled              Boolean @default(true)
+  morningBriefingEnabled   Boolean @default(true)
+  eveningReflectionEnabled Boolean @default(true)
+  nudgesEnabled            Boolean @default(true)
+  weeklyInsightEnabled     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PushSubscription {
+  id        String       @id @default(uuid())
+  userId    String
+  platform  PushPlatform @default(WEB)
+  endpoint  String       @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  lastUsedAt DateTime    @default(now())
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Notification {
+  id             String           @id @default(uuid())
+  userId         String
+  type           NotificationType
+  title          String
+  body           String
+  deepLink       String?
+  conversationId String?
+  messageId      String?
+  dayId          String?
+  dedupeKey      String?
+  readAt         DateTime?
+  pushedAt       DateTime?
+  pushError      String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, readAt, createdAt])
 }
 
 model Conversation {

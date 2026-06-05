@@ -22,6 +22,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
 import { DailyModule } from './daily/daily.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { AdminModule } from './admin/admin.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { AdminModule } from './admin/admin.module';
     SchedulerModule,
     SubscriptionsModule,
     AdminModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -4,46 +4,35 @@ import Container from '@/components/common/container';
 export default function Home() {
   const howItWorks = [
     {
-      title: '1. Understands Your Context',
-      points: ['Your tasks', 'Your patterns', 'Your past behavior', 'Your available time'],
+      title: '1. Capture Your Days',
+      points: ['Tasks', 'Reflections', 'Conversations', 'Decisions'],
     },
     {
-      title: '2. Decides What Matters',
-      points: [
-        'Detects overload',
-        'Finds your most impactful tasks',
-        "Identifies when you're stuck",
-      ],
+      title: '2. Detect Patterns',
+      points: ['Procrastination', 'Overload', 'Productivity peaks', 'Recurring behaviors'],
     },
     {
-      title: '3. Takes Action With You',
-      points: [
-        'Suggests concrete actions',
-        'Waits for your confirmation',
-        'Executes safely (with undo)',
-      ],
+      title: '3. Generate Insights',
+      points: ['Weekly reports', 'Goal alignment', 'Reality checks', 'Actionable observations'],
     },
   ];
 
   const differentiators = [
     {
-      title: 'Real Daily Engine',
-      description:
-        'Not reminders. A system that reacts to your activity, time of day, and energy patterns.',
+      title: 'Long-Term Memory',
+      description: 'MIRA remembers important patterns and insights across weeks and months.',
     },
     {
-      title: 'Smart Decisions',
-      description:
-        'Not random AI advice. Deterministic decisions based on workload, deadlines, and behavior patterns.',
+      title: 'Behavioral Analysis',
+      description: 'Detects recurring behaviors instead of simply tracking completed tasks.',
     },
     {
-      title: 'Action System',
-      description:
-        'Not just suggestions: simplify your day, split complex tasks, and reschedule intelligently with full control and undo.',
+      title: 'Goal Alignment',
+      description: 'Shows whether your daily actions actually contribute to your long-term goals.',
     },
     {
-      title: 'Memory That Learns',
-      description: 'Remembers what works for you, adapts to your habits, and improves over time.',
+      title: 'Reality Checks',
+      description: 'TruthLens compares perception with evidence to reduce self-deception.',
     },
   ];
 
@@ -52,23 +41,38 @@ export default function Home() {
       <Container className="max-w-5xl w-full space-y-12 p-4 md:p-8">
         <section className="space-y-5 text-center">
           <p className="text-sm md:text-base font-medium text-white-600">
-            Your Personal Operating System for Every Day
+            Personal Intelligence System
           </p>
           <h1 className="text-3xl md:text-5xl font-bold text-white-900">AI Daily OS</h1>
           <h2 className="text-xl md:text-3xl font-semibold text-white-700">
-            Stop Managing Tasks. Start Running Your Day.
+            MIRA helps you discover patterns, make better decisions, and stay aligned with your
+            goals.
           </h2>
           <p className="text-base md:text-lg text-white-600 max-w-3xl mx-auto leading-relaxed">
-            Most productivity tools give you lists. AI Daily OS gives you decisions so you can
-            execute with clarity instead of constantly wondering what to do next.
+            Most AI assistants answer questions. MIRA helps you understand why you make certain
+            where your time goes, and what actually moves you forward.
           </p>
-          <div className="grid gap-2 sm:grid-cols-2 text-sm md:text-base max-w-2xl mx-auto text-left">
-            <p className="text-white-600">Instead of asking what to do next...</p>
-            <p className="text-white-700 font-medium">You get clear priorities.</p>
-            <p className="text-white-600">Instead of guessing if you are overloaded...</p>
-            <p className="text-white-700 font-medium">You get smart nudges.</p>
-            <p className="text-white-600">Instead of planning from scratch every day...</p>
-            <p className="text-white-700 font-medium">You get automatic planning.</p>
+          <div className="grid gap-2 sm:grid-cols-2 text-sm md:text-base max-w-3xl mx-auto text-left">
+            <p className="text-white-600">Instead of collecting endless productivity data...</p>
+            <p className="text-white-700 font-medium">Discover meaningful patterns.</p>
+
+            <p className="text-white-600">Instead of guessing why progress feels slow...</p>
+            <p className="text-white-700 font-medium">See where your effort actually goes.</p>
+
+            <p className="text-white-600">Instead of relying on motivation...</p>
+            <p className="text-white-700 font-medium">Build self-awareness.</p>
+          </div>
+        </section>
+
+        <section className="space-y-6 border-t border-[#6366F133] pt-10">
+          <h3 className="text-2xl md:text-3xl font-semibold text-white-900 text-center">
+            Example Weekly Insight
+          </h3>
+
+          <div className="max-w-3xl mx-auto rounded-lg border border-[#6366F133] p-6 space-y-4">
+            This week: • 78% of completed tasks were low-impact • Most postponed tasks required deep
+            focus focus • Your productivity peaked between 09:00–12:00 Insight: You are staying
+            busy, but but consistently avoiding cognitively demanding work.
           </div>
         </section>
 
@@ -101,6 +105,19 @@ export default function Home() {
 
         <section className="space-y-6 border-t border-[#6366F133] pt-10">
           <h3 className="text-2xl md:text-3xl font-semibold text-white-900 text-center">
+            TruthLens
+          </h3>
+          <p className="text-center text-white-600 max-w-3xl mx-auto">
+            Compare perception with reality using your own data.
+          </p>
+          <div className="max-w-3xl mx-auto rounded-lg border border-[#6366F133] p-6 space-y-4">
+            You: &#34;I did nothing today.&#34; TruthLens: Completed: • 4 tasks • 2 high-priority
+            tasks Conclusion: Your perception was harsher than reality.
+          </div>
+        </section>
+
+        <section className="space-y-6 border-t border-[#6366F133] pt-10">
+          <h3 className="text-2xl md:text-3xl font-semibold text-white-900 text-center">
             What Makes It Different
           </h3>
           <div className="grid gap-4 md:grid-cols-2">
@@ -120,29 +137,10 @@ export default function Home() {
 
         <section className="space-y-5 border-t border-[#6366F133] pt-10">
           <h3 className="text-2xl md:text-3xl font-semibold text-white-900 text-center">
-            Example Flow
+            Reflection Cycle
           </h3>
-          <div className="grid gap-4 md:grid-cols-3">
-            <article className="rounded-lg border border-[#6366F133] p-5 space-y-3">
-              <h4 className="text-lg font-semibold text-white-800">Morning</h4>
-              <p className="text-sm text-white-600">
-                You planned 6 hours, but only have 3 available. Keep 2 tasks and move the rest.
-              </p>
-            </article>
-            <article className="rounded-lg border border-[#6366F133] p-5 space-y-3">
-              <h4 className="text-lg font-semibold text-white-800">Afternoon</h4>
-              <p className="text-sm text-white-600">
-                The system detects you have been stuck for 2 hours and suggests smaller concrete
-                steps.
-              </p>
-            </article>
-            <article className="rounded-lg border border-[#6366F133] p-5 space-y-3">
-              <h4 className="text-lg font-semibold text-white-800">Evening</h4>
-              <p className="text-sm text-white-600">
-                You reflect on what worked and what did not while patterns are updated
-                automatically.
-              </p>
-            </article>
+          <div className="max-w-3xl mx-auto rounded-lg border border-[#6366F133] p-6 space-y-4">
+            Day ↓ Reflection ↓ Pattern Detection ↓ Insight ↓ Better Decisions
           </div>
         </section>
 
@@ -172,10 +170,10 @@ export default function Home() {
 
         <section className="space-y-5 border-t border-[#6366F133] pt-10 text-center">
           <h3 className="text-2xl md:text-3xl font-semibold text-white-900">
-            Start Running Your Day
+            Start Running Your Day & And Understanding Yourself
           </h3>
           <p className="text-white-600 max-w-2xl mx-auto">
-            Stop planning endlessly. Start executing intelligently.
+            Join the beta and help shape the future of personal AI.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-2">
             <Button

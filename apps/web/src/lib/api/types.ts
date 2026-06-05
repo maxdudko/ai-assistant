@@ -599,3 +599,37 @@ export interface AdminChangePasswordRequest {
   currentPassword: string;
   newPassword: string;
 }
+
+export type NotificationType =
+  | 'MORNING_BRIEFING'
+  | 'EVENING_REFLECTION'
+  | 'NUDGE'
+  | 'WEEKLY_INSIGHT'
+  | 'SYSTEM';
+
+export interface NotificationPreferencesDto {
+  pushEnabled: boolean;
+  morningBriefingEnabled: boolean;
+  eveningReflectionEnabled: boolean;
+  nudgesEnabled: boolean;
+  weeklyInsightEnabled: boolean;
+}
+
+export interface PushPublicKeyDto {
+  publicKey: string | null;
+  enabled: boolean;
+}
+
+export interface NotificationDto {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  deepLink?: string | null;
+  conversationId?: string | null;
+  messageId?: string | null;
+  dayId?: string | null;
+  readAt?: string | null;
+  pushedAt?: string | null;
+  createdAt: string;
+}

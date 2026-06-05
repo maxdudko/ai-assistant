@@ -11,4 +11,7 @@ export const queryKeys = {
   pendingActions: (scope?: string) => ['pendingActions', scope ?? 'all'] as const,
   conversations: (includeArchived: boolean) => ['conversations', includeArchived] as const,
   conversation: (id: string) => ['conversation', id] as const,
+  notifications: ['notifications'] as const,
+  notificationUnreadCount: ['notifications', 'unread-count'] as const,
+  notificationPreferences: ['notifications', 'preferences'] as const,
 };
