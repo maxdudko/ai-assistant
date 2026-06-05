@@ -252,7 +252,7 @@ const TopNavbar: FC = () => {
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center gap-10 p-1 rounded-full hover:bg-neutral-800 transition-colors"
+            className="flex items-center gap-10 p-1 rounded-full hover:bg-neutral-800 transition-colors hover:cursor-pointer"
             aria-label="User menu"
           >
             <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white font-medium text-sm">

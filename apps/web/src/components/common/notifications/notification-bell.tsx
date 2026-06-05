@@ -101,7 +101,7 @@ const NotificationBell: FC = () => {
       <button
         type="button"
         onClick={handleOpen}
-        className="p-2 rounded-lg hover:bg-neutral-800 transition-colors relative"
+        className="p-2 rounded-lg hover:bg-neutral-800 transition-colors relative hover:cursor-pointer"
         aria-label="Notifications"
       >
         <BellIcon className="w-5 h-5 text-neutral-300" />
