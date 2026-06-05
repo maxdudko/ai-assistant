@@ -15,6 +15,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TaskScoringService } from '../tasks/task-scoring.service';
 import { ActionsService } from '../actions/actions.service';
 import { DayResolverService } from '../days/day-resolver.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 import { addUtcDays, getUserLocalDateInfo } from './daily-timezone.util';
 import { DailyConversationService } from './daily-conversation.service';
@@ -25,7 +26,6 @@ import { NudgePolicyService } from './nudge-policy.service';
 import { NudgePriority, NudgeType } from './nudge.types';
 import type { DailyAction } from './action.types';
 import { UnifiedContextService } from './unified-context.service';
-import { NotificationsService } from '../notifications/notifications.service';
 
 type DailyProfile = {
   displayName: string;

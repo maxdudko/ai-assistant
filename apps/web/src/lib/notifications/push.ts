@@ -16,7 +16,11 @@ export async function registerWebPush(requestPermission = true): Promise<boolean
   if (typeof window === 'undefined') {
     return false;
   }
-  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+  if (
+    !('serviceWorker' in navigator) ||
+    !('PushManager' in window) ||
+    !('Notification' in window)
+  ) {
     return false;
   }
 

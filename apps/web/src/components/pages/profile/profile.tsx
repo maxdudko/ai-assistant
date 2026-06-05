@@ -7,10 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/api/AuthContext';
 import { userApi } from '@/lib/api/user';
 import { authApi } from '@/lib/api/auth';
-import {
-  getNotificationPreferences,
-  updateNotificationPreferences,
-} from '@/lib/api/notifications';
+import { getNotificationPreferences, updateNotificationPreferences } from '@/lib/api/notifications';
 import { queryKeys } from '@/lib/query-keys';
 import { registerWebPush } from '@/lib/notifications/push';
 import type {
@@ -71,6 +68,7 @@ const Profile: FC = () => {
 
   useEffect(() => {
     if (!notificationPreferences) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPushEnabled(notificationPreferences.pushEnabled);
     setMorningBriefingEnabled(notificationPreferences.morningBriefingEnabled);
     setEveningReflectionEnabled(notificationPreferences.eveningReflectionEnabled);

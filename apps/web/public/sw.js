@@ -3,7 +3,10 @@ const OFFLINE_URLS = ['/me', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(OFFLINE_URLS)).then(() => self.skipWaiting()),
+    caches
+      .open(CACHE_NAME)
+      .then(cache => cache.addAll(OFFLINE_URLS))
+      .then(() => self.skipWaiting()),
   );
 });
 
@@ -40,9 +43,7 @@ self.addEventListener('fetch', event => {
   }
 
   if (OFFLINE_URLS.includes(url.pathname)) {
-    event.respondWith(
-      caches.match(event.request).then(cached => cached || fetch(event.request)),
-    );
+    event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request)));
   }
 });
 

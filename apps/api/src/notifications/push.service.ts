@@ -37,7 +37,10 @@ export class PushService {
     return this.configured;
   }
 
-  async sendToUser(userId: string, payload: PushPayload): Promise<{ sent: number; failed: number }> {
+  async sendToUser(
+    userId: string,
+    payload: PushPayload,
+  ): Promise<{ sent: number; failed: number }> {
     if (!this.configured) {
       return { sent: 0, failed: 0 };
     }

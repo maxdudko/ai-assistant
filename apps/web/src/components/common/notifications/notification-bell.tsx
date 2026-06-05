@@ -3,6 +3,7 @@
 import type { FC } from 'react';
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
@@ -28,6 +29,7 @@ function BellIcon({ className }: { className?: string }) {
 }
 
 const NotificationBell: FC = () => {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [pushStatus, setPushStatus] = useState<string | null>(null);
@@ -70,7 +72,9 @@ const NotificationBell: FC = () => {
     setPushStatus(null);
     try {
       const enabled = await registerWebPush();
-      setPushStatus(enabled ? 'Push notifications enabled.' : 'Could not enable push notifications.');
+      setPushStatus(
+        enabled ? 'Push notifications enabled.' : 'Could not enable push notifications.',
+      );
     } catch {
       setPushStatus('Could not enable push notifications.');
     }
@@ -85,8 +89,8 @@ const NotificationBell: FC = () => {
     await markNotificationRead(id);
     await refreshNotifications();
     setOpen(false);
-    if (deepLink && typeof window !== 'undefined') {
-      window.location.href = deepLink;
+    if (deepLink) {
+      router.push(deepLink);
     }
   };
 

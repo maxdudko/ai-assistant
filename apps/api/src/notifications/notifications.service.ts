@@ -129,8 +129,7 @@ export class NotificationsService {
         where: { id: notification.id },
         data: {
           pushedAt: pushResult.sent > 0 ? new Date() : null,
-          pushError:
-            pushResult.failed > 0 && pushResult.sent === 0 ? 'PUSH_DELIVERY_FAILED' : null,
+          pushError: pushResult.failed > 0 && pushResult.sent === 0 ? 'PUSH_DELIVERY_FAILED' : null,
         },
       });
     } catch (error) {
