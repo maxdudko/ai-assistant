@@ -88,13 +88,21 @@ export class NotificationsService {
   }
 
   async markRead(userId: string, notificationId: string) {
-    const updated = await this.prisma.notification.updateMany({
+    const existing = await this.prisma.notification.findFirst({
       where: { id: notificationId, userId },
-      data: { readAt: new Date() },
+      select: { id: true, readAt: true },
     });
-    if (updated.count === 0) {
+    if (!existing) {
       throw new NotFoundException('Notification not found');
     }
+
+    if (!existing.readAt) {
+      await this.prisma.notification.update({
+        where: { id: notificationId },
+        data: { readAt: new Date() },
+      });
+    }
+
     return { read: true };
   }
 

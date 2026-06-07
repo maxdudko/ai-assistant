@@ -3,17 +3,15 @@
 import type { FC } from 'react';
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import {
   getUnreadNotificationCount,
   listNotifications,
-  markAllNotificationsRead,
-  markNotificationRead,
 } from '@/lib/api/notifications';
 import { queryKeys } from '@/lib/query-keys';
 import { registerWebPush } from '@/lib/notifications/push';
+import NotificationList from '@/components/common/notifications/notification-list';
 
 function BellIcon({ className }: { className?: string }) {
   return (
@@ -29,8 +27,6 @@ function BellIcon({ className }: { className?: string }) {
 }
 
 const NotificationBell: FC = () => {
-  const router = useRouter();
-  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [pushStatus, setPushStatus] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -57,17 +53,6 @@ const NotificationBell: FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const refreshNotifications = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.notifications }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.notificationUnreadCount }),
-    ]);
-  };
-
-  const handleOpen = () => {
-    setOpen(prev => !prev);
-  };
-
   const handleEnablePush = async () => {
     setPushStatus(null);
     try {
@@ -80,27 +65,13 @@ const NotificationBell: FC = () => {
     }
   };
 
-  const handleMarkAllRead = async () => {
-    await markAllNotificationsRead();
-    await refreshNotifications();
-  };
-
-  const handleOpenNotification = async (id: string, deepLink?: string | null) => {
-    await markNotificationRead(id);
-    await refreshNotifications();
-    setOpen(false);
-    if (deepLink) {
-      router.push(deepLink);
-    }
-  };
-
   const unreadCount = unread?.count ?? 0;
 
   return (
     <div className="relative" ref={panelRef}>
       <button
         type="button"
-        onClick={handleOpen}
+        onClick={() => setOpen(prev => !prev)}
         className="p-2 rounded-lg hover:bg-neutral-800 transition-colors relative hover:cursor-pointer"
         aria-label="Notifications"
       >
@@ -116,41 +87,21 @@ const NotificationBell: FC = () => {
         <div className="absolute right-0 mt-2 w-96 max-w-[calc(100vw-2rem)] bg-neutral-800 border border-neutral-700 rounded-lg shadow-lg z-50">
           <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-700">
             <span className="text-sm font-medium text-neutral-100">Notifications</span>
-            <div className="flex items-center gap-2">
-              {unreadCount > 0 && (
-                <button
-                  type="button"
-                  onClick={handleMarkAllRead}
-                  className="text-xs text-indigo-300 hover:text-indigo-200"
-                >
-                  Mark all read
-                </button>
-              )}
-            </div>
+            <Link
+              href="/me/notifications"
+              onClick={() => setOpen(false)}
+              className="text-xs text-indigo-300 hover:text-indigo-200"
+            >
+              View all
+            </Link>
           </div>
 
-          <div className="max-h-80 overflow-y-auto">
-            {(notifications?.items ?? []).length === 0 ? (
-              <div className="px-4 py-6 text-sm text-neutral-400">No notifications yet.</div>
-            ) : (
-              notifications?.items.map(item => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleOpenNotification(item.id, item.deepLink)}
-                  className={`w-full text-left px-4 py-3 border-b border-neutral-700/60 hover:bg-neutral-700/40 ${
-                    item.readAt ? 'opacity-70' : ''
-                  }`}
-                >
-                  <div className="text-sm font-medium text-neutral-100">{item.title}</div>
-                  <div className="mt-1 text-xs text-neutral-300 line-clamp-2">{item.body}</div>
-                  <div className="mt-2 text-[11px] text-neutral-500">
-                    {new Date(item.createdAt).toLocaleString()}
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
+          <NotificationList
+            items={notifications?.items ?? []}
+            unreadCount={unreadCount}
+            compact
+            onAction={() => setOpen(false)}
+          />
 
           <div className="px-4 py-3 border-t border-neutral-700 space-y-2">
             <button
