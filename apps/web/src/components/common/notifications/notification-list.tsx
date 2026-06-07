@@ -61,7 +61,9 @@ const NotificationList: FC<NotificationListProps> = ({
   return (
     <div>
       {unreadCount > 0 && (
-        <div className={`flex justify-end ${compact ? 'px-4 py-2' : 'px-4 py-3 border-b border-neutral-700'}`}>
+        <div
+          className={`flex justify-end ${compact ? 'px-4 py-2' : 'px-4 py-3 border-b border-neutral-700'}`}
+        >
           <button
             type="button"
             onClick={handleMarkAllRead}
@@ -113,7 +115,9 @@ const NotificationList: FC<NotificationListProps> = ({
                       </button>
                     )}
                   </div>
-                  <div className={`mt-1 text-neutral-300 ${compact ? 'text-xs line-clamp-2' : 'text-sm'}`}>
+                  <div
+                    className={`mt-1 text-neutral-300 ${compact ? 'text-xs line-clamp-2' : 'text-sm'}`}
+                  >
                     {item.body}
                   </div>
                   <div className="mt-2 text-[11px] text-neutral-500">

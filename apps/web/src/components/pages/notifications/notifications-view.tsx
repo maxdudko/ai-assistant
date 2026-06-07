@@ -32,10 +32,7 @@ const NotificationsView: FC = () => {
       {isPending ? (
         <p className="text-sm text-neutral-400">Loading notifications...</p>
       ) : (
-        <NotificationList
-          items={notifications?.items ?? []}
-          unreadCount={unread?.count ?? 0}
-        />
+        <NotificationList items={notifications?.items ?? []} unreadCount={unread?.count ?? 0} />
       )}
     </Container>
   );

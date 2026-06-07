@@ -5,10 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 
-import {
-  getUnreadNotificationCount,
-  listNotifications,
-} from '@/lib/api/notifications';
+import { getUnreadNotificationCount, listNotifications } from '@/lib/api/notifications';
 import { queryKeys } from '@/lib/query-keys';
 import { registerWebPush } from '@/lib/notifications/push';
 import NotificationList from '@/components/common/notifications/notification-list';
