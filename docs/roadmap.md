@@ -207,6 +207,55 @@ To help users **better understand themselves**, not just complete tasks.
 
 ---
 
+## 💳 Platform & Commercialization Layer ✅
+
+**Status:** Delivered (post-v0.3, Beta)
+
+**Goal:**
+Turn MIRA from a single-user MVP into an **operable, monetizable product** without
+compromising the autonomy-first principles or the free experience. These features
+are orthogonal to the AI roadmap below (they don't change what MIRA "thinks", only
+who can access which capabilities and how MIRA reaches the user).
+
+### Delivered Features
+
+#### Subscriptions & Billing (Stripe)
+
+- Two plans: **FREE** and **PRO**. Premium AI features are gated behind PRO:
+  `ADVANCED_INSIGHTS`, `TRUTHLENS`, `CROSS_WEEK_ANALYSIS` (FREE also has a lower
+  `maxDigestTopics` limit).
+- `FeatureAccessService` resolves entitlements (`canUse` / `assertCanUse`) and
+  honors per-user `UserFeatureOverride`s (grant or revoke independent of plan).
+- Stripe is the billing source of truth: Checkout + Billing-Portal sessions, and
+  an **idempotent webhook** (`StripeWebhookEvent` dedupe) that syncs subscription
+  state and records a billing ledger (`PaymentRecord` + `SubscriptionEvent`).
+- Degrades gracefully: with no Stripe env configured the app runs **free-tier only**.
+- Surfaced via `/me/subscription`.
+
+#### Admin Back-Office
+
+- Separate operator identity (`Admin` model) with its own JWT strategy and cookies
+  (`adminAccessToken` / `adminRefreshToken`) — fully isolated from user auth.
+- Manage users (suspend / unsuspend / delete), inspect and edit subscriptions, and
+  set per-user feature overrides.
+- Admins are seed-provisioned (`seed:admin`); no public admin signup.
+- Surfaced via `/admin/*`.
+
+#### Notifications & Web Push
+
+- In-app notification inbox + **Web Push** (VAPID) for MORNING_BRIEFING,
+  EVENING_REFLECTION, NUDGE, WEEKLY_INSIGHT and SYSTEM events.
+- Strict opt-in via `NotificationPreference` (master `pushEnabled` + per-type
+  toggles); dedupe via `Notification.dedupeKey`.
+- Driven by `DailyEngineService` (non-blocking background dispatch); degrades to a
+  no-op when VAPID keys are absent.
+- Surfaced via `/me/notifications`.
+
+> See [`docs/architecture.md` → Platform Subsystems](architecture.md#platform-subsystems-post-v03)
+> for the detailed design.
+
+---
+
 ## 🧠 v0.4 — Personal AI Agent
 
 **Goal:**
