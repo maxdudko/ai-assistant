@@ -666,6 +666,7 @@ CORS_ORIGIN="http://localhost:3000"
 - [API Specification](./docs/specification.md) - Full technical spec
 - [Project Roadmap](./docs/roadmap.md) - Future plans
 - [Project Idea](./docs/idea.md) - Original concept
+- [EC2 Deployment Guide](./docs/deployment-ec2.md) - Dockerized deployment (web + api + db)
 
 ---
 
