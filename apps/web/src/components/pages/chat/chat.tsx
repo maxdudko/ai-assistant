@@ -351,7 +351,8 @@ const Chat: FC<ChatProps> = ({ conversationId }) => {
         }
       } catch (err) {
         console.error('Failed to confirm action:', err);
-        setError('Failed to confirm action');
+        const message = err instanceof Error ? err.message : 'Failed to confirm action';
+        setError(message);
       } finally {
         setConfirmingActionId(null);
       }

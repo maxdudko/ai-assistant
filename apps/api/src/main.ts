@@ -7,7 +7,10 @@ import { resolveAppLogger } from './logging/resolve-app-logger';
 
 async function bootstrap(): Promise<void> {
   const logger = resolveAppLogger();
-  const app = await NestFactory.create(AppModule, logger ? { logger } : {});
+  const app = await NestFactory.create(AppModule, {
+    ...(logger ? { logger } : {}),
+    rawBody: true,
+  });
   app.setGlobalPrefix('api');
   app.use(cookieParser());
   app.useGlobalPipes(

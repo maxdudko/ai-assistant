@@ -3,6 +3,7 @@
 import type { FC } from 'react';
 import React, { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 import { useAuth } from '@/lib/api/AuthContext';
 import { authApi } from '@/lib/api/auth';
@@ -41,7 +42,13 @@ const Register: FC = () => {
   );
 
   return (
-    <Container>
+    <Container className="flex flex-col items-center px-4 py-12">
+      <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+        <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
+          <span className="text-white font-bold text-lg">AI</span>
+        </div>
+        <span className="hidden md:block text-xl font-semibold text-neutral-100">Assistant</span>
+      </Link>
       <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4 p-6">
         <h2 className="text-xl font-medium">Register</h2>
         <input

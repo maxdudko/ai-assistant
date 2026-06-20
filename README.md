@@ -1,8 +1,21 @@
 # MIRA — Personal AI Assistant
 
+**Current release:** **v0.3 (Beta) — Insight & Reflection Layer**
+
 **MIRA** is a personal AI-powered assistant designed to help individuals manage their daily life, reduce cognitive load, and think more clearly in an information-saturated world.
 
 This project is about **augmenting individual autonomy, clarity, and control** — not replacing humans with AI.
+
+> **What's new in v0.3:** automatic weekly reflections, expanded pattern
+> detection (procrastination, overload, productivity peaks), tighter coupling
+> between daily tasks and personal goals, and the upgraded **TruthLens v2**
+> comparative information layer. See [`docs/roadmap.md`](docs/roadmap.md#-v03--insight--reflection-layer-).
+>
+> **Post-v0.3 platform layer:** Stripe-backed **subscriptions** (FREE/PRO) with
+> feature gating, a separately-authenticated **admin back-office**, and in-app
+> **notifications + Web Push**. See
+> [Subscriptions, Admin & Notifications](#-subscriptions-admin--notifications) and
+> [`docs/architecture.md` → Platform Subsystems](docs/architecture.md#platform-subsystems-post-v03).
 
 ---
 
@@ -46,6 +59,9 @@ ai-assistant/
 │   │   │   ├── tasks/         # Task management
 │   │   │   ├── goals/         # Goal tracking
 │   │   │   ├── actions/       # AI action execution
+│   │   │   ├── subscriptions/ # Stripe billing & feature gating (FREE/PRO)
+│   │   │   ├── notifications/ # In-app notifications + Web Push (VAPID)
+│   │   │   ├── admin/         # Operator back-office (separate auth)
 │   │   │   └── ...
 │   │   ├── prisma/
 │   │   │   ├── schema.prisma  # Database schema
@@ -148,6 +164,19 @@ NEWS_API_KEY="your-newsapi-key"
 
 # CORS
 CORS_ORIGIN="http://localhost:3000"
+
+# Web Push (optional — push delivery disabled if unset)
+VAPID_PUBLIC_KEY="your-vapid-public-key"
+VAPID_PRIVATE_KEY="your-vapid-private-key"
+VAPID_SUBJECT="mailto:support@ai-assistant.local"
+
+# Stripe (optional — Pro checkout/webhooks disabled if unset)
+STRIPE_SECRET_KEY="sk_test_..."
+STRIPE_WEBHOOK_SECRET="whsec_..."  # from: stripe listen --forward-to localhost:4000/api/subscriptions/webhook
+STRIPE_PRO_PRICE_ID="price_..."
+STRIPE_CHECKOUT_SUCCESS_URL="http://localhost:3000/me/subscription?checkout=success"
+STRIPE_CHECKOUT_CANCEL_URL="http://localhost:3000/me/subscription?checkout=canceled"
+STRIPE_BILLING_PORTAL_RETURN_URL="http://localhost:3000/me/subscription"
 ```
 
 #### Frontend (`apps/web/.env.local`)
@@ -413,6 +442,62 @@ AI suggests action → Store as ActionCandidate (PENDING)
 
 ---
 
+## 💳 Subscriptions, Admin & Notifications
+
+These platform subsystems were added after v0.3. They're optional — MIRA runs as a
+free, single-tier app when their environment variables are unset.
+
+### Plans & Feature Gating
+
+| Plan   | Premium features                                         | Digest topics |
+| ------ | -------------------------------------------------------- | ------------- |
+| `FREE` | —                                                        | up to 2       |
+| `PRO`  | Advanced weekly insights, TruthLens, cross-week analysis | up to 10      |
+
+- Entitlements are resolved by `FeatureAccessService` (`canUse` / `assertCanUse`).
+- An expired/`PAST_DUE`/`CANCELED` subscription falls back to `FREE` automatically.
+- Per-user `UserFeatureOverride`s (set from the admin panel) can grant or revoke a
+  feature independent of the plan.
+- Gating lives in the consuming services, so gated paths **degrade gracefully** —
+  e.g. TruthLens falls back to the neutral digest instead of erroring.
+
+### Stripe Billing
+
+- `POST /api/subscriptions/checkout` → Stripe Checkout for the Pro upgrade.
+- `POST /api/subscriptions/billing-portal` → Stripe Billing Portal.
+- `POST /api/subscriptions/webhook` → idempotent webhook (dedup via
+  `StripeWebhookEvent`) syncing subscription state and recording a billing ledger.
+  Requires the raw request body (the API bootstraps Nest with `{ rawBody: true }`).
+- Local webhook testing:
+
+```bash
+stripe listen --forward-to localhost:4000/api/subscriptions/webhook
+```
+
+> Billing is disabled when Stripe env vars are unset; the app stays free-tier only.
+
+### Notifications & Web Push
+
+- In-app inbox + Web Push (VAPID) for morning briefings, evening reflections,
+  nudges and weekly insights, produced by the daily engine.
+- Strict opt-in: a master `pushEnabled` switch plus per-type toggles
+  (`NotificationPreference`); duplicate sends are prevented via a dedupe key.
+- Push delivery is a no-op when VAPID keys are unset.
+
+### Admin Back-Office
+
+- Separate operator identity (`Admin` model) with its own JWT cookies
+  (`adminAccessToken` / `adminRefreshToken`) — isolated from end-user auth.
+- Manage users (suspend / unsuspend / delete), inspect/edit subscriptions, and set
+  per-user feature overrides.
+- Provision an admin with the seed script (see [Seed admin user](#seed-admin-user)).
+  There is no public admin signup.
+
+See [`docs/architecture.md` → Platform Subsystems](docs/architecture.md#platform-subsystems-post-v03)
+for the full design.
+
+---
+
 ## 📊 Database Schema
 
 ### Core Tables
@@ -432,6 +517,15 @@ AI suggests action → Store as ActionCandidate (PENDING)
 - **DigestTopic** - Normalized digest topics
 - **DigestSubscription** - Info digest topic subscriptions
 - **AiLog** - AI interaction logs for debugging
+- **WeeklyInsight** - Persisted per-ISO-week reflection (score, patterns, narrative)
+- **Subscription** - Per-user plan/status (Stripe-backed, FREE/PRO)
+- **UserFeatureOverride** - Per-user feature grant/revoke (independent of plan)
+- **PaymentRecord** / **SubscriptionEvent** - Billing ledger and audit trail
+- **StripeWebhookEvent** - Processed Stripe event ids (webhook idempotency)
+- **NotificationPreference** - Push master switch + per-type toggles
+- **PushSubscription** - Web Push (VAPID) endpoints
+- **Notification** - In-app notification inbox items
+- **Admin** - Standalone operator identity (separate auth, no User FK)
 
 ### Key Relationships
 
@@ -572,6 +666,7 @@ CORS_ORIGIN="http://localhost:3000"
 - [API Specification](./docs/specification.md) - Full technical spec
 - [Project Roadmap](./docs/roadmap.md) - Future plans
 - [Project Idea](./docs/idea.md) - Original concept
+- [EC2 Deployment Guide](./docs/deployment-ec2.md) - Dockerized deployment (web + api + db)
 
 ---
 
@@ -606,6 +701,13 @@ pnpm dev
 git add .
 git commit -m "feat: add my feature"
 git push origin feature/my-feature
+```
+
+### Seed admin user
+
+```bash
+pnpm --filter @ai/api exec prisma migrate deploy
+ADMIN_EMAIL="admin@example.com" ADMIN_PASSWORD="your-strong-password" pnpm --filter @ai/api seed:admin
 ```
 
 ---

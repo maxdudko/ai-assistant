@@ -32,6 +32,7 @@ async function bootstrap(): Promise<ExpressHandler> {
 
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn'],
+    rawBody: true,
   });
 
   app.setGlobalPrefix('api');

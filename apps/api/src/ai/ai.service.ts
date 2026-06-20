@@ -15,10 +15,15 @@ import {
   type InfoSearchQueryPayload,
   type InfoDigestPayload,
   type LlmRequest,
+  type WeeklyNarrativePayload,
+  type TruthLensPayload,
   ConversationMode as CoreConversationMode,
   MessageRole as CoreMessageRole,
   buildInfoSearchQueryPrompt,
   buildInfoDigestSummarizationPrompt,
+  buildWeeklySummaryPrompt,
+  buildTruthLensClassifierPrompt,
+  buildTruthLensDigestPrompt,
 } from '@ai/ai-core';
 
 import type { SearchResult } from '../search/search.types';
@@ -56,6 +61,14 @@ interface TaskContext {
   deadline?: string | null;
 }
 
+interface GoalContextLite {
+  id: string;
+  name: string;
+  type?: string;
+  priority?: string;
+  progressPct?: number;
+}
+
 interface Context {
   mode: ConversationMode;
   userProfile?: UserProfile | null;
@@ -65,6 +78,7 @@ interface Context {
   tasksToday?: TaskContext[];
   backlogTasks?: TaskContext[];
   keyMessages?: string[];
+  activeGoals?: GoalContextLite[];
 }
 
 @Injectable()
@@ -135,6 +149,7 @@ export class AiService implements OnModuleInit {
         tasksToday: context.tasksToday?.map(task => this.mapTaskContext(task)),
         backlogTasks: context.backlogTasks?.map(task => this.mapTaskContext(task)),
         keyMessages: context.keyMessages,
+        activeGoals: context.activeGoals,
       };
 
       // Call core AI service (it handles fallback internally)
@@ -164,6 +179,7 @@ export class AiService implements OnModuleInit {
         tasksToday: context.tasksToday?.map(task => this.mapTaskContext(task)),
         backlogTasks: context.backlogTasks?.map(task => this.mapTaskContext(task)),
         keyMessages: context.keyMessages,
+        activeGoals: context.activeGoals,
       };
 
       return await this.coreAiService.generateResponseStream(message, coreContext, onToken);
@@ -203,6 +219,147 @@ export class AiService implements OnModuleInit {
     return {
       searchQuery: userMessage.trim(),
       topic: undefined,
+    };
+  }
+
+  async generateWeeklyNarrative(input: {
+    isoWeek: number;
+    isoYear: number;
+    weekStart: string;
+    weekEnd: string;
+    completionRate: number;
+    totalTasks: number;
+    completedTasks: number;
+    reschedules: number;
+    activePatterns: string[];
+    completionsByBucket: Record<string, number>;
+    recentReflections: string[];
+    activeGoals: Array<{ name: string; progressPct: number }>;
+  }): Promise<WeeklyNarrativePayload | null> {
+    const request: LlmRequest = {
+      systemPrompt: buildWeeklySummaryPrompt(),
+      messages: [
+        {
+          role: 'USER',
+          content: JSON.stringify(input),
+        },
+      ],
+      temperature: 0.4,
+      maxTokens: 700,
+    };
+
+    const payload = await this.coreAiService.generateJson<WeeklyNarrativePayload>(request);
+    if (
+      payload &&
+      typeof payload.narrative === 'string' &&
+      typeof payload.focusSuggestion === 'string' &&
+      Array.isArray(payload.topPatterns) &&
+      payload.topPatterns.every(item => typeof item === 'string')
+    ) {
+      return {
+        narrative: payload.narrative.trim(),
+        focusSuggestion: payload.focusSuggestion.trim(),
+        topPatterns: payload.topPatterns
+          .map(item => item.trim().toLowerCase())
+          .filter(item => item.length > 0)
+          .slice(0, 3),
+      };
+    }
+
+    return null;
+  }
+
+  async classifyInfoQuery(
+    userMessage: string,
+  ): Promise<{ mode: 'truthlens' | 'digest'; rewrittenQuery: string }> {
+    const request: LlmRequest = {
+      systemPrompt: buildTruthLensClassifierPrompt(),
+      messages: [
+        {
+          role: 'USER',
+          content: userMessage,
+        },
+      ],
+      temperature: 0.1,
+      maxTokens: 200,
+    };
+
+    const payload = await this.coreAiService.generateJson<{
+      mode?: unknown;
+      rewrittenQuery?: unknown;
+    }>(request);
+
+    const mode =
+      payload?.mode === 'truthlens' || payload?.mode === 'digest' ? payload.mode : 'digest';
+    const rewrittenRaw =
+      typeof payload?.rewrittenQuery === 'string' ? payload.rewrittenQuery.trim() : '';
+    const rewrittenQuery = rewrittenRaw.length >= 3 ? rewrittenRaw : userMessage.trim();
+    return { mode, rewrittenQuery };
+  }
+
+  async generateTruthLensDigest(
+    userMessage: string,
+    searchResults: SearchResult[],
+  ): Promise<TruthLensPayload | null> {
+    const compactResults = searchResults.slice(0, 8).map(result => ({
+      title: result.title,
+      snippet: result.snippet,
+      url: result.url,
+      publishedAt: result.publishedAt,
+    }));
+
+    const request: LlmRequest = {
+      systemPrompt: buildTruthLensDigestPrompt(),
+      messages: [
+        {
+          role: 'USER',
+          content: JSON.stringify({ question: userMessage, results: compactResults }),
+        },
+      ],
+      temperature: 0.2,
+      maxTokens: 900,
+    };
+
+    const payload = await this.coreAiService.generateJson<TruthLensPayload>(request);
+    if (!payload || !this.isValidTruthLensPayload(payload)) {
+      return null;
+    }
+    return this.normalizeTruthLensPayload(payload);
+  }
+
+  private isValidTruthLensPayload(payload: TruthLensPayload): boolean {
+    if (typeof payload.title !== 'string' || typeof payload.question !== 'string') return false;
+    if (!Array.isArray(payload.perspectives) || payload.perspectives.length < 2) return false;
+    if (!['low', 'medium', 'high'].includes(payload.confidence)) return false;
+    return payload.perspectives.every(
+      perspective =>
+        typeof perspective.label === 'string' &&
+        typeof perspective.claim === 'string' &&
+        Array.isArray(perspective.evidence) &&
+        Array.isArray(perspective.limitations),
+    );
+  }
+
+  private normalizeTruthLensPayload(payload: TruthLensPayload): TruthLensPayload {
+    const trimList = (items: string[]): string[] =>
+      items
+        .map(item => (typeof item === 'string' ? item.trim() : ''))
+        .filter(item => item.length > 0);
+    return {
+      title: payload.title.trim().slice(0, 120),
+      question: payload.question.trim().slice(0, 200),
+      perspectives: payload.perspectives.slice(0, 3).map(perspective => ({
+        label: perspective.label.trim().slice(0, 32) || 'Perspective',
+        claim: perspective.claim.trim().slice(0, 320),
+        evidence: trimList(perspective.evidence).slice(0, 5),
+        limitations: trimList(perspective.limitations).slice(0, 3),
+      })),
+      consensus:
+        typeof payload.consensus === 'string' && payload.consensus.trim().length > 0
+          ? payload.consensus.trim().slice(0, 240)
+          : null,
+      openQuestions: trimList(payload.openQuestions ?? []).slice(0, 4),
+      confidence: payload.confidence,
     };
   }
 

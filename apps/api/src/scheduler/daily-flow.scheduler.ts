@@ -4,6 +4,7 @@ import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { PatternDetectionService } from '../memory/pattern-detection.service';
 import { DailyEngineService } from '../daily/daily-engine.service';
+import { WeeklyInsightService } from '../daily/weekly-insight.service';
 import { getUserLocalDateInfo } from '../daily/daily-timezone.util';
 
 import { DailySchedulerEventResolver } from './daily-scheduler-event-resolver';
@@ -16,6 +17,7 @@ export class DailyFlowScheduler {
     private readonly prisma: PrismaService,
     private readonly patternDetection: PatternDetectionService,
     private readonly dailyEngine: DailyEngineService,
+    private readonly weeklyInsight: WeeklyInsightService,
     private readonly eventResolver: DailySchedulerEventResolver,
   ) {}
 
@@ -41,6 +43,22 @@ export class DailyFlowScheduler {
   async handlePatternDetection(): Promise<void> {
     this.logger.log('Running pattern detection scheduler');
     await this.runPatternDetection();
+  }
+
+  // Sunday 22:00 UTC: generate the weekly insight for the just-completed ISO week.
+  @Cron('0 22 * * 0', { name: 'weekly-summary', timeZone: 'UTC' })
+  async handleWeeklySummary(): Promise<void> {
+    this.logger.log('Running weekly summary scheduler');
+    await this.runWeeklySummary();
+  }
+
+  async runWeeklySummary(referenceDate?: Date): Promise<{
+    processed: number;
+    generated: number;
+    skipped: number;
+    failed: number;
+  }> {
+    return this.weeklyInsight.runForAllUsers({ referenceDate });
   }
 
   async runMorningBriefings(): Promise<{ delivered: number; skipped: number; processed: number }> {

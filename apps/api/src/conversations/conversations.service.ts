@@ -177,6 +177,7 @@ export class ConversationsService {
 
     // Get daily conversation by default
     const id = await this.getOrCreateDailyConversation(userId);
+    await this.triggerDailyPrelude(userId);
     return this.prisma.conversation.findUnique({
       where: { id },
       include: {
@@ -190,6 +191,20 @@ export class ConversationsService {
         },
       },
     });
+  }
+
+  private async triggerDailyPrelude(userId: string): Promise<void> {
+    try {
+      const timeTriggerResult = await this.dailyEngine.handleEvent(userId, {
+        type: 'TIME_TRIGGER',
+      });
+      if (timeTriggerResult.actions === 0) {
+        await this.dailyEngine.handleEvent(userId, { type: 'DAY_START' });
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Daily engine skipped while loading daily conversation: ${reason}`);
+    }
   }
 
   /**
@@ -233,6 +248,7 @@ export class ConversationsService {
     }
     const taskOverviewRequest = this.isTaskOverviewRequest(message);
     const completionIntent = this.isTaskCompletionMutationRequest(message);
+    const hasPriorUserMessages = conversation.messages.some(msg => msg.role === 'USER');
 
     // Save user message
     await this.prisma.message.create({
@@ -244,7 +260,9 @@ export class ConversationsService {
       },
     });
 
-    if (!taskOverviewRequest) {
+    const shouldTrackDailyUserActivity =
+      conversation.type !== ConversationType.DAILY || hasPriorUserMessages;
+    if (!taskOverviewRequest && shouldTrackDailyUserActivity) {
       void this.dailyEngine.handleEvent(userId, { type: 'USER_ACTIVITY' }).catch(error => {
         const reason = error instanceof Error ? error.message : String(error);
         this.logger.warn(`Daily engine skipped after user activity: ${reason}`);
@@ -580,7 +598,7 @@ export class ConversationsService {
       deadline: task.deadline ? task.deadline.toISOString() : null,
     }));
 
-    const [backlogTasks, keyMessages] = await Promise.all([
+    const [backlogTasks, keyMessages, activeGoals] = await Promise.all([
       this.prisma.task.findMany({
         where: {
           userId,
@@ -593,7 +611,31 @@ export class ConversationsService {
       includeReflectionContext && conversation.dayId
         ? this.buildReflectionKeyMessages(conversation.dayId)
         : Promise.resolve(undefined),
+      this.prisma.goal.findMany({
+        where: { userId, isAchieved: false },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          priority: true,
+          tasks: { select: { status: true } },
+        },
+        orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+        take: 5,
+      }),
     ]);
+
+    const activeGoalContext = activeGoals.map(goal => {
+      const total = goal.tasks.length;
+      const completed = goal.tasks.filter(task => task.status === TaskStatus.DONE).length;
+      return {
+        id: goal.id,
+        name: goal.name,
+        type: goal.type,
+        priority: goal.priority,
+        progressPct: total === 0 ? 0 : Math.round((completed / total) * 100),
+      };
+    });
 
     return {
       mode: conversation.mode,
@@ -613,6 +655,7 @@ export class ConversationsService {
         priority: task.priority,
         deadline: task.deadline ? task.deadline.toISOString() : null,
       })),
+      activeGoals: activeGoalContext,
     };
   }
 
@@ -900,6 +943,7 @@ export class ConversationsService {
       'TASK_SET_PRIORITY',
       'TASK_SET_DUE_DATE',
       'TASK_COMPLETE',
+      'TASK_LINK_GOAL',
       'DAY_START',
       'DAY_END',
       'SUGGEST_DIGEST_SUBSCRIPTION',
@@ -1300,6 +1344,7 @@ export class ConversationsService {
       tasksToday: context.tasksToday,
       backlogTasks: context.backlogTasks,
       keyMessages: context.keyMessages,
+      activeGoals: context.activeGoals,
     };
 
     const systemPrompt = buildSystemPrompt(coreContext);

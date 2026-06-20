@@ -7,6 +7,7 @@ import {
   IsInt,
   Min,
   Max,
+  ValidateIf,
 } from 'class-validator';
 import { TaskStatus, TaskPriority } from '@prisma/client';
 
@@ -47,8 +48,9 @@ export class UpdateTaskDto {
   parentId?: string;
 
   @IsOptional()
+  @ValidateIf((_, value) => value !== null)
   @IsUUID()
-  goalId?: string;
+  goalId?: string | null;
 
   @IsOptional()
   @IsUUID()

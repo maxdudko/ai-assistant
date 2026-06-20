@@ -196,6 +196,9 @@ export interface GoalDto {
   parentId: string | null;
   createdAt: string;
   updatedAt: string;
+  totalTasks?: number;
+  completedTasks?: number;
+  progressPct?: number;
   conversation?: ConversationDto | null;
   parent?: GoalDto | null;
   subgoals?: GoalDto[];
@@ -367,4 +370,266 @@ export interface GetLogsResponse {
     total: number;
     totalPages: number;
   };
+}
+
+export interface WeeklyInsightDto {
+  id: string;
+  isoYear: number;
+  isoWeek: number;
+  weekStart: string;
+  weekEnd: string;
+  score: number;
+  completionRate: number;
+  totalTasks: number;
+  completedTasks: number;
+  reschedules: number;
+  topPatterns: string[];
+  focusSuggestion: string | null;
+  narrative: string;
+  source: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WeeklyInsightListResponse {
+  items: WeeklyInsightDto[];
+  hasMore: boolean;
+  nextOffset: number | null;
+}
+
+export interface GoalProgressDto {
+  goal: {
+    id: string;
+    name: string;
+    type: GoalType;
+    priority: GoalPriority;
+    isAchieved: boolean;
+  };
+  totalTasks: number;
+  completedTasks: number;
+  inProgressTasks: number;
+  todoTasks: number;
+  completionRate: number;
+  recentActivity: Array<{
+    taskId: string;
+    name: string;
+    status: TaskStatus;
+    updatedAt: string;
+  }>;
+}
+
+export type TruthLensConfidence = 'low' | 'medium' | 'high';
+
+export type SubscriptionPlan = 'FREE' | 'PRO';
+export type SubscriptionStatus = 'ACTIVE' | 'TRIALING' | 'PAST_DUE' | 'CANCELED' | 'INCOMPLETE';
+
+export type Feature = 'ADVANCED_INSIGHTS' | 'TRUTHLENS' | 'CROSS_WEEK_ANALYSIS';
+
+export interface SubscriptionDto {
+  id: string;
+  userId: string;
+  plan: SubscriptionPlan;
+  status: SubscriptionStatus;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  trialEnd: string | null;
+  hasStripeCustomer: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlanCatalogEntryDto {
+  plan: SubscriptionPlan;
+  label: string;
+  description: string;
+  features: Feature[];
+  limits: { maxDigestTopics: number };
+}
+
+export interface SubscriptionMeDto {
+  subscription: SubscriptionDto;
+  features: Feature[];
+  plans: PlanCatalogEntryDto[];
+  stripeConfigured: boolean;
+}
+
+export interface StripeRedirectDto {
+  url: string;
+}
+
+export interface PaymentRecordDto {
+  id: string;
+  stripeInvoiceId: string;
+  amountCents: number;
+  currency: string;
+  status: string;
+  description: string | null;
+  invoiceNumber: string | null;
+  hostedInvoiceUrl: string | null;
+  invoicePdfUrl: string | null;
+  paidAt: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  createdAt: string;
+}
+
+export interface SubscriptionEventDto {
+  id: string;
+  type: string;
+  plan: SubscriptionPlan | null;
+  status: SubscriptionStatus | null;
+  description: string;
+  occurredAt: string;
+}
+
+export interface SubscriptionHistoryDto {
+  payments: PaymentRecordDto[];
+  events: SubscriptionEventDto[];
+}
+
+export interface TruthLensPerspectiveDto {
+  label: string;
+  claim: string;
+  evidence: string[];
+  limitations: string[];
+}
+
+export interface TruthLensReportDto {
+  title: string;
+  question: string;
+  perspectives: TruthLensPerspectiveDto[];
+  consensus: string | null;
+  openQuestions: string[];
+  confidence: TruthLensConfidence;
+}
+
+export interface AdminDto {
+  id: string;
+  email: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminLoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface AdminUserListItemDto {
+  id: string;
+  email: string;
+  suspendedAt: string | null;
+  displayName: string | null;
+  timezone: string | null;
+  onboardingCompleted: boolean;
+  subscriptionPlan: string | null;
+  subscriptionStatus: string | null;
+  subscriptionPeriodEnd: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminSubscriptionListItemDto {
+  id: string;
+  userId: string;
+  userEmail: string;
+  plan: string;
+  status: string;
+  cancelAtPeriodEnd: boolean;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+  trialEnd: string | null;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  effectiveFeatures: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminFeatureCatalogItemDto {
+  key: string;
+  label: string;
+}
+
+export interface AdminSubscriptionCatalogDto {
+  plans: Array<{
+    plan: string;
+    label: string;
+    description: string;
+    features: string[];
+    limits: { maxDigestTopics: number };
+  }>;
+  features: AdminFeatureCatalogItemDto[];
+}
+
+export interface AdminFeatureOverrideDto {
+  feature: string;
+  allowed: boolean;
+}
+
+export interface AdminFeatureStateDto {
+  feature: string;
+  label: string;
+  planDefault: boolean;
+  effective: boolean;
+  override: AdminFeatureOverrideDto | null;
+}
+
+export interface AdminSubscriptionDetailDto extends AdminSubscriptionListItemDto {
+  overrides: AdminFeatureOverrideDto[];
+  featureStates: AdminFeatureStateDto[];
+}
+
+export interface UpdateAdminSubscriptionRequest {
+  plan?: string;
+  status?: string;
+  cancelAtPeriodEnd?: boolean;
+}
+
+export interface SetAdminFeatureOverridesRequest {
+  overrides: AdminFeatureOverrideDto[];
+}
+
+export interface AdminUpdateEmailRequest {
+  email: string;
+}
+
+export interface AdminChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export type NotificationType =
+  | 'MORNING_BRIEFING'
+  | 'EVENING_REFLECTION'
+  | 'NUDGE'
+  | 'WEEKLY_INSIGHT'
+  | 'SYSTEM';
+
+export interface NotificationPreferencesDto {
+  pushEnabled: boolean;
+  morningBriefingEnabled: boolean;
+  eveningReflectionEnabled: boolean;
+  nudgesEnabled: boolean;
+  weeklyInsightEnabled: boolean;
+}
+
+export interface PushPublicKeyDto {
+  publicKey: string | null;
+  enabled: boolean;
+}
+
+export interface NotificationDto {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  deepLink?: string | null;
+  conversationId?: string | null;
+  messageId?: string | null;
+  dayId?: string | null;
+  readAt?: string | null;
+  pushedAt?: string | null;
+  createdAt: string;
 }

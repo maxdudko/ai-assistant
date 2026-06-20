@@ -71,8 +71,7 @@ export class ConversationsController {
    */
   @Get('daily')
   async getDailyConversation(@Req() req) {
-    const conversationId = await this.service.getOrCreateDailyConversation(req.user.id);
-    return this.service.getActiveConversation(req.user.id, conversationId);
+    return this.service.getActiveConversation(req.user.id);
   }
 
   /**
