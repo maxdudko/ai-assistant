@@ -141,54 +141,6 @@ enum DigestFrequency {
   DAILY
 }
 
-enum SubscriptionPlan {
-  FREE
-  PRO
-}
-
-enum SubscriptionStatus {
-  ACTIVE
-  TRIALING
-  PAST_DUE
-  CANCELED
-  INCOMPLETE
-}
-
-enum PaymentStatus {
-  PAID
-  OPEN
-  FAILED
-  VOID
-  UNCOLLECTIBLE
-}
-
-enum SubscriptionEventType {
-  SUBSCRIBED
-  RENEWED
-  UPDATED
-  CANCELED
-  PAYMENT_FAILED
-  DOWNGRADED
-}
-
-enum Feature {
-  ADVANCED_INSIGHTS
-  TRUTHLENS
-  CROSS_WEEK_ANALYSIS
-}
-
-enum NotificationType {
-  MORNING_BRIEFING
-  EVENING_REFLECTION
-  NUDGE
-  WEEKLY_INSIGHT
-  SYSTEM
-}
-
-enum PushPlatform {
-  WEB
-}
-
 // ================================
 // Models
 // ================================
@@ -201,7 +153,6 @@ model User {
   tokenVersion         Int       @default(0)
   passwordResetToken   String?
   passwordResetExpires DateTime?
-  suspendedAt          DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -217,24 +168,6 @@ model User {
   memories            Memory[]
   digestSubscriptions DigestSubscription[]
   aiLogs              AiLog[]
-  weeklyInsights      WeeklyInsight[]
-  subscription        Subscription?
-  paymentRecords      PaymentRecord[]
-  subscriptionEvents      SubscriptionEvent[]
-  featureOverrides        UserFeatureOverride[]
-  notificationPreference  NotificationPreference?
-  pushSubscriptions       PushSubscription[]
-  notifications           Notification[]
-}
-
-model Admin {
-  id               String   @id @default(uuid())
-  email            String   @unique
-  passwordHash     String
-  refreshTokenHash String?
-  tokenVersion     Int      @default(0)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
 }
 
 model UserProfile {
@@ -258,61 +191,6 @@ model UserProfile {
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model NotificationPreference {
-  id                       String  @id @default(uuid())
-  userId                   String  @unique
-  pushEnabled              Boolean @default(true)
-  morningBriefingEnabled   Boolean @default(true)
-  eveningReflectionEnabled Boolean @default(true)
-  nudgesEnabled            Boolean @default(true)
-  weeklyInsightEnabled     Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model PushSubscription {
-  id        String       @id @default(uuid())
-  userId    String
-  platform  PushPlatform @default(WEB)
-  endpoint  String       @unique
-  p256dh    String
-  auth      String
-  userAgent String?
-  lastUsedAt DateTime    @default(now())
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-}
-
-model Notification {
-  id             String           @id @default(uuid())
-  userId         String
-  type           NotificationType
-  title          String
-  body           String
-  deepLink       String?
-  conversationId String?
-  messageId      String?
-  dayId          String?
-  dedupeKey      String?
-  readAt         DateTime?
-  pushedAt       DateTime?
-  pushError      String?
-
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, dedupeKey])
-  @@index([userId, readAt, createdAt])
 }
 
 model Conversation {
@@ -375,9 +253,9 @@ model Memory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  day          Day?          @relation(fields: [dayId], references: [id], onDelete: SetNull)
-  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  user         User          @relation(fields: [userId], references: [id])
+  day          Day?          @relation(fields: [dayId], references: [id])
+  conversation Conversation? @relation(fields: [conversationId], references: [id])
 
   @@index([userId, type])
   @@index([userId, layer])
@@ -404,31 +282,6 @@ model ActionCandidate {
   @@index([userId, createdAt])
   @@index([conversationId])
   @@index([status])
-}
-
-model WeeklyInsight {
-  id             String   @id @default(uuid())
-  userId         String
-  weekStart      DateTime // Monday 00:00 in user's timezone, stored as UTC instant
-  weekEnd        DateTime // Sunday 23:59:59.999 in user's timezone, stored as UTC instant
-  isoYear        Int
-  isoWeek        Int
-  score          Int // 1..10 aggregate week score
-  completionRate Float
-  totalTasks     Int      @default(0)
-  completedTasks Int      @default(0)
-  reschedules    Int      @default(0)
-  topPatterns    String[] @default([])
-  focusSuggestion String?
-  narrative      String   @db.Text
-  source         String   @default("AUTOMATIC") // AUTOMATIC | MANUAL
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, isoYear, isoWeek])
-  @@index([userId, weekStart])
 }
 
 model ActionExecutionLog {
@@ -599,85 +452,6 @@ model DigestSubscription {
 
   @@unique([userId, topicId])
   @@index([userId, frequency])
-}
-
-model Subscription {
-  id                   String             @id @default(uuid())
-  userId               String             @unique
-  plan                 SubscriptionPlan     @default(FREE)
-  status               SubscriptionStatus   @default(ACTIVE)
-  stripeCustomerId     String?            @unique
-  stripeSubscriptionId String?            @unique
-  stripePriceId        String?
-  currentPeriodStart   DateTime?
-  currentPeriodEnd     DateTime?
-  cancelAtPeriodEnd    Boolean            @default(false)
-  trialEnd             DateTime?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([status])
-  @@index([plan])
-}
-
-model UserFeatureOverride {
-  id        String   @id @default(uuid())
-  userId    String
-  feature   Feature
-  allowed   Boolean
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, feature])
-  @@index([userId])
-}
-
-model StripeWebhookEvent {
-  id          String   @id
-  type        String
-  processedAt DateTime @default(now())
-  payload     Json?
-}
-
-model PaymentRecord {
-  id                String        @id @default(uuid())
-  userId            String
-  stripeInvoiceId   String        @unique
-  amountCents       Int
-  currency          String        @default("usd")
-  status            PaymentStatus
-  description       String?
-  invoiceNumber     String?
-  hostedInvoiceUrl  String?
-  invoicePdfUrl     String?
-  paidAt            DateTime?
-  periodStart       DateTime?
-  periodEnd         DateTime?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, paidAt])
-  @@index([userId, createdAt])
-}
-
-model SubscriptionEvent {
-  id          String                @id @default(uuid())
-  userId      String
-  type        SubscriptionEventType
-  plan        SubscriptionPlan?
-  status      SubscriptionStatus?
-  description String
-  occurredAt  DateTime              @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, occurredAt])
 }
 
 model AiLog {

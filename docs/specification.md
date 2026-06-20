@@ -152,60 +152,13 @@ Features:
 
 ---
 
-### 2.6. Info Digest (TruthLens Lite → v2)
+### 2.6. Info Digest (TruthLens Lite)
 
 MVP version:
 
 - the user selects topics
 - MIRA produces brief, neutral summaries
 - without emotional coloring or manipulation
-
-v2 (delivered in v0.3):
-
-- comparative queries are routed through a TruthLens path
-- responses surface 2–3 perspectives, each with explicit evidence and
-  limitations
-- includes a `consensus` line when sources agree and `openQuestions` when
-  they don't
-- declares an explicit confidence label (`low` | `medium` | `high`)
-- prompt enforces stricter rationality and minimization of emotional
-  language
-- gracefully falls back to the neutral digest when search results are too
-  thin or the structured payload is invalid
-
----
-
-### 2.7. Reflection Engine (v0.3)
-
-Goal: help the user understand themselves through patterns and reflection,
-not just complete tasks.
-
-Components:
-
-- **Weekly Insight** — for each ISO week, MIRA aggregates completion data,
-  reschedules, completion-time distribution, active goals and recent
-  pattern memories, then asks the LLM to write a personal narrative with a
-  single focus suggestion. The result is persisted in `WeeklyInsight` and
-  ingested as an `EPISODIC` reflection memory (used by RAG in subsequent
-  conversations).
-- **Pattern detection** — extends the previous detector with
-  procrastination (rolling stalled tasks + repeated `RESCHEDULE_TASK`
-  actions) and time-of-day productivity peaks (morning / afternoon /
-  evening / late-night). Patterns are written as `PATTERN`-layer memories
-  to keep the AI context aware of recurring behavior.
-- **Surface area** — `/me/insights` page in the web app, manual trigger
-  endpoint (`POST /day/weekly-insight/generate`) and a Sunday 22:00 UTC
-  cron run via Vercel Cron + the `DailyFlowScheduler`.
-
-### 2.8. Goals Deepening (v0.3)
-
-- Daily tasks can be linked to goals through chat via the `TASK_LINK_GOAL`
-  action (reversible undo supported).
-- Manager-mode prompts include the user's active goals (top 5, ordered by
-  priority) and the alignment question pattern: _"Does this bring you
-  closer to <goal name>?"_.
-- `GET /goals/:id/progress` returns task counts, completion rate, and
-  recent activity; the goals UI renders progress bars per goal.
 
 ---
 

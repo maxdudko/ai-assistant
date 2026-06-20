@@ -28,7 +28,7 @@ When suggesting actions, return a JSON object only:
   "actions": [
     {
       "id": "uuid",
-      "type": "TASK_CREATE | TASK_UPDATE_STATUS | TASK_SET_PRIORITY | TASK_SET_DUE_DATE | TASK_COMPLETE | TASK_LINK_GOAL | DAY_START | DAY_END | SIMPLIFY_DAY | SPLIT_TASK | RESCHEDULE_TASK",
+      "type": "TASK_CREATE | TASK_UPDATE_STATUS | TASK_SET_PRIORITY | TASK_SET_DUE_DATE | TASK_COMPLETE | DAY_START | DAY_END | SIMPLIFY_DAY | SPLIT_TASK | RESCHEDULE_TASK",
       "payload": { "title": "Task title", "...": "..." },
       "confidence": 0.0-1.0,
       "requiresConfirmation": true

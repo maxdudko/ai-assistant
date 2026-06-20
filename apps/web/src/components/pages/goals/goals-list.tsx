@@ -211,29 +211,13 @@ const GoalsList: FC = () => {
                           {goal.description}
                         </p>
                       )}
-                      {typeof goal.progressPct === 'number' && (goal.totalTasks ?? 0) > 0 && (
-                        <div className="mb-2">
-                          <div className="flex items-center justify-between text-xs text-neutral-400 mb-1">
-                            <span>
-                              Progress: {goal.completedTasks}/{goal.totalTasks} tasks
-                            </span>
-                            <span>{goal.progressPct}%</span>
-                          </div>
-                          <div className="h-1.5 w-full rounded-full bg-neutral-800 overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-indigo-500 transition-all"
-                              style={{ width: `${Math.min(100, goal.progressPct)}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
                       <div className="flex items-center gap-4 text-xs text-neutral-500">
                         <span>Created: {formatDate(goal.createdAt)}</span>
                         {goal.subgoals && goal.subgoals.length > 0 && (
                           <span>{goal.subgoals.length} subgoal(s)</span>
                         )}
-                        {(goal.totalTasks ?? goal.tasks?.length ?? 0) > 0 && (
-                          <span>{goal.totalTasks ?? goal.tasks?.length ?? 0} task(s)</span>
+                        {goal.tasks && goal.tasks.length > 0 && (
+                          <span>{goal.tasks.length} task(s)</span>
                         )}
                       </div>
                     </div>

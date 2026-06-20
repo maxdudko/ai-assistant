@@ -112,15 +112,6 @@ describe('DailyEngineService', () => {
     const unifiedContext = {
       getContext: jest.fn().mockResolvedValue(buildUnifiedContext()),
     } as any;
-    const notifications = {
-      dispatchInBackground: jest.fn(),
-      buildDailyNotification: jest.fn().mockReturnValue({
-        userId: 'user-1',
-        type: 'NUDGE',
-        title: 'Check-in from Mira',
-        body: 'Test',
-      }),
-    } as any;
     const service = new DailyEngineService(
       prisma,
       dailyConversation,
@@ -130,7 +121,6 @@ describe('DailyEngineService', () => {
       actionsService,
       dayResolver,
       unifiedContext,
-      notifications,
     );
     return {
       service,

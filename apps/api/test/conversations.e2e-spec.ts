@@ -153,35 +153,24 @@ describe('Conversations (e2e)', () => {
     });
 
     it('should switch mode when sending message', async () => {
-      // Ad-hoc conversation has no dayId, avoiding extra reflection context DB work.
       const convResponse = await request(app.getHttpServer())
-        .post('/api/conversations/ad-hoc')
+        .get('/api/conversations/daily')
         .set('Cookie', authCookies)
-        .send({ mode: ConversationMode.MANAGER })
-        .expect(201);
+        .expect(200);
 
       const conversationId = convResponse.body.id;
-      expect(convResponse.body.mode).toBe(ConversationMode.MANAGER);
 
       const response = await request(app.getHttpServer())
         .post('/api/conversations/message')
         .set('Cookie', authCookies)
         .send({
-          message: 'Switching to reflection mode',
+          message: 'Let me reflect on today',
           conversationId,
           mode: ConversationMode.REFLECTION,
         })
         .expect(201);
 
       expect(response.body.conversationId).toBe(conversationId);
-      expect(response.body.message.mode).toBe(ConversationMode.REFLECTION);
-
-      const updated = await request(app.getHttpServer())
-        .get(`/api/conversations/${conversationId}`)
-        .set('Cookie', authCookies)
-        .expect(200);
-
-      expect(updated.body.mode).toBe(ConversationMode.REFLECTION);
     });
 
     it('should return 400 for empty message', async () => {

@@ -2,14 +2,10 @@
 
 import type { FC } from 'react';
 import React, { useCallback, useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 
 import { useAuth } from '@/lib/api/AuthContext';
 import { userApi } from '@/lib/api/user';
 import { authApi } from '@/lib/api/auth';
-import { getNotificationPreferences, updateNotificationPreferences } from '@/lib/api/notifications';
-import { queryKeys } from '@/lib/query-keys';
-import { registerWebPush } from '@/lib/notifications/push';
 import type {
   HelpStyleOption,
   PrimaryUseCaseOption,
@@ -33,17 +29,6 @@ const Profile: FC = () => {
   const [helpStyle, setHelpStyle] = useState<HelpStyleOption>('passive');
   const [dayPlanningTime, setDayPlanningTime] = useState<TimePreferenceOption>('anytime');
   const [reflectionTime, setReflectionTime] = useState<TimePreferenceOption>('anytime');
-  const [pushEnabled, setPushEnabled] = useState(true);
-  const [morningBriefingEnabled, setMorningBriefingEnabled] = useState(true);
-  const [eveningReflectionEnabled, setEveningReflectionEnabled] = useState(true);
-  const [nudgesEnabled, setNudgesEnabled] = useState(true);
-  const [weeklyInsightEnabled, setWeeklyInsightEnabled] = useState(true);
-  const [pushStatus, setPushStatus] = useState<string | null>(null);
-
-  const { data: notificationPreferences } = useQuery({
-    queryKey: queryKeys.notificationPreferences,
-    queryFn: getNotificationPreferences,
-  });
 
   const [isChangePasswordFormVisible, setIsChangePasswordFormVisible] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -66,16 +51,6 @@ const Profile: FC = () => {
     setReflectionTime((user.profile?.reflectionTime as TimePreferenceOption) ?? 'anytime');
   }, [user]);
 
-  useEffect(() => {
-    if (!notificationPreferences) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPushEnabled(notificationPreferences.pushEnabled);
-    setMorningBriefingEnabled(notificationPreferences.morningBriefingEnabled);
-    setEveningReflectionEnabled(notificationPreferences.eveningReflectionEnabled);
-    setNudgesEnabled(notificationPreferences.nudgesEnabled);
-    setWeeklyInsightEnabled(notificationPreferences.weeklyInsightEnabled);
-  }, [notificationPreferences]);
-
   async function onSave() {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
     await userApi.updateMe({
@@ -92,25 +67,8 @@ const Profile: FC = () => {
         timezone,
       },
     });
-    await updateNotificationPreferences({
-      pushEnabled,
-      morningBriefingEnabled,
-      eveningReflectionEnabled,
-      nudgesEnabled,
-      weeklyInsightEnabled,
-    });
     await refresh();
   }
-
-  const onEnablePush = useCallback(async () => {
-    setPushStatus(null);
-    try {
-      const enabled = await registerWebPush();
-      setPushStatus(enabled ? 'Browser notifications enabled.' : 'Could not enable push.');
-    } catch {
-      setPushStatus('Could not enable push notifications.');
-    }
-  }, []);
 
   const onChangePassword = useCallback(
     async (e: React.FormEvent) => {
@@ -427,62 +385,6 @@ const Profile: FC = () => {
           </div>
         </Container>
       </div>
-
-      <Container className="space-y-4 p-4">
-        <h3 className="text-lg font-medium">Notifications</h3>
-        <p className="text-sm text-neutral-400">
-          Get morning briefings, evening reflections, and check-ins even when the app is closed.
-        </p>
-
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={pushEnabled}
-            onChange={e => setPushEnabled(e.target.checked)}
-            className="rounded"
-          />
-          Send browser push notifications
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={morningBriefingEnabled}
-            onChange={e => setMorningBriefingEnabled(e.target.checked)}
-            className="rounded"
-          />
-          Morning briefing
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={eveningReflectionEnabled}
-            onChange={e => setEveningReflectionEnabled(e.target.checked)}
-            className="rounded"
-          />
-          Evening reflection
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={nudgesEnabled}
-            onChange={e => setNudgesEnabled(e.target.checked)}
-            className="rounded"
-          />
-          Daily nudges and check-ins
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={weeklyInsightEnabled}
-            onChange={e => setWeeklyInsightEnabled(e.target.checked)}
-            className="rounded"
-          />
-          Weekly insights
-        </label>
-
-        <Button type="button" onClick={onEnablePush} content="Enable browser notifications" />
-        {pushStatus && <p className="text-sm text-neutral-400">{pushStatus}</p>}
-      </Container>
 
       <div className="flex justify-end">
         <Button type="button" onClick={onSave} content="Save changes" />

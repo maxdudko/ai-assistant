@@ -151,108 +151,32 @@ Deepen personalization and the feeling of "he knows me."
 
 ---
 
-## 📊 v0.3 — Insight & Reflection Layer ✅
-
-**Status:** Delivered (Beta)
+## 📊 v0.3 — Insight & Reflection Layer
 
 **Goal:**
 To help users **better understand themselves**, not just complete tasks.
 
-### Delivered Features
+### New Features
 
 #### Reflection Engine
 
-- Automatic weekly summaries (Sunday 22:00 UTC cron + per-user manual trigger).
-- `WeeklyInsight` model persists per-ISO-week score, completion rate, top patterns,
-  focus suggestion, and a personal narrative authored by the LLM with a
-  deterministic fallback for offline LLM environments.
+- Automatic weekly summaries
 - Recurring patterns:
-  - **Procrastination** (rolling stalled tasks + repeated reschedules).
-  - **Overload** (replaces / extends the legacy `overcommitment` detector,
-    keeping the original tag for backward compatibility with stored memories).
-  - **Productivity peaks** — distinct detectors for morning / afternoon /
-    evening / late-night peaks based on completion-time clustering.
-- Surfaced via the new `/me/insights` page and the AI's RAG context as
-  `EPISODIC` reflection memories.
+  - Procrastination
+  - Overload
+  - Productivity peaks
 
 #### Goals Deepening
 
-- Tasks can be linked to goals from chat via the new `TASK_LINK_GOAL` action
-  (reversible via undo).
-- Manager mode prompt now includes the user's active goals and asks
-  _"Does this bring you closer to X?"_ when alignment is unclear.
-- New `GET /goals/:id/progress` endpoint and goal-progress bars in the goals UI.
+- Connect daily tasks to goals
+- Questions:
+  - "Does this bring you closer to X?"
 
 #### TruthLens Lite → v2
 
-- New `buildTruthLensDigestPrompt` produces structured perspectives (claim,
-  evidence, limitations), a consensus statement, open questions and an
-  explicit confidence label.
-- Comparative queries (`vs`, `compare`, `should I`, `pros and cons`, …) are
-  routed through the new path; an LLM classifier handles ambiguous wording.
-- Falls back to the existing neutral digest when TruthLens output is
-  unusable, keeping INFO mode resilient.
-- Stricter rationality and "minimize emotions" rules are encoded in the
-  prompt itself; UI renders the structured response as markdown with a
-  visible confidence label.
-
-### Success Criteria — verification
-
-- _≥1 useful insight per week_: enforced by the weekly cron + manual trigger;
-  empty weeks gracefully short-circuit instead of producing low-signal noise.
-- _Weekly report evokes "this is about me"_: narrative is built from the
-  user's actual completion data, recurring patterns and recent reflections.
-- _TruthLens provides rational feedback_: comparative queries return
-  evidence + limitations + uncertainty rather than a single opinion.
-
----
-
-## 💳 Platform & Commercialization Layer ✅
-
-**Status:** Delivered (post-v0.3, Beta)
-
-**Goal:**
-Turn MIRA from a single-user MVP into an **operable, monetizable product** without
-compromising the autonomy-first principles or the free experience. These features
-are orthogonal to the AI roadmap below (they don't change what MIRA "thinks", only
-who can access which capabilities and how MIRA reaches the user).
-
-### Delivered Features
-
-#### Subscriptions & Billing (Stripe)
-
-- Two plans: **FREE** and **PRO**. Premium AI features are gated behind PRO:
-  `ADVANCED_INSIGHTS`, `TRUTHLENS`, `CROSS_WEEK_ANALYSIS` (FREE also has a lower
-  `maxDigestTopics` limit).
-- `FeatureAccessService` resolves entitlements (`canUse` / `assertCanUse`) and
-  honors per-user `UserFeatureOverride`s (grant or revoke independent of plan).
-- Stripe is the billing source of truth: Checkout + Billing-Portal sessions, and
-  an **idempotent webhook** (`StripeWebhookEvent` dedupe) that syncs subscription
-  state and records a billing ledger (`PaymentRecord` + `SubscriptionEvent`).
-- Degrades gracefully: with no Stripe env configured the app runs **free-tier only**.
-- Surfaced via `/me/subscription`.
-
-#### Admin Back-Office
-
-- Separate operator identity (`Admin` model) with its own JWT strategy and cookies
-  (`adminAccessToken` / `adminRefreshToken`) — fully isolated from user auth.
-- Manage users (suspend / unsuspend / delete), inspect and edit subscriptions, and
-  set per-user feature overrides.
-- Admins are seed-provisioned (`seed:admin`); no public admin signup.
-- Surfaced via `/admin/*`.
-
-#### Notifications & Web Push
-
-- In-app notification inbox + **Web Push** (VAPID) for MORNING_BRIEFING,
-  EVENING_REFLECTION, NUDGE, WEEKLY_INSIGHT and SYSTEM events.
-- Strict opt-in via `NotificationPreference` (master `pushEnabled` + per-type
-  toggles); dedupe via `Notification.dedupeKey`.
-- Driven by `DailyEngineService` (non-blocking background dispatch); degrades to a
-  no-op when VAPID keys are absent.
-- Surfaced via `/me/notifications`.
-
-> See [`docs/architecture.md` → Platform Subsystems](architecture.md#platform-subsystems-post-v03)
-> for the detailed design.
+- Comparison of perspectives
+- Stricter rationality
+- Minimizing emotions
 
 ---
 

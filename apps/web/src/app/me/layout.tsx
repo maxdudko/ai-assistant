@@ -5,9 +5,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { TopNavbar, LeftSidebar } from '@/components/common/sidebar';
-import InstallPrompt from '@/components/common/pwa/install-prompt';
 import { useAuth } from '@/lib/api/AuthContext';
-import { registerWebPush } from '@/lib/notifications/push';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -26,19 +24,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [loading, user, onboardingCompleted, router]);
 
-  useEffect(() => {
-    if (!user || !onboardingCompleted) {
-      return;
-    }
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      return;
-    }
-    if (Notification.permission !== 'granted') {
-      return;
-    }
-    void registerWebPush(false).catch(() => undefined);
-  }, [user, onboardingCompleted]);
-
   if (loading || !user || !onboardingCompleted) {
     return <main className="flex-1 p-6" />;
   }
@@ -48,10 +33,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <TopNavbar />
       <div className="flex flex-1 overflow-hidden relative">
         <LeftSidebar />
-        <main className="flex-1 overflow-y-auto p-2 ml-16 md:ml-64">
-          <InstallPrompt />
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto p-2 ml-16 md:ml-64">{children}</main>
       </div>
     </div>
   );

@@ -1,21 +1,13 @@
 import { randomUUID } from 'crypto';
 
 import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
-import {
-  ConversationMode,
-  DayPhase,
-  DayState,
-  NotificationType,
-  Prisma,
-  TaskStatus,
-} from '@prisma/client';
+import { ConversationMode, DayPhase, DayState, Prisma, TaskStatus } from '@prisma/client';
 import type { ActionCandidate } from '@ai/shared-types';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskScoringService } from '../tasks/task-scoring.service';
 import { ActionsService } from '../actions/actions.service';
 import { DayResolverService } from '../days/day-resolver.service';
-import { NotificationsService } from '../notifications/notifications.service';
 
 import { addUtcDays, getUserLocalDateInfo } from './daily-timezone.util';
 import { DailyConversationService } from './daily-conversation.service';
@@ -78,7 +70,6 @@ export class DailyEngineService {
     private readonly actionsService: ActionsService,
     private readonly dayResolver: DayResolverService,
     private readonly unifiedContext: UnifiedContextService,
-    private readonly notifications: NotificationsService,
   ) {}
 
   async handleEvent(
@@ -369,7 +360,6 @@ export class DailyEngineService {
         now,
         mode: ConversationMode.MANAGER,
         content,
-        notificationType: NotificationType.MORNING_BRIEFING,
         where: { morningBriefingSentAt: null },
         dayUpdate: {
           morningBriefingSentAt: now,
@@ -387,7 +377,6 @@ export class DailyEngineService {
         now,
         mode: ConversationMode.REFLECTION,
         content,
-        notificationType: NotificationType.EVENING_REFLECTION,
         where: { eveningReflectionSentAt: null },
         dayUpdate: {
           eveningReflectionSentAt: now,
@@ -462,7 +451,7 @@ export class DailyEngineService {
 
         const contentWithActionHint = this.appendActionHint(input.content, actionCandidate);
 
-        const message = await tx.message.create({
+        await tx.message.create({
           data: {
             conversationId: conversation.conversationId,
             role: 'ASSISTANT',
@@ -470,15 +459,6 @@ export class DailyEngineService {
             content: contentWithActionHint,
           },
         });
-        this.notifications.dispatchInBackground(
-          this.notifications.buildDailyNotification(NotificationType.NUDGE, contentWithActionHint, {
-            userId: input.userId,
-            dayId: input.dayId,
-            conversationId: conversation.conversationId,
-            messageId: message.id,
-            nudgeType: input.nudge.type,
-          }),
-        );
         return true;
       });
     } catch (error) {
@@ -495,7 +475,6 @@ export class DailyEngineService {
     now: Date;
     mode: ConversationMode;
     content: string;
-    notificationType?: NotificationType;
     where: DayUpdateGate;
     dayUpdate: Prisma.DayUpdateManyMutationInput;
   }): Promise<boolean> {
@@ -511,7 +490,7 @@ export class DailyEngineService {
       return false;
     }
 
-    const message = await this.prisma.message.create({
+    await this.prisma.message.create({
       data: {
         conversationId: conversation.conversationId,
         role: 'ASSISTANT',
@@ -519,17 +498,6 @@ export class DailyEngineService {
         content: input.content,
       },
     });
-
-    if (input.notificationType) {
-      this.notifications.dispatchInBackground(
-        this.notifications.buildDailyNotification(input.notificationType, input.content, {
-          userId: input.userId,
-          dayId: input.dayId,
-          conversationId: conversation.conversationId,
-          messageId: message.id,
-        }),
-      );
-    }
     return true;
   }
 

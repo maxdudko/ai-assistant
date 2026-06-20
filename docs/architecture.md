@@ -9,10 +9,9 @@
 5. [Key Design Decisions](#key-design-decisions)
 6. [Security Architecture](#security-architecture)
 7. [AI System Design](#ai-system-design)
-8. [Platform Subsystems (post-v0.3)](#platform-subsystems-post-v03)
-9. [Database Design](#database-design)
-10. [API Design](#api-design)
-11. [Known Issues & Technical Debt](#known-issues--technical-debt)
+8. [Database Design](#database-design)
+9. [API Design](#api-design)
+10. [Known Issues & Technical Debt](#known-issues--technical-debt)
 
 ---
 
@@ -115,18 +114,16 @@ MIRA is a **stateful, context-aware AI assistant** designed to help individuals 
 
 **Key Components**:
 
-| Component            | File                                                                                               | Purpose                                                        |
-| -------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Chat UI              | `src/components/pages/chat/chat.tsx`                                                               | Real-time streaming chat with action buttons                   |
-| Task List            | `src/components/pages/tasks/tasks-list.tsx`                                                        | Task management interface                                      |
-| Goal List            | `src/components/pages/goals/goals-list.tsx`                                                        | Goal tracking interface with per-goal progress bars            |
-| Insights View        | `src/components/pages/insights/insights-view.tsx`                                                  | Weekly reflection summary + earlier weeks history (v0.3)       |
-| Memory Browser       | `src/components/pages/memory/memory-list.tsx`                                                      | View stored memories                                           |
-| Subscription View    | `src/components/pages/subscription/subscription-view.tsx`                                          | Plan + entitlements, Pro checkout, billing history (post-v0.3) |
-| Auth Forms           | `src/components/pages/auth/login.tsx`, `register.tsx`, `forgot-password.tsx`, `reset-password.tsx` | Authentication and account recovery UI                         |
-| API Client           | `src/lib/api/client.ts`                                                                            | Centralized authenticated API communication                    |
-| Query Provider       | `src/components/providers/query-provider.tsx`                                                      | React Query client and cache lifecycle                         |
-| Auth Session Context | `src/lib/api/AuthContext.tsx`                                                                      | User session bootstrap and periodic token refresh trigger      |
+| Component            | File                                                                                               | Purpose                                                   |
+| -------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Chat UI              | `src/components/pages/chat/chat.tsx`                                                               | Real-time streaming chat with action buttons              |
+| Task List            | `src/components/pages/tasks/tasks-list.tsx`                                                        | Task management interface                                 |
+| Goal List            | `src/components/pages/goals/goals-list.tsx`                                                        | Goal tracking interface                                   |
+| Memory Browser       | `src/components/pages/memory/memory-list.tsx`                                                      | View stored memories                                      |
+| Auth Forms           | `src/components/pages/auth/login.tsx`, `register.tsx`, `forgot-password.tsx`, `reset-password.tsx` | Authentication and account recovery UI                    |
+| API Client           | `src/lib/api/client.ts`                                                                            | Centralized authenticated API communication               |
+| Query Provider       | `src/components/providers/query-provider.tsx`                                                      | React Query client and cache lifecycle                    |
+| Auth Session Context | `src/lib/api/AuthContext.tsx`                                                                      | User session bootstrap and periodic token refresh trigger |
 
 **Routing Structure**:
 
@@ -142,21 +139,11 @@ MIRA is a **stateful, context-aware AI assistant** designed to help individuals 
 /me/chat/[id]             # Specific conversation
 /me/conversations         # Conversation history
 /me/tasks                 # Task management
-/me/goals                 # Goal management (with progress bars)
-/me/insights              # Weekly insight & reflection layer (v0.3)
+/me/goals                 # Goal management
 /me/memory                # Memory browser
 /me/profile               # User settings
 /me/info-digests          # Digest subscriptions
-/me/subscription          # Plan, Pro upgrade (Stripe checkout), billing history (post-v0.3)
-/me/notifications         # Notification inbox + preferences + push opt-in (post-v0.3)
 /me/logs                  # AI interaction logs
-
-# Admin back-office (separate auth, post-v0.3)
-/admin/login              # Admin sign-in
-/admin/dashboard          # Admin landing
-/admin/users              # User list, suspend/unsuspend/delete
-/admin/subscriptions      # Subscription list + plan/feature-override management
-/admin/profile            # Admin email/password settings
 ```
 
 **State Management**:
@@ -205,18 +192,16 @@ src/
 │   ├── daily-engine.service.ts      # Event-driven orchestration
 │   ├── decision-engine.service.ts   # Action decision logic
 │   ├── unified-context.service.ts   # Context aggregation (tasks/memory/day)
-│   ├── day-insight.service.ts       # Day score + summary generation
-│   └── weekly-insight.service.ts    # ISO-week aggregation + LLM narrative (v0.3)
+│   └── day-insight.service.ts       # Day score + summary generation
 │
 ├── scheduler/                       # Scheduled/background triggers
-│   ├── daily-flow.scheduler.ts      # Cron-based hourly/daily/weekly checks
+│   ├── daily-flow.scheduler.ts      # Cron-based hourly/daily checks
 │   └── scheduler.controller.ts      # HTTP cron endpoints (production-friendly)
 │
 ├── memory/                          # RAG memory system
 │   ├── memory.service.ts            # CRUD operations
 │   ├── memory-ingestion.service.ts  # Store memories with embeddings
 │   ├── memory-retriever.service.ts  # Vector search
-│   ├── pattern-detection.service.ts # Procrastination / overload / productivity-peak detectors (v0.3)
 │   └── dto/memory-candidate.dto.ts
 │
 ├── embeddings/                      # Vector embedding generation
@@ -241,36 +226,13 @@ src/
 │   └── dto/
 │
 ├── days/                            # Daily lifecycle
-│   ├── days.service.ts              # Start/end day, get summary
-│   └── weekly-insight.controller.ts # /day/weekly-insight read + manual trigger (v0.3)
+│   └── days.service.ts              # Start/end day, get summary
 │
-├── digest/                          # Information digest + TruthLens v2 routing
-│   └── digest.service.ts            # Plain digest path + comparative TruthLens path (TRUTHLENS feature-gated)
+├── digest/                          # Information digest subscriptions
+│   └── digest.service.ts
 │
 ├── search/                          # External search integration (provider-based)
 │   └── search.service.ts            # Used by INFO mode digest pipeline
-│
-├── subscriptions/                   # Monetization, Stripe billing & feature gating (post-v0.3)
-│   ├── subscriptions.service.ts     # Per-user subscription lifecycle (get/create, plan transitions)
-│   ├── feature-access.service.ts    # canUse/assertCanUse + per-user feature overrides
-│   ├── plan-entitlements.ts         # FREE/PRO → Feature[] + plan limits (mirrors @ai/shared-types)
-│   ├── stripe.service.ts            # Checkout/billing-portal sessions + webhook signature verification
-│   ├── stripe-webhook.service.ts    # Idempotent Stripe event handler (sub + invoice events)
-│   ├── stripe-webhook.controller.ts # POST /subscriptions/webhook (raw-body, signature-guarded)
-│   ├── billing-history.service.ts   # PaymentRecord + SubscriptionEvent ledger
-│   └── subscriptions.controller.ts  # /subscriptions/me, checkout, billing-portal, history
-│
-├── admin/                           # Operator/admin back-office (post-v0.3)
-│   ├── admin.service.ts             # Admin auth + user/subscription management
-│   ├── admin-auth.controller.ts     # Separate admin login/refresh/logout (own cookies)
-│   ├── admin.controller.ts          # User suspend/delete, subscription + feature override admin
-│   ├── admin-jwt.strategy.ts        # Admin-only JWT strategy (adminAccessToken cookie)
-│   └── admin-jwt.guard.ts           # Guards all /admin routes
-│
-├── notifications/                   # In-app notifications + Web Push (post-v0.3)
-│   ├── notifications.service.ts     # Dispatch w/ preference + dedupe, list/read state
-│   ├── push.service.ts              # web-push (VAPID) delivery + stale-endpoint pruning
-│   └── notifications.controller.ts  # Preferences, push subscribe/unsubscribe, inbox endpoints
 │
 ├── logs/                            # AI interaction logging
 │   └── logs.service.ts
@@ -282,30 +244,18 @@ src/
 
 #### Service Responsibilities
 
-| Service                   | Single Responsibility                                                                                 | Dependencies                                                                |
-| ------------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `AuthService`             | User authentication and token lifecycle                                                               | PrismaService, JwtService                                                   |
-| `ConversationsService`    | **Message lifecycle orchestration** (now also injects active goals into MANAGER context)              | AI, actions, memory ingestion, day resolver, digest, logs, daily svc, goals |
-| `AiService`               | Type mapping and ai-core provider adapter; exposes weekly narrative + TruthLens classifier/digest     | ConfigService                                                               |
-| `DailyEngineService`      | Event-driven daily decisions and proactive suggestions                                                | DecisionEngineService, ActionsService, UnifiedContextService                |
-| `UnifiedContextService`   | Build merged day/task/memory context                                                                  | PrismaService, MemoryRetrieverService, TaskScoringService                   |
-| `WeeklyInsightService`    | ISO-week aggregation, LLM-authored narrative (with deterministic fallback) + reflection memory ingest | PrismaService, AiService, MemoryIngestionService                            |
-| `PatternDetectionService` | Detect overload / procrastination / productivity-peak patterns and persist them as `PATTERN` memories | PrismaService, MemoryIngestionService                                       |
-| `MemoryIngestionService`  | Store curated memory candidates with embeddings                                                       | PrismaService, EmbeddingsService                                            |
-| `MemoryRetrieverService`  | Vector search + reranking + contextual memory buckets                                                 | PrismaService, EmbeddingsService                                            |
-| `ActionsService`          | Candidate lifecycle: create/confirm/dismiss/undo                                                      | PrismaService, ActionExecutorService                                        |
-| `ActionExecutorService`   | Execute actions (incl. `TASK_LINK_GOAL`) and support reversible action undo                           | TasksService, DaysService, DigestService, MemoryIngestionService            |
-| `DigestService`           | INFO mode pipeline: routes comparative queries through TruthLens v2 path, falls back to plain digest  | AiService, SearchService, PrismaService                                     |
-| `SearchService`           | Abstract search over pluggable provider implementations                                               | Search provider interface (NewsApiProvider by default)                      |
-| `GoalsService`            | Goal CRUD + per-goal progress aggregation (`getProgress`, `findAll` with task counts)                 | PrismaService                                                               |
-| `SubscriptionsService`    | Per-user `Subscription` lifecycle: get-or-create, apply Stripe updates, revert to FREE, mark past-due | PrismaService                                                               |
-| `FeatureAccessService`    | Resolve effective plan + entitlements, `canUse`/`assertCanUse`, per-user `UserFeatureOverride` lookup | SubscriptionsService, PrismaService                                         |
-| `StripeService`           | Create checkout / billing-portal sessions, construct + verify webhook events, `isConfigured()` guard  | ConfigService (Stripe SDK)                                                  |
-| `StripeWebhookService`    | Idempotent Stripe event processing (subscription + invoice lifecycle) → subscription + billing ledger | PrismaService, StripeService, SubscriptionsService, BillingHistoryService   |
-| `BillingHistoryService`   | Persist `PaymentRecord` (from invoices) and `SubscriptionEvent` audit entries                         | PrismaService                                                               |
-| `AdminService`            | Admin auth (separate `Admin` model + tokens), user suspend/delete, subscription + override management | PrismaService, JwtService, SubscriptionsService, FeatureAccessService       |
-| `NotificationsService`    | Build/dispatch notifications honoring per-type preferences + dedupe; inbox read-state management      | PrismaService, PushService                                                  |
-| `PushService`             | Web Push (VAPID) delivery to `PushSubscription` endpoints; prunes 404/410 stale endpoints             | PrismaService (web-push)                                                    |
+| Service                  | Single Responsibility                                   | Dependencies                                                         |
+| ------------------------ | ------------------------------------------------------- | -------------------------------------------------------------------- |
+| `AuthService`            | User authentication and token lifecycle                 | PrismaService, JwtService                                            |
+| `ConversationsService`   | **Message lifecycle orchestration**                     | AI, actions, memory ingestion, day resolver, digest, logs, daily svc |
+| `AiService`              | Type mapping and ai-core provider adapter               | ConfigService                                                        |
+| `DailyEngineService`     | Event-driven daily decisions and proactive suggestions  | DecisionEngineService, ActionsService, UnifiedContextService         |
+| `UnifiedContextService`  | Build merged day/task/memory context                    | PrismaService, MemoryRetrieverService, TaskScoringService            |
+| `MemoryIngestionService` | Store curated memory candidates with embeddings         | PrismaService, EmbeddingsService                                     |
+| `MemoryRetrieverService` | Vector search + reranking + contextual memory buckets   | PrismaService, EmbeddingsService                                     |
+| `ActionsService`         | Candidate lifecycle: create/confirm/dismiss/undo        | PrismaService, ActionExecutorService                                 |
+| `ActionExecutorService`  | Execute actions and support reversible action undo      | TasksService, DaysService, DigestService, MemoryIngestionService     |
+| `SearchService`          | Abstract search over pluggable provider implementations | Search provider interface (NewsApiProvider by default)               |
 
 ---
 
@@ -337,19 +287,16 @@ providers/
   └─→ openai.provider.ts         // Cloud LLM
 
 prompts/
-  ├─→ system.prompt.ts           // Context-aware prompt builder (incl. active goals + alignment guidance, v0.3)
-  ├─→ mode.prompts.ts            // Mode-specific instructions (incl. TASK_LINK_GOAL action)
-  ├─→ info-digest.prompts.ts     // INFO mode neutral digest prompts
-  ├─→ truthlens.prompts.ts       // TruthLens v2 classifier + comparative digest prompts (v0.3)
-  ├─→ weekly-summary.prompt.ts   // Weekly reflection narrative prompt (v0.3)
-  ├─→ memory-extraction.prompt.ts
+  ├─→ system.prompt.ts           // Context-aware prompt builder
+  ├─→ mode.prompts.ts            // Mode-specific instructions
+  ├─→ info-digest.prompts.ts     // INFO mode prompts
   └─→ message.formatter.ts       // Format conversation history
 
 memory/
   └─→ extractor.ts               // Heuristic memory extraction
 
 types/
-  └─→ index.ts                   // Core types (ConversationContext, GoalContext, etc.)
+  └─→ index.ts                   // Core types (ConversationContext, etc.)
 ```
 
 **Key Abstractions**:
@@ -382,39 +329,6 @@ interface AiResponse {
   actionCandidates?: ActionCandidate[];
   memoryCandidates?: MemoryCandidate[];
   summary?: string;
-}
-
-// v0.3 — Goal context surfaced into the MANAGER prompt
-interface GoalContext {
-  id: string;
-  name: string;
-  type?: string;
-  priority?: string;
-  progressPct?: number; // 0..100, derived from linked-task completion
-}
-
-// v0.3 — Weekly reflection narrative payload (LLM output)
-interface WeeklyNarrativePayload {
-  narrative: string; // 280..800 chars, paragraph-style
-  focusSuggestion: string; // single sentence under 180 chars
-  topPatterns: string[]; // 0..3 short tags, lowercase, hyphenated
-}
-
-// v0.3 — TruthLens v2 comparative digest payload
-type TruthLensConfidence = 'low' | 'medium' | 'high';
-interface TruthLensPerspective {
-  label: string;
-  claim: string;
-  evidence: string[];
-  limitations: string[];
-}
-interface TruthLensPayload {
-  title: string;
-  question: string;
-  perspectives: TruthLensPerspective[];
-  consensus: string | null;
-  openQuestions: string[];
-  confidence: TruthLensConfidence;
 }
 ```
 
@@ -627,11 +541,6 @@ interface TruthLensPayload {
      case 'SUGGEST_DIGEST_SUBSCRIPTION':
        DigestService.subscribeFromSuggestion(userId, payload)
 
-     case 'TASK_LINK_GOAL':                          // v0.3
-       // Validate ownership of both task and goal,
-       // then update task.goalId. Undo restores previous goal.
-       TasksService.update(userId, taskId, { goalId })
-
      case 'SIMPLIFY_DAY':
      case 'SPLIT_TASK':
      case 'RESCHEDULE_TASK':
@@ -735,160 +644,6 @@ interface TruthLensPayload {
    Example:
    User: "Schedule a meeting with Bob"
    AI: "I'll schedule it in the morning since you prefer morning meetings."
-```
-
----
-
-### Flow 4: Weekly Insight Generation (v0.3)
-
-```
-1. TRIGGER (one of)
-   A. Cron — Sunday 22:00 UTC
-      DailyFlowScheduler.handleWeeklySummary()
-      └─→ runWeeklySummary() → WeeklyInsightService.runForAllUsers()
-
-   B. Vercel Cron HTTP trigger
-      POST /api/scheduler/weekly-summary  (CRON_SECRET-guarded)
-
-   C. Manual user trigger
-      POST /api/day/weekly-insight/generate
-      └─→ WeeklyInsightService.generateForUser(userId, { source: 'MANUAL' })
-
-2. AGGREGATION
-   WeeklyInsightService.generateForUser(userId, options)
-
-   A. Resolve ISO-week bounds (UTC-anchored Monday..Sunday) for the user's
-      timezone using computeIsoWeekBounds(referenceDate, timezone).
-
-   B. Parallel data fetch:
-      ├─→ Day[] in [weekStart, weekEnd] (with linked tasks + DayInsight)
-      ├─→ Memory[] (EPISODIC, last 7 days)         — recent reflections
-      ├─→ ActionExecutionLog count for RESCHEDULE_TASK in window
-      ├─→ Goal[] (active, with task statuses)      — for goalProgress[]
-      └─→ Memory[] (PATTERN, last 30 days)         — top patterns
-
-   C. Compute aggregates:
-      - totalTasks / completedTasks / completionRate
-      - completionsByBucket: morning / afternoon / evening / lateNight
-      - dailyScores → weighted weekly score (1..10)
-      - observedPatterns: top tags from PATTERN-layer memories
-
-3. NARRATIVE (LLM)
-   AiService.generateWeeklyNarrative(input)
-   └─→ buildWeeklySummaryPrompt() + JSON output schema:
-       { narrative, focusSuggestion, topPatterns[] }
-
-   Fallback path (LLM unavailable / invalid JSON):
-   └─→ Deterministic template with raw counters,
-       observed patterns and a calibrated focus suggestion.
-
-4. PERSIST
-   prisma.weeklyInsight.upsert({
-     where: { userId_isoYear_isoWeek },
-     create/update: { score, completionRate, totalTasks, completedTasks,
-                      reschedules, topPatterns, focusSuggestion, narrative,
-                      source: AUTOMATIC | MANUAL }
-   })
-
-5. RAG INGEST
-   MemoryIngestionService.ingest(userId, [
-     { layer: 'EPISODIC', type: 'REFLECTION',
-       importance: clamp(score, 6, 9), confidence: 0.75,
-       tags: ['reflection', 'weekly', ...topPatterns] }
-   ], 'REFLECTION', {})
-
-   — Failures here are logged but do not fail the insight.
-
-6. RESPONSE / UI
-   - Read endpoints: GET /api/day/weekly-insight/latest
-                     GET /api/day/weekly-insight?limit=&offset=
-   - /me/insights renders the latest week + earlier weeks list.
-   - The fresh EPISODIC memory is now available to subsequent
-     conversations through normal RAG retrieval.
-
-7. NO-OP SHORT-CIRCUIT
-   If totalTasks === 0 AND days.length === 0 AND reschedules === 0:
-   └─→ Return null, no row written, no memory ingested.
-       (Avoids low-signal "empty week" reports.)
-```
-
----
-
-### Flow 5: TruthLens v2 — Comparative INFO Query (v0.3)
-
-```
-1. ENTRY
-   ConversationsService detects INFO mode from the user's message
-   (existing keyword + intent heuristic) and delegates to:
-   DigestService.generateDigest(userId, userMessage)
-
-2. SEARCH PREP (unchanged)
-   ├─→ AiService.generateInfoSearchQuery(userMessage)
-   │     └─→ { searchQuery, topic }
-   └─→ SearchService.search(searchQuery)
-         └─→ SearchResult[]
-
-3. ROUTING DECISION
-   DigestService.maybeRouteTruthLens(userMessage)
-
-   A. Deterministic regex pass — short-circuits to TruthLens when the
-      message obviously asks for a comparison or a value judgment:
-        /\b(vs|versus)\b/i, /\bcompare(d)?\b/i,
-        /\bwhich is better\b/i, /\bshould\s+i\b/i,
-        /\bpros and cons\b/i, /\b(opinions|debate|controversy)\b/i, ...
-
-   B. If undecided, AiService.classifyInfoQuery(userMessage)
-      └─→ buildTruthLensClassifierPrompt()
-      └─→ { mode: 'truthlens' | 'digest', rewrittenQuery }
-
-   C. Errors here log a warning and default to 'digest'
-      (the path is fail-safe — comparative queries degrade to neutral
-      digests rather than failing the user message).
-
-4A. TRUTHLENS PATH
-    AiService.generateTruthLensDigest(userMessage, searchResults)
-    └─→ buildTruthLensDigestPrompt()
-        Strict rules: evidence comes from search results only;
-        each perspective lists at least one limitation;
-        confidence label is required; no decision-making advice.
-
-    Validation + normalization (truncates list lengths, trims whitespace,
-    drops empty perspectives).
-
-    DigestService.renderTruthLens(payload) → markdown:
-      ### {title}
-      **Question:** ...
-      **Confidence:** low | medium | high
-
-      #### {perspective.label}
-      Evidence: - ...
-      Limitations: - ...
-
-      **Shared ground:** ...
-      **Open questions:** - ...
-
-    Returned as DigestGenerationResult with mode: 'truthlens' and a
-    `truthLens` payload alongside the markdown content.
-
-4B. PLAIN DIGEST PATH (fallback)
-    AiService.generateInfoDigestSummary(searchResults)
-    └─→ DigestService renders existing neutral digest markdown.
-
-5. ASSISTANT MESSAGE
-   ConversationsService stores `digest.content` as the assistant message
-   (markdown). The chat UI already renders markdown, so TruthLens output
-   appears with structured headings, evidence lists and a visible
-   confidence label without UI-side schema changes.
-
-6. SUBSCRIPTION NUDGE (unchanged)
-   buildSubscriptionSuggestion(userId, topic) may attach a
-   SUGGEST_DIGEST_SUBSCRIPTION action candidate the same way the plain
-   digest path does.
-
-7. OBSERVABILITY
-   - When TruthLens is enabled (TRUTHLENS_V2_ENABLED !== 'false'),
-     every LLM failure logs a warning and the path falls back gracefully
-     — never blocking the INFO reply.
 ```
 
 ---
@@ -1065,51 +820,7 @@ Each mode has custom system prompt template in `packages/ai-core/src/prompts/mod
 
 ---
 
-### Decision 8: Weekly Insight as a Persisted Aggregate (v0.3)
-
-**Rationale**:
-Weekly reflections are stored as their own first-class entity (`WeeklyInsight`) instead of being recomputed on demand:
-
-- ✅ Stable, citable artifact ("this is what week 22 looked like")
-- ✅ Composable into RAG via an additional `EPISODIC` memory ingest
-- ✅ Cron + manual trigger share the same path through `WeeklyInsightService.generateForUser`
-- ✅ Idempotent thanks to the `(userId, isoYear, isoWeek)` unique key
-
-**LLM-with-fallback**:
-The narrative is generated by the LLM but a deterministic templated fallback is always available, so the feature works in offline-LLM environments and never produces a half-broken row.
-
-**Empty-week short-circuit**:
-If a user truly had no activity, no row is written and no memory is ingested — the success criterion is "≥1 useful insight per week", not "an insight every week regardless of signal".
-
----
-
-### Decision 9: TruthLens v2 Routing Inside INFO Mode (v0.3)
-
-**Rationale**:
-Rather than introduce a separate user-visible "mode", v0.3 routes comparative queries through a new path inside the existing INFO/digest pipeline:
-
-- ✅ Users keep a single mental model — they ask, MIRA answers
-- ✅ Regex-first classifier keeps obvious cases free of an extra LLM call
-- ✅ LLM classifier handles ambiguous wording without blowing up cost
-- ✅ Fail-safe fallback to the neutral digest if TruthLens output is unusable
-
-**Output contract**:
-TruthLens v2 returns a structured payload (perspectives, evidence, limitations, consensus, open questions, explicit confidence). The chat UI renders it as markdown — no UI schema changes were needed.
-
----
-
-### Decision 10: Goal Alignment via Action, Not Auto-link (v0.3)
-
-**Rationale**:
-A new `TASK_LINK_GOAL` action type was added rather than silently assigning `task.goalId` from the LLM:
-
-- ✅ Preserves the autonomy principle — every link to a goal is user-confirmed
-- ✅ Reuses the existing action lifecycle (PENDING → CONFIRMED → EXECUTED) and undo machinery
-- ✅ The MANAGER prompt now also receives the user's active goals (top 5 by priority) and a single alignment question pattern ("Does this bring you closer to X?") — instructions are pushed into the prompt rather than hard-coded into the assistant logic
-
----
-
-### Decision 11: JWT + Refresh Token Pattern
+### Decision 8: JWT + Refresh Token Pattern
 
 **Rationale**:
 
@@ -1128,57 +839,6 @@ A new `TASK_LINK_GOAL` action type was added rather than silently assigning `tas
 
 - Would require Redis or DB sessions
 - Chose JWT for stateless scalability
-
----
-
-### Decision 12: Feature Gating in Consumers, Not in the AI Core (post-v0.3)
-
-**Rationale**:
-Premium AI capabilities (TruthLens, advanced/cross-week insights) are gated by
-`FeatureAccessService` **inside the consuming backend services**, never inside
-`@ai/ai-core`:
-
-- ✅ Keeps `@ai/ai-core` framework- and billing-agnostic (still reusable/testable)
-- ✅ Entitlement logic lives in one place (`plan-entitlements.ts`, shared via
-  `@ai/shared-types`)
-- ✅ Per-user `UserFeatureOverride` allows comps/beta access without plan changes
-
-**Graceful degradation**: a gated path never errors the user experience where a
-free alternative exists — TruthLens falls back to the neutral digest rather than
-returning 403.
-
----
-
-### Decision 13: Stripe as the Billing Source of Truth, with an Idempotent Webhook (post-v0.3)
-
-**Rationale**:
-The local `Subscription` row is a **projection** of Stripe state, synced via
-webhooks rather than trusting the client:
-
-- ✅ Plan/status always reflect real payment state (handles renewals, failures,
-  cancellations out-of-band)
-- ✅ `StripeWebhookEvent` dedupe table makes redelivered events safe (at-least-once
-  delivery → effectively-once processing)
-- ✅ `StripeService.isConfigured()` lets the entire app run free-tier-only when
-  Stripe env vars are absent (dev/self-host friendly)
-
-**Trade-off**: requires raw-body handling (`rawBody: true`) and careful event
-mapping, accepted for correctness.
-
----
-
-### Decision 14: Separate Admin Identity (post-v0.3)
-
-**Rationale**:
-Operators authenticate against a dedicated `Admin` model with its own JWT
-strategy and cookies (`adminAccessToken`/`adminRefreshToken`) instead of a role
-flag on `User`:
-
-- ✅ Hard isolation between end-user and operator sessions/permissions
-- ✅ No accidental privilege escalation path through the user auth stack
-- ✅ Admins are seed-provisioned (`seed:admin`) — no public admin signup
-
-**Trade-off**: a second auth path to maintain, accepted for the security boundary.
 
 ---
 
@@ -1341,17 +1001,6 @@ You can suggest actions by returning JSON with this structure:
 }
 ```
 
-**v0.3 — Goal alignment in MANAGER prompt** (`packages/ai-core/src/prompts/system.prompt.ts`):
-
-When `context.activeGoals` is populated, the MANAGER prompt receives an additional
-`Active goals:` section followed by alignment guidance:
-
-- gently consider whether new commitments advance an active goal,
-- if uncertain, ask one short question: _"Does this bring you closer to <goal name>?"_,
-- if alignment is clear and the task is unlinked, propose a `TASK_LINK_GOAL` action
-  with payload `{ taskId, goalId }` (confidence 0.6–0.85),
-- never link silently — the user must confirm.
-
 **Mode-Specific Prompts** (`packages/ai-core/src/prompts/mode.prompts.ts`):
 
 ```typescript
@@ -1390,25 +1039,6 @@ export const MODE_INSTRUCTIONS = {
   `,
 };
 ```
-
-**v0.3 — Comparative INFO via TruthLens v2** (`packages/ai-core/src/prompts/truthlens.prompts.ts`):
-
-INFO mode is now backed by two prompts:
-
-- `buildTruthLensClassifierPrompt(userMessage)` — picks `'truthlens'` or `'digest'`
-  for ambiguous queries (the regex pre-pass handles the obvious ones).
-- `buildTruthLensDigestPrompt(userMessage, searchResults)` — produces a structured
-  multi-perspective digest with evidence, limitations, optional consensus,
-  open questions and an explicit confidence label. Strict rules forbid sourcing
-  evidence outside `searchResults` and require minimizing emotional language.
-
-**v0.3 — Weekly Reflection** (`packages/ai-core/src/prompts/weekly-summary.prompt.ts`):
-
-`buildWeeklySummaryPrompt(input)` asks the LLM to produce a personal narrative
-plus a single `focusSuggestion` and up to three `topPatterns`. The prompt is
-deliberately calm and observational ("describe, don't lecture"), and the
-service always has a deterministic fallback when the LLM is unavailable or
-returns invalid JSON.
 
 ---
 
@@ -1470,159 +1100,6 @@ const curated = candidates.filter(
 
 ---
 
-## Platform Subsystems (post-v0.3)
-
-These subsystems were added **after** the v0.3 Insight & Reflection Layer to turn
-MIRA from a single-user MVP into an operable, monetizable product. They are
-orthogonal to the AI/conversation core and are wired in `AppModule` alongside the
-existing modules.
-
-### Subscriptions, Billing & Feature Gating
-
-**Goal**: gate premium AI capabilities behind a paid plan and integrate Stripe for
-payments, while keeping the free tier fully usable.
-
-**Plans & entitlements** (`apps/api/src/subscriptions/plan-entitlements.ts`,
-mirrored in `@ai/shared-types`):
-
-| Plan   | Features                                                | Limits                |
-| ------ | ------------------------------------------------------- | --------------------- |
-| `FREE` | _(none)_                                                | `maxDigestTopics: 2`  |
-| `PRO`  | `ADVANCED_INSIGHTS`, `TRUTHLENS`, `CROSS_WEEK_ANALYSIS` | `maxDigestTopics: 10` |
-
-**Feature resolution** (`FeatureAccessService`):
-
-- `canUse(userId, feature)` / `assertCanUse(userId, feature)` — the enforcement API.
-- Effective plan downgrades to `FREE` whenever subscription `status` is **not**
-  `ACTIVE` or `TRIALING` (e.g. `PAST_DUE`, `CANCELED`).
-- **Per-user overrides** (`UserFeatureOverride`) take precedence over the plan in
-  both directions — they can grant a feature to a free user (comp/beta) or revoke
-  one — and are managed from the admin panel.
-
-**Enforcement integration points** (gating lives in the consuming services, not
-in the AI core):
-
-- `DigestService` — TruthLens v2 only runs when `canUse(userId, TRUTHLENS)` is true
-  (and `TRUTHLENS_V2_ENABLED !== 'false'`); otherwise it **falls back to the neutral
-  digest**, so INFO mode still works on the free tier.
-- `WeeklyInsightService` — `assertCanUse(ADVANCED_INSIGHTS)` guards weekly insight
-  generation; `assertCanUse(CROSS_WEEK_ANALYSIS)` guards cross-week aggregation.
-
-**Stripe integration**:
-
-- `StripeService` creates Checkout and Billing-Portal sessions and verifies webhook
-  signatures. It exposes `isConfigured()` so the whole billing surface **degrades
-  gracefully when Stripe env vars are unset** (the app still runs free-tier only).
-- `StripeWebhookService` is **idempotent**: every event id is first inserted into
-  `StripeWebhookEvent`; a unique-constraint violation (`P2002`) means "already
-  processed" and the event is skipped.
-- Handled events: `checkout.session.completed`, `customer.subscription.created`,
-  `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`,
-  `invoice.payment_failed`. They update the local `Subscription` and append to the
-  billing ledger (`PaymentRecord` + `SubscriptionEvent`).
-- The webhook endpoint requires the **raw request body** (`main.ts` bootstraps Nest
-  with `{ rawBody: true }`) for signature verification.
-
-**Required environment** (all optional — absence disables paid billing):
-`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRO_PRICE_ID`,
-`STRIPE_CHECKOUT_SUCCESS_URL`, `STRIPE_CHECKOUT_CANCEL_URL`,
-`STRIPE_BILLING_PORTAL_RETURN_URL`.
-
-#### Flow: Pro upgrade & Stripe webhook sync
-
-```
-1. User clicks "Upgrade" → POST /api/subscriptions/checkout
-   StripeService.createCheckoutSession(userId)
-   └─→ Stripe-hosted checkout URL (userId carried as client_reference_id/metadata)
-
-2. User pays on Stripe → redirected to STRIPE_CHECKOUT_SUCCESS_URL
-
-3. Stripe → POST /api/subscriptions/webhook (raw body + Stripe-Signature)
-   StripeWebhookController verifies signature → StripeWebhookService.handleEvent()
-
-   A. recordEventIfNew(event)  — insert StripeWebhookEvent; P2002 ⇒ duplicate ⇒ skip
-   B. switch(event.type):
-      checkout.session.completed → retrieve subscription → syncStripeSubscription()
-      customer.subscription.*    → syncStripeSubscription() (plan/status/period)
-      invoice.paid               → upsert PaymentRecord + SubscriptionEvent (SUBSCRIBED/RENEWED)
-      invoice.payment_failed     → markPastDue() + PaymentRecord(FAILED) + PAYMENT_FAILED event
-      customer.subscription.deleted → revertToFree() + CANCELED event
-
-4. FeatureAccessService now resolves PRO entitlements for the user; gated AI
-   features (TruthLens, advanced/cross-week insights) become available.
-```
-
----
-
-### Admin Back-Office
-
-**Goal**: a separate operator console for user and subscription management, isolated
-from end-user auth.
-
-**Separate identity & auth** (independent from the `User` auth stack):
-
-- Dedicated `Admin` model (own `email`, `passwordHash`, `tokenVersion`,
-  `refreshTokenHash`).
-- Separate JWT strategy/guard (`AdminJwtStrategy` / `AdminJwtAuthGuard`) reading
-  **distinct cookies** (`adminAccessToken` / `adminRefreshToken`), so an admin
-  session never overlaps a normal user session.
-- Same hardening as user auth: token versioning, hashed refresh token, refresh +
-  logout endpoints.
-- Admins are provisioned out-of-band via the `seed:admin` script
-  (`ADMIN_EMAIL` / `ADMIN_PASSWORD`) — there is no public admin registration.
-
-**Capabilities** (`AdminController`, all under `AdminJwtAuthGuard`):
-
-- **Users**: list, suspend / unsuspend (sets `User.suspendedAt`), delete.
-- **Subscriptions**: plan catalog, list, inspect, update plan/status, and set
-  per-user `UserFeatureOverride`s (`PUT /admin/subscriptions/:id/features`).
-- **Self-service**: change own admin email / password.
-
----
-
-### Notifications & Web Push
-
-**Goal**: deliver MIRA's proactive moments (briefings, reflections, nudges, weekly
-insights) outside the open tab, with strict per-user opt-in.
-
-**Data model**:
-
-- `NotificationPreference` — per-user master switch (`pushEnabled`) plus per-type
-  toggles (`morningBriefingEnabled`, `eveningReflectionEnabled`, `nudgesEnabled`,
-  `weeklyInsightEnabled`).
-- `PushSubscription` — Web Push endpoints (VAPID `p256dh`/`auth`), unique by
-  `endpoint`, currently `PushPlatform.WEB`.
-- `Notification` — persisted inbox item (`type`, `title`, `body`, `deepLink`,
-  `readAt`, `pushedAt`, `pushError`) with a `@@unique([userId, dedupeKey])`
-  constraint to prevent duplicate sends.
-
-**Notification types** (`NotificationType`): `MORNING_BRIEFING`,
-`EVENING_REFLECTION`, `NUDGE`, `WEEKLY_INSIGHT`, `SYSTEM`.
-
-**Dispatch pipeline** (`NotificationsService.dispatch`):
-
-```
-dispatch(input)
-  ├─→ load preferences; skip if the type is disabled
-  ├─→ create Notification row (dedupeKey → skip on conflict)
-  ├─→ if pushEnabled: PushService.sendToUser() (web-push to all endpoints)
-  └─→ stamp pushedAt / pushError on the row
-```
-
-- `dispatchInBackground()` is used by the daily engine so notification delivery
-  never blocks the conversation/scheduler path.
-- `PushService` is VAPID-gated: with no `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` it
-  logs a warning and becomes a no-op. Endpoints returning `404`/`410` are pruned.
-
-**Producers**: `DailyEngineService` emits `MORNING_BRIEFING`, `EVENING_REFLECTION`
-and `NUDGE` notifications as part of its event-driven daily decisions; weekly
-insight generation maps to `WEEKLY_INSIGHT`.
-
-**Required environment** (optional — absence disables push only):
-`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`.
-
----
-
 ## Database Design
 
 ### Schema Overview
@@ -1650,24 +1127,8 @@ User (1) ←─────→ (1) UserProfile
   ├─→ (many) ActionCandidates
   │     └─→ (many) ActionExecutionLogs
   │
-  ├─→ (many) WeeklyInsights              # v0.3 — one row per ISO-week
-  │     (unique on userId + isoYear + isoWeek)
-  │
-  ├─→ (many) DigestSubscriptions
-  │     └─→ (1) DigestTopic
-  │
-  ├─→ (1?) Subscription                  # post-v0.3 — one plan per user (Stripe-backed)
-  ├─→ (many) UserFeatureOverride         #   per-user feature grant/revoke (unique userId+feature)
-  ├─→ (many) PaymentRecord               #   Stripe invoice ledger
-  ├─→ (many) SubscriptionEvent           #   subscription audit trail
-  │
-  ├─→ (1?) NotificationPreference        # post-v0.3 — push + per-type toggles
-  ├─→ (many) PushSubscription            #   Web Push (VAPID) endpoints
-  └─→ (many) Notification                #   inbox items (unique userId+dedupeKey)
-
-Admin                                    # post-v0.3 — standalone operator identity (no User FK)
-
-StripeWebhookEvent                       # post-v0.3 — processed Stripe event ids (idempotency)
+  └─→ (many) DigestSubscriptions
+        └─→ (1) DigestTopic
 ```
 
 **Key Indexes**:
@@ -1692,23 +1153,6 @@ CREATE INDEX ON "Task"("dayId");
 
 -- Action tracking
 CREATE INDEX ON "ActionCandidate"("userId", "status");
-
--- Weekly insight (v0.3)
-CREATE UNIQUE INDEX ON "WeeklyInsight"("userId", "isoYear", "isoWeek");
-CREATE INDEX ON "WeeklyInsight"("userId", "weekStart");
-
--- Subscriptions & billing (post-v0.3)
-CREATE UNIQUE INDEX ON "Subscription"("userId");
-CREATE UNIQUE INDEX ON "Subscription"("stripeCustomerId");
-CREATE UNIQUE INDEX ON "Subscription"("stripeSubscriptionId");
-CREATE INDEX ON "Subscription"("status");
-CREATE UNIQUE INDEX ON "UserFeatureOverride"("userId", "feature");
-CREATE UNIQUE INDEX ON "PaymentRecord"("stripeInvoiceId");
-
--- Notifications (post-v0.3)
-CREATE UNIQUE INDEX ON "Notification"("userId", "dedupeKey");
-CREATE INDEX ON "Notification"("userId", "readAt", "createdAt");
-CREATE UNIQUE INDEX ON "PushSubscription"("endpoint");
 ```
 
 **Vector Search Performance**:
@@ -1776,26 +1220,22 @@ DELETE /api/tasks/:id             # Delete task
 **Goals**:
 
 ```
-GET    /api/goals                  # List goals (with totalTasks/completedTasks/progressPct)
-GET    /api/goals/:id              # Get goal
-GET    /api/goals/:id/progress     # Per-goal progress (counts + recent activity, v0.3)
-POST   /api/goals                  # Create goal
-PATCH  /api/goals/:id              # Update goal
-DELETE /api/goals/:id              # Delete goal
+GET    /api/goals                 # List goals
+GET    /api/goals/:id             # Get goal
+POST   /api/goals                 # Create goal
+PATCH  /api/goals/:id             # Update goal
+DELETE /api/goals/:id             # Delete goal
 ```
 
 **Day lifecycle and intelligence**:
 
 ```
-GET    /api/day/today                       # Current day context
-POST   /api/day/start                       # Start day
-POST   /api/day/end                         # End day
-GET    /api/day/summary                     # Day summary
-GET    /api/day/morning-briefing            # Morning briefing payload
-GET    /api/day/intelligence                # Unified day intelligence snapshot
-GET    /api/day/weekly-insight/latest       # Most recent WeeklyInsight (v0.3)
-GET    /api/day/weekly-insight              # Paginated WeeklyInsight history (v0.3)
-POST   /api/day/weekly-insight/generate     # Manual trigger for current week (v0.3)
+GET    /api/day/today             # Current day context
+POST   /api/day/start             # Start day
+POST   /api/day/end               # End day
+GET    /api/day/summary           # Day summary
+GET    /api/day/morning-briefing  # Morning briefing payload
+GET    /api/day/intelligence      # Unified day intelligence snapshot
 ```
 
 **Actions**:
@@ -1822,50 +1262,6 @@ GET    /api/memory                # List memories
 DELETE /api/memory/:id            # Delete memory
 ```
 
-**Subscriptions & billing (post-v0.3)**:
-
-```
-GET    /api/subscriptions/me            # Current subscription summary + enabled features + plan catalog
-POST   /api/subscriptions/checkout      # Create Stripe Checkout session (Pro upgrade)
-POST   /api/subscriptions/billing-portal# Create Stripe Billing Portal session
-GET    /api/subscriptions/history       # Billing/subscription event history
-POST   /api/subscriptions/webhook       # Stripe webhook (public; raw-body + signature-verified)
-```
-
-**Notifications & push (post-v0.3)**:
-
-```
-GET    /api/notifications                 # List notifications (paginated)
-GET    /api/notifications/unread-count     # Unread count
-PATCH  /api/notifications/read-all         # Mark all read
-PATCH  /api/notifications/:id/read         # Mark one read
-GET    /api/notifications/preferences      # Get preferences
-PATCH  /api/notifications/preferences      # Update preferences
-GET    /api/notifications/push/public-key  # VAPID public key + enabled flag
-POST   /api/notifications/push/subscribe   # Register a Web Push subscription
-POST   /api/notifications/push/unsubscribe # Remove a Web Push subscription
-```
-
-**Admin (post-v0.3, separate `adminAccessToken` auth)**:
-
-```
-POST   /api/admin/auth/login                   # Admin login (sets admin cookies)
-POST   /api/admin/auth/refresh                 # Refresh admin tokens
-POST   /api/admin/auth/logout                  # Admin logout
-GET    /api/admin/auth/me                      # Current admin
-GET    /api/admin/users                        # List users
-PATCH  /api/admin/users/:id/suspend            # Suspend user
-PATCH  /api/admin/users/:id/unsuspend          # Unsuspend user
-DELETE /api/admin/users/:id                    # Delete user
-GET    /api/admin/subscriptions/catalog        # Plan catalog
-GET    /api/admin/subscriptions                # List subscriptions
-GET    /api/admin/subscriptions/:id            # Inspect subscription
-PATCH  /api/admin/subscriptions/:id            # Update plan/status
-PUT    /api/admin/subscriptions/:id/features   # Set per-user feature overrides
-PATCH  /api/admin/profile/email                # Update admin email
-PATCH  /api/admin/profile/password             # Change admin password
-```
-
 **Logs**:
 
 ```
@@ -1873,14 +1269,13 @@ GET    /api/logs                  # List AI logs
 GET    /api/logs/:id              # Get specific AI log
 ```
 
-**Scheduler (cron trigger endpoints, CRON_SECRET-guarded)**:
+**Scheduler (cron trigger endpoints)**:
 
 ```
 POST   /api/scheduler/morning-briefing
 POST   /api/scheduler/evening-reflection
 POST   /api/scheduler/time-trigger
 POST   /api/scheduler/pattern-detection
-POST   /api/scheduler/weekly-summary       # Sunday 22:00 UTC (v0.3)
 ```
 
 **Streaming Protocol** (NDJSON over chunked HTTP):
@@ -1944,8 +1339,6 @@ Event format: newline-delimited JSON
 - Relative cross-package imports were replaced with workspace package alias usage (`@ai/ai-core`).
 - Embeddings are no longer pure stubs: Ollama and OpenAI providers are implemented with retries and guarded fallbacks.
 - Search is no longer a stub-only boundary: provider interface plus `NewsApiProvider` is in place.
-- **v0.3 — Insight & Reflection Layer delivered**: weekly aggregation persisted as `WeeklyInsight`, automatic narrative ingest as `EPISODIC` reflection memory, expanded pattern detection (procrastination + time-of-day productivity peaks), goal alignment via the new `TASK_LINK_GOAL` action, and TruthLens v2 routing inside INFO mode with structured perspectives + confidence label.
-- **post-v0.3 — Platform subsystems delivered** (see [Platform Subsystems](#platform-subsystems-post-v03)): Stripe-backed subscriptions with FREE/PRO plans and feature gating (`FeatureAccessService` + `UserFeatureOverride`), an idempotent Stripe webhook + billing ledger (`PaymentRecord`/`SubscriptionEvent`), a separately-authenticated admin back-office, and an in-app notification + Web Push (VAPID) system driven by the daily engine.
 
 ---
 
@@ -1979,13 +1372,12 @@ Event format: newline-delimited JSON
 4. **Plugins** - Third-party integrations (Calendar, Email, etc.)
 5. **Multi-language** - i18n support
 6. **Team Features** - Shared goals, collaborative tasks
-7. **Advanced RAG** - Beyond v0.3 episodic reflections — hierarchical memory and richer cross-week reasoning
+7. **Advanced RAG** - Hierarchical memory, episodic memory
 8. **Autonomous Actions** - Low-risk actions auto-executed
 9. **Custom LLM Fine-tuning** - Train on user's patterns
-10. **Insight Trends** - Multi-week aggregations and monthly narratives layered on top of `WeeklyInsight`
 
 ---
 
-**Document Version**: 0.3 (+ post-v0.3 platform subsystems: billing, admin, notifications)  
-**Last Updated**: 2026-06-12  
+**Document Version**: 0.2  
+**Last Updated**: 2026-04-30  
 **Maintainer**: MIRA Development Team
