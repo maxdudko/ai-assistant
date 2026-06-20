@@ -7,19 +7,35 @@ import { useRouter, usePathname } from 'next/navigation';
 
 import { authApi } from '@/lib/api/auth';
 import { useAuth } from '@/lib/api/AuthContext';
+import NotificationBell from '@/components/common/notifications/notification-bell';
 
-// Navigation items for left sidebar (excluding Home, Profile, Logout)
+// Navigation items for left sidebar
 const navItems = [
+  { href: '/me', label: 'Dashboard', icon: DashboardIcon },
   { href: '/me/chat', label: 'Chat', icon: ChatIcon },
   { href: '/me/conversations', label: 'Conversations', icon: ConversationsIcon },
   { href: '/me/tasks', label: 'Tasks', icon: TasksIcon },
   { href: '/me/goals', label: 'Goals', icon: GoalsIcon },
+  { href: '/me/insights', label: 'Insights', icon: InsightsIcon },
   { href: '/me/info-digests', label: 'Info Digests', icon: InfoDigestsIcon },
   { href: '/me/memory', label: 'Memory', icon: MemoryIcon },
   { href: '/me/logs', label: 'Logs', icon: LogsIcon },
 ];
 
 // Icon components
+function DashboardIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+      />
+    </svg>
+  );
+}
+
 function ChatIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -72,6 +88,45 @@ function GoalsIcon({ className }: { className?: string }) {
   );
 }
 
+function InsightsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 17l5-5 4 4 8-8m0 0v6m0-6h-6"
+      />
+    </svg>
+  );
+}
+
+function SubscriptionIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+      />
+    </svg>
+  );
+}
+
+function ProfileIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z"
+      />
+    </svg>
+  );
+}
+
 function InfoDigestsIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -111,14 +166,14 @@ function LogsIcon({ className }: { className?: string }) {
   );
 }
 
-function BellIcon({ className }: { className?: string }) {
+function LogoutIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth={2}
-        d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-6 0v-1m6-10V5a3 3 0 00-6 0v1a3 3 0 006 0z"
       />
     </svg>
   );
@@ -151,6 +206,10 @@ const TopNavbar: FC = () => {
   const { user } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+
+  const profileLinkClass = `flex gap-2 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700 transition-colors ${pathname === '/me/profile' ? 'text-indigo-400' : 'text-neutral-400 group-hover:text-neutral-200'}`;
+  const subscriptionLinkClass = `flex gap-2 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700 transition-colors ${pathname === '/me/subscription' ? 'text-indigo-400' : 'text-neutral-400 group-hover:text-neutral-200'}`;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -182,26 +241,18 @@ const TopNavbar: FC = () => {
         <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
           <span className="text-white font-bold text-lg">AI</span>
         </div>
-        <span className="hidden md:block text-xl font-semibold text-neutral-100">AI Assistant</span>
+        <span className="hidden md:block text-xl font-semibold text-neutral-100">Assistant</span>
       </Link>
 
       {/* Right side: Notifications and User */}
       <div className="flex items-center gap-3">
-        {/* Notification Button */}
-        <button
-          className="p-2 rounded-lg hover:bg-neutral-800 transition-colors relative"
-          aria-label="Notifications"
-        >
-          <BellIcon className="w-5 h-5 text-neutral-300" />
-          {/* Notification badge - uncomment if needed */}
-          {/* <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span> */}
-        </button>
+        <NotificationBell />
 
         {/* User Avatar Dropdown */}
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center gap-2 p-1 rounded-full hover:bg-neutral-800 transition-colors"
+            className="flex items-center gap-10 p-1 rounded-full hover:bg-neutral-800 transition-colors hover:cursor-pointer"
             aria-label="User menu"
           >
             <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white font-medium text-sm">
@@ -216,14 +267,26 @@ const TopNavbar: FC = () => {
               <Link
                 href="/me/profile"
                 onClick={() => setDropdownOpen(false)}
-                className="block px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700 transition-colors"
+                className={profileLinkClass}
               >
+                <ProfileIcon className="w-5 h-5 shrink-0" />
                 Profile
+              </Link>
+              <Link
+                href="/me/subscription"
+                onClick={() => setDropdownOpen(false)}
+                className={subscriptionLinkClass}
+              >
+                <SubscriptionIcon className="w-5 h-5 shrink-0" />
+                Subscription
               </Link>
               <button
                 onClick={handleLogout}
-                className="block w-full text-left px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700 transition-colors cursor-pointer"
+                className="flex gap-2 w-full text-left px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700 transition-colors cursor-pointer"
               >
+                <LogoutIcon
+                  className={`w-5 h-5 flex-shrink-0 text-neutral-400 group-hover:text-neutral-200`}
+                />
                 Logout
               </button>
             </div>
@@ -265,7 +328,7 @@ const LeftSidebar: FC = () => {
       <nav className="flex flex-col gap-1 p-2 md:p-4 h-full">
         {navItems.map(item => {
           const Icon = item.icon;
-          const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+          const isActive = pathname === item.href;
 
           return (
             <div key={item.href} className="relative group">

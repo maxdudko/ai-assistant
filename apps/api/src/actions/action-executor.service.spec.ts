@@ -153,4 +153,53 @@ describe('ActionExecutorService', () => {
       }),
     );
   });
+
+  it('links a task to a goal and produces a reversible undo payload', async () => {
+    const { service, tasksService } = createService() as any;
+    service.prisma.task.findFirst.mockResolvedValueOnce({
+      id: 'task-link-1',
+      goalId: null,
+    });
+    service.prisma.goal = {
+      findFirst: jest.fn().mockResolvedValueOnce({ id: 'goal-1' }),
+    };
+
+    const outcome = await service.execute('user-1', {
+      id: 'action-link-1',
+      type: 'TASK_LINK_GOAL',
+      payload: {
+        taskId: 'task-link-1',
+        goalId: 'goal-1',
+      },
+      confidence: 0.8,
+      requiresConfirmation: true,
+    });
+
+    expect(tasksService.update).toHaveBeenCalledWith('user-1', 'task-link-1', {
+      goalId: 'goal-1',
+    });
+    expect(outcome.reversible).toBe(true);
+    expect(outcome.undoPayload).toEqual(
+      expect.objectContaining({
+        type: 'TASK_LINK_GOAL',
+        taskId: 'task-link-1',
+        previousGoalId: null,
+      }),
+    );
+  });
+
+  it('undo of TASK_LINK_GOAL restores the previous goal id', async () => {
+    const { service, tasksService } = createService() as any;
+
+    await expect(
+      service.undo('user-1', 'TASK_LINK_GOAL', {
+        taskId: 'task-link-2',
+        previousGoalId: 'goal-old',
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(tasksService.update).toHaveBeenCalledWith('user-1', 'task-link-2', {
+      goalId: 'goal-old',
+    });
+  });
 });

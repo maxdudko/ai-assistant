@@ -106,6 +106,16 @@ export default [
     },
   },
 
+  // Service worker globals (self, caches, clients)
+  {
+    files: ['**/sw.js'],
+    languageOptions: {
+      globals: {
+        ...globals.serviceworker,
+      },
+    },
+  },
+
   // ──────────────
   // WEB-specific rules (Next.js / React)
   // ──────────────

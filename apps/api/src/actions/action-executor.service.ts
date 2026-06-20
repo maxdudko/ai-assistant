@@ -82,6 +82,37 @@ export class ActionExecutorService {
         );
         break;
 
+      case 'TASK_LINK_GOAL': {
+        const taskId = this.getRequiredString(action.payload, ['task_id', 'taskId']);
+        const goalId = this.getOptionalString(action.payload, ['goal_id', 'goalId']);
+        const previous = await this.prisma.task.findFirst({
+          where: { id: taskId, userId },
+          select: { id: true, goalId: true },
+        });
+        if (!previous) {
+          throw new BadRequestException('Task not found');
+        }
+        if (goalId) {
+          const goal = await this.prisma.goal.findFirst({
+            where: { id: goalId, userId },
+            select: { id: true },
+          });
+          if (!goal) {
+            throw new BadRequestException('Goal not found for current user');
+          }
+        }
+        await this.tasksService.update(userId, taskId, { goalId: goalId ?? null });
+        outcome = {
+          reversible: true,
+          undoPayload: {
+            type: 'TASK_LINK_GOAL',
+            taskId: previous.id,
+            previousGoalId: previous.goalId ?? null,
+          },
+        };
+        break;
+      }
+
       case 'DAY_START':
         await this.daysService.startDay(userId, this.getOptionalString(action.payload, ['date']));
         break;
@@ -147,7 +178,18 @@ export class ActionExecutorService {
       return;
     }
 
+    if (actionType === 'TASK_LINK_GOAL') {
+      await this.undoLinkGoal(userId, undoPayload);
+      return;
+    }
+
     throw new BadRequestException(`Action type ${actionType} does not support undo`);
+  }
+
+  private async undoLinkGoal(userId: string, payload: Record<string, unknown>): Promise<void> {
+    const taskId = this.getRequiredString(payload, ['taskId']);
+    const previousGoalId = this.getOptionalString(payload, ['previousGoalId']);
+    await this.tasksService.update(userId, taskId, { goalId: previousGoalId ?? null });
   }
 
   private getRequiredString(payload: Record<string, unknown>, keys: string[]): string {

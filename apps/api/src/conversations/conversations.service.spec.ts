@@ -78,6 +78,9 @@ describe('ConversationsService', () => {
       task: {
         findMany: jest.fn(),
       },
+      goal: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
     };
 
     const mockAi = {

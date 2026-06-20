@@ -4,6 +4,7 @@ export type ActionType =
   | 'TASK_SET_PRIORITY'
   | 'TASK_SET_DUE_DATE'
   | 'TASK_COMPLETE'
+  | 'TASK_LINK_GOAL'
   | 'DAY_START'
   | 'DAY_END'
   | 'SUGGEST_DIGEST_SUBSCRIPTION'
