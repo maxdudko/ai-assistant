@@ -5,7 +5,7 @@
  * mode instructions, and relevant memories
  */
 
-import type { ConversationContext, GoalContext, TaskContext } from '../types/index.js';
+import type { ConversationContext, TaskContext } from '../types/index.js';
 import { ConversationMode } from '../types/index.js';
 
 import { getModePrompt } from './mode.prompts.js';
@@ -79,16 +79,6 @@ Response style:
 
     const backlogTasks = formatTaskList(context.backlogTasks);
     prompt += `Backlog tasks:\n${backlogTasks}\n\n`;
-
-    const activeGoals = formatGoalList(context.activeGoals);
-    prompt += `Active goals:\n${activeGoals}\n\n`;
-    if (context.activeGoals && context.activeGoals.length > 0) {
-      prompt += `Goal alignment guidance:\n`;
-      prompt += `- When the user creates or commits to a task, gently consider whether it advances one of their active goals.\n`;
-      prompt += `- If alignment is uncertain, ask one short question like "Does this bring you closer to <goal name>?"\n`;
-      prompt += `- If alignment is clear and a task is unlinked, propose a TASK_LINK_GOAL action with payload { taskId, goalId } and confidence 0.6-0.85.\n`;
-      prompt += `- Never link a task to a goal silently. The user must confirm.\n\n`;
-    }
   }
 
   if (context.mode === ConversationMode.REFLECTION) {
@@ -165,21 +155,6 @@ function formatTaskList(tasks?: TaskContext[]): string {
       const priority = task.priority ? ` (${task.priority})` : '';
       const deadline = task.deadline ? ` due ${task.deadline}` : '';
       return `- [${status === 'DONE' ? 'x' : ' '}] ${task.name}${priority}${deadline}`;
-    })
-    .join('\n');
-}
-
-function formatGoalList(goals?: GoalContext[]): string {
-  if (!goals || goals.length === 0) {
-    return '- (none)';
-  }
-  return goals
-    .map(goal => {
-      const type = goal.type ? ` ${goal.type.toUpperCase()}` : '';
-      const priority = goal.priority ? ` ${goal.priority}` : '';
-      const progress =
-        typeof goal.progressPct === 'number' ? ` (${goal.progressPct}% complete)` : '';
-      return `- [${goal.id}]${type}${priority} ${goal.name}${progress}`;
     })
     .join('\n');
 }

@@ -1,6 +1,6 @@
 {
   "name": "@ai/shared-types",
-  "version": "0.3.0",
+  "version": "0.1.0",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -12,14 +12,6 @@
     "./actions": {
       "types": "./src/actions/index.ts",
       "import": "./src/actions/index.ts"
-    },
-    "./features": {
-      "types": "./src/features/index.ts",
-      "import": "./src/features/index.ts"
-    },
-    "./subscriptions": {
-      "types": "./src/subscriptions/index.ts",
-      "import": "./src/subscriptions/index.ts"
     }
   }
 }

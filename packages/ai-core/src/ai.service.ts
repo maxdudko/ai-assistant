@@ -15,14 +15,13 @@ import type {
 } from './types/index.js';
 import { ConversationMode } from './types/index.js';
 import type { LlmProvider } from './providers/index.js';
-import { buildMemoryExtractionPrompt, buildSystemPrompt } from './prompts/index.js';
+import { buildSystemPrompt } from './prompts/index.js';
 import { messagesToLlmFormat } from './prompts/message.formatter.js';
 import { extractMemoryCandidates } from './memory/index.js';
 
 export interface AiServiceConfig {
   provider: LlmProvider;
   enableStubFallback?: boolean;
-  enableMemoryExtraction?: boolean;
 }
 
 /**
@@ -55,12 +54,10 @@ function generateStubResponse(
 export class AiService {
   private readonly provider: LlmProvider;
   private readonly enableStubFallback: boolean;
-  private readonly memoryExtractionEnabled: boolean;
 
   constructor(config: AiServiceConfig) {
     this.provider = config.provider;
     this.enableStubFallback = config.enableStubFallback ?? true;
-    this.memoryExtractionEnabled = config.enableMemoryExtraction ?? true;
   }
 
   /**
@@ -89,7 +86,26 @@ export class AiService {
 
       // Call LLM provider
       const llmResponse = await this.provider.generate(llmRequest);
-      return this.buildAiResponseFromContent(message, context, llmResponse.content);
+      const parsedResponse = parseStructuredResponse(llmResponse.content);
+
+      // Extract memory candidates or use structured payload if provided
+      const derivedCandidates = extractMemoryCandidates(
+        message,
+        parsedResponse.text,
+        context.mode,
+        context.memories,
+      );
+      const memoryCandidates =
+        parsedResponse.memoryCandidates && parsedResponse.memoryCandidates.length > 0
+          ? parsedResponse.memoryCandidates
+          : derivedCandidates;
+
+      return {
+        content: parsedResponse.text,
+        actionCandidates: parsedResponse.actions.length > 0 ? parsedResponse.actions : undefined,
+        memoryCandidates: memoryCandidates.length > 0 ? memoryCandidates : undefined,
+        summary: parsedResponse.summary,
+      };
     } catch (error) {
       // Log error (caller should handle logging with their logger)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -131,11 +147,7 @@ export class AiService {
 
       if (!this.provider.generateStream) {
         const llmResponse = await this.provider.generate(llmRequest);
-        const aiResponse = await this.buildAiResponseFromContent(
-          message,
-          context,
-          llmResponse.content,
-        );
+        const aiResponse = this.buildAiResponseFromContent(message, context, llmResponse.content);
         for (const char of aiResponse.content) {
           await onToken(char);
         }
@@ -146,7 +158,7 @@ export class AiService {
       for await (const token of this.provider.generateStream(llmRequest)) {
         content += token;
       }
-      const aiResponse = await this.buildAiResponseFromContent(message, context, content);
+      const aiResponse = this.buildAiResponseFromContent(message, context, content);
       for (const char of aiResponse.content) {
         await onToken(char);
       }
@@ -202,7 +214,7 @@ export class AiService {
     message: string,
     context: ConversationContext,
     rawContent: string,
-  ): Promise<AiResponse> {
+  ): AiResponse {
     const parsedResponse = parseStructuredResponse(rawContent);
     const derivedCandidates = extractMemoryCandidates(
       message,
@@ -210,97 +222,18 @@ export class AiService {
       context.mode,
       context.memories,
     );
-    const structuredCandidates = parsedResponse.memoryCandidates ?? [];
-
-    return this.extractMemoryPayloadWithRetry(message, parsedResponse.text, context)
-      .then(extractedPayload => {
-        const memoryCandidates =
-          extractedPayload?.memoryCandidates.length && this.memoryExtractionEnabled
-            ? extractedPayload.memoryCandidates
-            : structuredCandidates.length > 0
-              ? structuredCandidates
-              : derivedCandidates;
-
-        return {
-          content: parsedResponse.text,
-          actionCandidates: parsedResponse.actions.length > 0 ? parsedResponse.actions : undefined,
-          memoryCandidates: memoryCandidates.length > 0 ? memoryCandidates : undefined,
-          summary: parsedResponse.summary ?? extractedPayload?.summary,
-        };
-      })
-      .catch(() => ({
-        content: parsedResponse.text,
-        actionCandidates: parsedResponse.actions.length > 0 ? parsedResponse.actions : undefined,
-        memoryCandidates:
-          structuredCandidates.length > 0 ? structuredCandidates : derivedCandidates,
-        summary: parsedResponse.summary,
-      }));
-  }
-
-  private async extractMemoryPayloadWithRetry(
-    userMessage: string,
-    assistantText: string,
-    context: ConversationContext,
-  ): Promise<MemoryExtractionPayload | null> {
-    if (!this.memoryExtractionEnabled || context.mode !== ConversationMode.REFLECTION) {
-      return null;
-    }
-
-    const extractionRequest = this.buildMemoryExtractionRequest(
-      userMessage,
-      assistantText,
-      context,
-    );
-    const firstTry = await this.provider.generate(extractionRequest);
-    const firstValidation = parseAndValidateMemoryExtractionPayload(firstTry.content);
-    if (firstValidation.payload) {
-      return firstValidation.payload;
-    }
-
-    const retryRequest = this.buildMemoryExtractionRequest(
-      userMessage,
-      assistantText,
-      context,
-      firstValidation.errors,
-    );
-    const secondTry = await this.provider.generate(retryRequest);
-    return parseAndValidateMemoryExtractionPayload(secondTry.content).payload;
-  }
-
-  private buildMemoryExtractionRequest(
-    userMessage: string,
-    assistantText: string,
-    context: ConversationContext,
-    validationErrors?: string[],
-  ): LlmRequest {
-    const payload = {
-      userProfile: context.userProfile ?? null,
-      day: context.day ?? null,
-      tasksToday: context.tasksToday ?? [],
-      keyMessages: context.keyMessages ?? [],
-      latestUserMessage: userMessage,
-      assistantText,
-    };
-
-    const instruction =
-      validationErrors && validationErrors.length > 0
-        ? `${JSON.stringify(payload)}\n\nYour previous output was invalid for these reasons:\n${validationErrors
-            .map(error => `- ${error}`)
-            .join('\n')}`
-        : JSON.stringify(payload);
+    const memoryCandidates =
+      parsedResponse.memoryCandidates && parsedResponse.memoryCandidates.length > 0
+        ? parsedResponse.memoryCandidates
+        : derivedCandidates;
 
     return {
-      systemPrompt: buildMemoryExtractionPrompt(),
-      messages: [{ role: 'USER', content: instruction }],
-      temperature: 0.1,
-      maxTokens: 700,
+      content: parsedResponse.text,
+      actionCandidates: parsedResponse.actions.length > 0 ? parsedResponse.actions : undefined,
+      memoryCandidates: memoryCandidates.length > 0 ? memoryCandidates : undefined,
+      summary: parsedResponse.summary,
     };
   }
-}
-
-interface MemoryExtractionPayload {
-  summary: string;
-  memoryCandidates: MemoryCandidate[];
 }
 
 const ACTION_TYPES = new Set<ActionType>([
@@ -309,7 +242,6 @@ const ACTION_TYPES = new Set<ActionType>([
   'TASK_SET_PRIORITY',
   'TASK_SET_DUE_DATE',
   'TASK_COMPLETE',
-  'TASK_LINK_GOAL',
   'DAY_START',
   'DAY_END',
   'SUGGEST_DIGEST_SUBSCRIPTION',
@@ -527,112 +459,5 @@ function normalizeMemoryCandidate(candidate: unknown): MemoryCandidate | null {
     tags,
     confidence,
     layer,
-  };
-}
-
-function parseAndValidateMemoryExtractionPayload(content: string): {
-  payload: MemoryExtractionPayload | null;
-  errors: string[];
-} {
-  const parsed = parseJsonPayload<{
-    summary?: unknown;
-    memoryCandidates?: unknown;
-  }>(content);
-  if (!parsed) {
-    return {
-      payload: null,
-      errors: ['Response is not valid JSON object.'],
-    };
-  }
-
-  const errors: string[] = [];
-  const summary =
-    typeof parsed.summary === 'string' ? parsed.summary.trim().slice(0, 280) : undefined;
-  if (!summary) {
-    errors.push('summary must be a non-empty string.');
-  }
-
-  if (!Array.isArray(parsed.memoryCandidates)) {
-    errors.push('memoryCandidates must be an array.');
-    return {
-      payload: null,
-      errors,
-    };
-  }
-
-  if (parsed.memoryCandidates.length > 3) {
-    errors.push('memoryCandidates must include at most 3 items.');
-  }
-
-  const memoryCandidates = parsed.memoryCandidates
-    .map(candidate => normalizeMemoryExtractorCandidate(candidate))
-    .filter((candidate): candidate is MemoryCandidate => candidate !== null);
-
-  if (memoryCandidates.length !== parsed.memoryCandidates.length) {
-    errors.push('Each memory candidate must match the required schema.');
-  }
-
-  if (errors.length > 0 || !summary) {
-    return {
-      payload: null,
-      errors,
-    };
-  }
-
-  return {
-    payload: {
-      summary,
-      memoryCandidates,
-    },
-    errors: [],
-  };
-}
-
-function normalizeMemoryExtractorCandidate(candidate: unknown): MemoryCandidate | null {
-  if (!candidate || typeof candidate !== 'object') {
-    return null;
-  }
-
-  const record = candidate as Record<string, unknown>;
-  const content = typeof record.content === 'string' ? record.content.trim() : '';
-  if (content.length < 8 || content.length > 500) {
-    return null;
-  }
-
-  if (record.type !== 'REFLECTION') {
-    return null;
-  }
-
-  if (record.layer !== 'EPISODIC') {
-    return null;
-  }
-
-  if (!Array.isArray(record.tags) || record.tags.length < 1 || record.tags.length > 8) {
-    return null;
-  }
-  const tags = record.tags
-    .filter((tag): tag is string => typeof tag === 'string')
-    .map(tag => tag.toLowerCase().trim())
-    .filter(tag => /^[a-z0-9-]{2,24}$/.test(tag));
-  if (tags.length < 1 || tags.length > 8) {
-    return null;
-  }
-
-  const importanceRaw = typeof record.importance === 'number' ? record.importance : NaN;
-  if (!Number.isInteger(importanceRaw) || importanceRaw < 1 || importanceRaw > 10) {
-    return null;
-  }
-  const confidenceRaw = typeof record.confidence === 'number' ? record.confidence : NaN;
-  if (!Number.isFinite(confidenceRaw) || confidenceRaw < 0 || confidenceRaw > 1) {
-    return null;
-  }
-
-  return {
-    content,
-    type: 'REFLECTION',
-    layer: 'EPISODIC',
-    importance: importanceRaw,
-    tags: Array.from(new Set(tags)),
-    confidence: confidenceRaw,
   };
 }

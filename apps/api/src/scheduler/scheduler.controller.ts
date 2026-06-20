@@ -52,14 +52,6 @@ export class SchedulerController {
     return this.scheduler.runPatternDetection();
   }
 
-  @Post('weekly-summary')
-  @HttpCode(200)
-  async triggerWeeklySummary(@Req() req: Request) {
-    this.validateCronSecret(req);
-    this.logger.log('Weekly summary triggered via HTTP');
-    return this.scheduler.runWeeklySummary();
-  }
-
   private validateCronSecret(req: Request): void {
     const secret = process.env.CRON_SECRET;
     if (!secret) return; // Skip validation if not configured (local dev)

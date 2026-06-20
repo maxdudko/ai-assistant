@@ -37,10 +37,6 @@
     {
       "path": "/api/scheduler/pattern-detection",
       "schedule": "30 0 * * *"
-    },
-    {
-      "path": "/api/scheduler/weekly-summary",
-      "schedule": "0 22 * * 0"
     }
   ]
 }

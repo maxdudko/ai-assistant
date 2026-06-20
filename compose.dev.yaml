@@ -2,8 +2,6 @@ services:
   api:
     image: ai-assistant-api
     working_dir: /app
-    env_file:
-      - apps/api/.env
     command:
       - sh
       - -c
@@ -31,11 +29,14 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      ollama:
+        condition: service_healthy
+      ollama-models-pull:
+        condition: service_completed_successfully
 
   # Embeddings + optional local LLM (host :11434). Models pulled before api starts.
   ollama:
     image: ollama/ollama:latest
-    profiles: ['ollama']
     ports:
       - '11434:11434'
     volumes:
@@ -50,7 +51,6 @@ services:
   # One-shot: embedding + chat models for api (matches OLLAMA_* env). Idempotent.
   ollama-models-pull:
     image: ollama/ollama:latest
-    profiles: ['ollama']
     depends_on:
       ollama:
         condition: service_healthy

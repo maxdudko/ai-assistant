@@ -10,7 +10,6 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class AuthService {
@@ -20,7 +19,6 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
-    private subscriptions: SubscriptionsService,
   ) {}
 
   async register(email: string, password: string) {
@@ -47,8 +45,6 @@ export class AuthService {
       include: { profile: true },
     });
 
-    await this.subscriptions.getOrCreateForUser(user.id);
-
     return user;
   }
 
@@ -65,10 +61,6 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
-    }
-
-    if (user.suspendedAt) {
-      throw new UnauthorizedException('Account suspended');
     }
 
     return user;

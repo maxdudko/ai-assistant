@@ -2,25 +2,16 @@
 
 import type { FC } from 'react';
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
 
 import DigestSubscriptionModal from './digest-subscription-modal';
 
 import type { DigestSubscriptionDto } from '@/lib/api/digest';
 import { getDigestSubscriptions, unsubscribeDigest } from '@/lib/api/digest';
-import { getSubscriptionMe } from '@/lib/api/subscriptions';
 import Container from '@/components/common/container';
 import Button from '@/components/common/button';
-import { queryKeys } from '@/lib/query-keys';
 
 const DigestSubscriptionsList: FC = () => {
-  const { data: subscriptionMe } = useQuery({
-    queryKey: queryKeys.subscriptionMe,
-    queryFn: getSubscriptionMe,
-  });
-  const maxSubscriptions =
-    subscriptionMe?.plans.find(plan => plan.plan === subscriptionMe.subscription.plan)?.limits
-      .maxDigestTopics ?? 2;
+  const maxSubscriptions = 2;
   const [subscriptions, setSubscriptions] = useState<DigestSubscriptionDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +52,7 @@ const DigestSubscriptionsList: FC = () => {
 
   const handleCreateNew = () => {
     if (subscriptions.length >= maxSubscriptions) {
-      setError(`Your plan supports up to ${maxSubscriptions} digest topics.`);
+      setError('MVP allows up to 2 digest topics.');
       return;
     }
     setSelectedSubscription(null);
@@ -106,7 +97,7 @@ const DigestSubscriptionsList: FC = () => {
     newSubscriptionButtonLabel = 'Creating...';
   }
   if (limitReached) {
-    newSubscriptionButtonLabel = `Limit reached (${maxSubscriptions} topics)`;
+    newSubscriptionButtonLabel = 'Limit reached (2 topics)';
   }
 
   if (loading) {
@@ -141,7 +132,7 @@ const DigestSubscriptionsList: FC = () => {
           content={newSubscriptionButtonLabel}
         />
       </div>
-      <p className="mb-3 text-xs text-neutral-500">Plan limit: up to {maxSubscriptions} topics.</p>
+      <p className="mb-3 text-xs text-neutral-500">MVP limit: up to {maxSubscriptions} topics.</p>
 
       {error && (
         <div className="mb-4 rounded bg-red-600/20 border border-red-600/50 px-4 py-2 text-sm text-red-400">

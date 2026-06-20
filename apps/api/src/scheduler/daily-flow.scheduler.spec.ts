@@ -30,29 +30,17 @@ describe('DailyFlowScheduler', () => {
     const dailyEngine = {
       handleEvent: jest.fn().mockResolvedValue({ actions: 0 }),
     } as any;
-    const weeklyInsight = {
-      runForAllUsers: jest
-        .fn()
-        .mockResolvedValue({ processed: 0, generated: 0, skipped: 0, failed: 0 }),
-    } as any;
     const eventResolver = {
       resolve: jest.fn().mockReturnValue({ type: 'TIME_TRIGGER' }),
     } as unknown as DailySchedulerEventResolver;
 
-    const scheduler = new DailyFlowScheduler(
-      prisma,
-      patternDetection,
-      dailyEngine,
-      weeklyInsight,
-      eventResolver,
-    );
+    const scheduler = new DailyFlowScheduler(prisma, patternDetection, dailyEngine, eventResolver);
 
     return {
       scheduler,
       prisma,
       dailyEngine,
       eventResolver,
-      weeklyInsight,
     };
   }
 

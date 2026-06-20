@@ -52,14 +52,6 @@ export interface TaskContext {
   deadline?: string | null;
 }
 
-export interface GoalContext {
-  id: string;
-  name: string;
-  type?: string;
-  priority?: string;
-  progressPct?: number;
-}
-
 export interface ConversationContext {
   mode: ConversationMode;
   userProfile?: UserProfile;
@@ -69,7 +61,6 @@ export interface ConversationContext {
   tasksToday?: TaskContext[];
   backlogTasks?: TaskContext[];
   keyMessages?: string[];
-  activeGoals?: GoalContext[];
 }
 
 export type MemoryType = 'FACTUAL' | 'REFLECTION';

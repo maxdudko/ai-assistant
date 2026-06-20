@@ -1,12 +1,5 @@
 import { apiFetch } from './client';
-import type {
-  DayDto,
-  DayIntelligenceDto,
-  DaySummaryDto,
-  MorningBriefingDto,
-  WeeklyInsightDto,
-  WeeklyInsightListResponse,
-} from './types';
+import type { DayDto, DayIntelligenceDto, DaySummaryDto, MorningBriefingDto } from './types';
 
 export async function getToday(): Promise<DayDto> {
   return apiFetch<DayDto>('/api/day/today');
@@ -34,24 +27,4 @@ export async function getMorningBriefing(): Promise<MorningBriefingDto> {
 
 export async function getDayIntelligence(): Promise<DayIntelligenceDto> {
   return apiFetch<DayIntelligenceDto>('/api/day/intelligence');
-}
-
-export async function getLatestWeeklyInsight(): Promise<WeeklyInsightDto | null> {
-  return apiFetch<WeeklyInsightDto | null>('/api/day/weekly-insight/latest');
-}
-
-export async function listWeeklyInsights(
-  options: { limit?: number; offset?: number } = {},
-): Promise<WeeklyInsightListResponse> {
-  const params = new URLSearchParams();
-  if (options.limit !== undefined) params.set('limit', String(options.limit));
-  if (options.offset !== undefined) params.set('offset', String(options.offset));
-  const qs = params.toString();
-  return apiFetch<WeeklyInsightListResponse>(`/api/day/weekly-insight${qs ? `?${qs}` : ''}`);
-}
-
-export async function generateWeeklyInsight(): Promise<WeeklyInsightDto | null> {
-  return apiFetch<WeeklyInsightDto | null>('/api/day/weekly-insight/generate', {
-    method: 'POST',
-  });
 }
