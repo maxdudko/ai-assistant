@@ -1,6 +1,6 @@
 # MIRA — Personal AI Assistant
 
-**Current release:** **v0.3 (Beta) — Insight & Reflection Layer**
+**Current release:** **v0.3 — Insight & Reflection Layer**
 
 **MIRA** is a personal AI-powered assistant designed to help individuals manage their daily life, reduce cognitive load, and think more clearly in an information-saturated world.
 
@@ -714,7 +714,7 @@ ADMIN_EMAIL="admin@example.com" ADMIN_PASSWORD="your-strong-password" pnpm --fil
 
 ## 📜 License
 
-To be defined.
+MIT
 
 ---
 
