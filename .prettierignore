@@ -3,4 +3,5 @@ dist
 build
 coverage
 .next
+next-env.d.ts
 pnpm-lock.yaml
