@@ -3,6 +3,6 @@
   "collection": "@nestjs/schematics",
   "sourceRoot": "apps/api/src",
   "compilerOptions": {
-    "deleteOutDir": true
+    "deleteOutDir": false
   }
 }

@@ -10,7 +10,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier . --check",
     "format:fix": "prettier . --write",
-    "docker:up": "docker compose -f compose.dev.yaml up --build",
+    "docker:up": "docker compose -f compose.dev.yaml up",
     "docker:down": "docker compose -f compose.dev.yaml down -v",
     "docker:ollama-pull": "docker compose -f compose.dev.yaml exec ollama ollama pull nomic-embed-text && docker compose -f compose.dev.yaml exec ollama ollama pull gemma3:1b"
   },

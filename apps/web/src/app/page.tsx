@@ -1,4 +1,5 @@
 import Button from '@/components/common/button';
+import ContactLinks from '@/components/common/contact-links';
 import Container from '@/components/common/container';
 
 export default function Home() {
@@ -248,11 +249,8 @@ export default function Home() {
         </section>
 
         <section className="space-y-3 border-t border-[#6366F133] pt-8 text-center">
-          <h3 className="text-xl font-semibold text-neutral-50 md:text-2xl">Contact</h3>
-          <p className="mx-auto max-w-2xl text-neutral-400">
-            Built by engineers who were tired of broken productivity systems. Let&apos;s build a
-            better way to work.
-          </p>
+          <h3 className="text-xl font-semibold text-neutral-50 md:text-2xl">Contact Links</h3>
+          <ContactLinks />
         </section>
       </Container>
     </main>
