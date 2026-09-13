@@ -1,4 +1,5 @@
 import path from 'node:path';
+
 import type { NextConfig } from 'next';
 
 const usePolling = process.env.WATCHPACK_POLLING === 'true';
