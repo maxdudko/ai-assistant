@@ -10,7 +10,11 @@
     "PMA_API_LOG_FILE",
     "PMA_API_LOG_TO_FILE",
     "PMA_API_LOG_FILE_DIR",
-    "PMA_API_LOG_FILE_NAME"
+    "PMA_API_LOG_FILE_NAME",
+    "WATCHPACK_POLLING",
+    "CHOKIDAR_USEPOLLING",
+    "CHOKIDAR_INTERVAL",
+    "TSC_WATCHFILE"
   ],
   "tasks": {
     "dev": {

@@ -1,3 +1,10 @@
+# Bind-mounts source into api/web so Next and Nest hot-reload without rebuilding images.
+# Rebuild only when Dockerfiles or package dependencies change:
+#   docker compose -f compose.dev.yaml up --build
+#
+# After a dependency change, recreate anonymous node_modules volumes:
+#   docker compose -f compose.dev.yaml down && docker compose -f compose.dev.yaml up --build
+
 services:
   api:
     image: ai-assistant-api
@@ -18,11 +25,20 @@ services:
       EMBEDDING_DIM: '3072'
       # File logging: use PMA_API_LOG_FILE (not LOG_FILE_DIR/NAME) so nothing treats env as a cd target.
       PMA_API_LOG_FILE: /app/logs/api.log
+      # File events often do not propagate into containers; poll so nest --watch sees host edits.
+      CHOKIDAR_USEPOLLING: 'true'
+      CHOKIDAR_INTERVAL: '1000'
+      TSC_WATCHFILE: UsePollingWithTimeoutPoll
     volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/api/node_modules
+      - /app/apps/web/node_modules
+      - /app/packages/ai-core/node_modules
+      - /app/packages/shared-types/node_modules
+      - /app/apps/api/dist
+      - /app/packages/ai-core/dist
       - ./logs:/app/logs
-    # Live code from host: add these lines under volumes (keep ./logs mount):
-    #   - .:/app
-    #   - /app/node_modules
     build:
       context: .
       dockerfile: infra/docker/api.dev.Dockerfile
@@ -65,11 +81,21 @@ services:
   web:
     image: ai-assistant-web
     working_dir: /app
-    command: pnpm turbo dev --filter=@ai/web
-    # Live code from host: uncomment both lines (second line keeps image node_modules).
-    # volumes:
-    #   - .:/app
-    #   - /app/node_modules
+    # --webpack so WATCHPACK_POLLING applies (Turbopack ignores watchpack).
+    command: pnpm turbo dev --filter=@ai/web -- --webpack --hostname 0.0.0.0
+    environment:
+      # File events often do not propagate into containers; poll so Next Fast Refresh sees host edits.
+      WATCHPACK_POLLING: 'true'
+      CHOKIDAR_USEPOLLING: 'true'
+      CHOKIDAR_INTERVAL: '1000'
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/api/node_modules
+      - /app/apps/web/node_modules
+      - /app/packages/ai-core/node_modules
+      - /app/packages/shared-types/node_modules
+      - /app/apps/web/.next
     build:
       context: .
       dockerfile: infra/docker/web.dev.Dockerfile
